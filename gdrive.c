@@ -141,14 +141,32 @@ int gdrive_auth(Gdrive_Info* pInfo)
         }
         int refreshSuccess = _gdrive_refresh_auth_token(pInfo->pInternalInfo, 
                                                         downloadBuffer,
+                                                        GDRIVE_GRANTTYPE_REFRESH,
+                                                        pInfo->pInternalInfo->refreshToken,
                                                         0, GDRIVE_RETRY_LIMIT
         );
         _gdrive_download_buffer_free(downloadBuffer);
         
         if (refreshSuccess == 0)
         {
-            // Refresh succeeded, no need to do anything else.
-            return 0;
+            // Refresh succeeded, but we don't know what scopes were previously
+            // granted.  Check to make sure we have the required scopes.  If so,
+            // then we don't need to do anything else and can return success.
+            Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(200);
+            if (pBuf == NULL)
+            {
+                // Memory error
+                return -1;
+            }
+            int success = _gdrive_check_scopes(pBuf, pInfo, 
+                                               0, GDRIVE_RETRY_LIMIT
+            );
+            _gdrive_download_buffer_free(pBuf);
+            if (success == 0)
+            {
+                // Refresh succeeded with correct scopes, return success.
+                return 0;
+            }
         }
     }
     
@@ -157,11 +175,14 @@ int gdrive_auth(Gdrive_Info* pInfo)
     if (!pInfo->settings.userInteractionAllowed)
     {
         // Need to get new authorization, but not allowed to interact with the
-        // user.  Return failure.
+        // user.  Return error.
         return -1;
     }
     
-    return _gdrive_prompt_for_auth(pInfo->pInternalInfo);
+    // If we've gotten this far, then we need to interact with the user, and
+    // we're allowed to do so.  Prompt for authorization, and return whatever
+    // success or failure the prompt returns.
+    return _gdrive_prompt_for_auth(pInfo);
 }
 
 
@@ -309,7 +330,7 @@ int _gdrive_read_auth_file(const char* filename, Gdrive_Info_Internal* pInfo)
         buffer[bytesRead>=0 ? bytesRead : 0] = '\0';
         int returnVal = 0;
         
-        gdrive_json_object* pObj = gdrive_json_from_str(buffer);
+        gdrive_json_object* pObj = gdrive_json_from_string(buffer);
         if (pObj == NULL)
         {
             // Couldn't convert the file contents to a JSON object, prepare to
@@ -501,67 +522,183 @@ void _gdrive_download_buffer_free(Gdrive_Download_Buffer* pBuf)
     free(pBuf);
 }
 
-char* _gdrive_postdata_assemble(int n, ...)
+char* _gdrive_postdata_assemble(CURL* curlHandle, int n, ...)
 {
-    // Go through the argument list twice.  The first time through, just add up
-    // the lengths of the arguments.  Actually do the string copying on the
-    // second pass.
+    char* result = NULL;
     
-    va_list args;
+    if (n == 0)
+    {
+        // No arguments, nothing to do.
+        return NULL;
+    }
+    
+    // Array to hold the URL-encoded strings
+    char** encodedStrings = malloc(2 * n * sizeof(char*));
+    if (encodedStrings == NULL)
+    {
+        // Memory error
+        return NULL;
+    }
+    
+    // Bytes needed to store the result.
     size_t length = 0;
     
-    // First pass.
+    // URL-encode each of the arguments.
+    va_list args;
     va_start(args, n);
-    for (int i = 0; i < n * 2; i++) // Two arguments for each field/value pair
+    for (int i = 0; i < 2 * n; i++)
     {
-        const char* arg = va_arg(args, char*);
+        const char* arg = va_arg(args, const char*);
+        encodedStrings[i] = curl_easy_escape(curlHandle, arg, 0);
         
-        // We always need exactly one more char than the string length, 
-        // regardless of whether the current argument is a field name (needs an
-        // '=' character), a value earlier than the last one (needs an '&'
-        // character), or the last value (needs the terminating null).
-        length += strlen(arg) + 1;
+        // Need strlen() + 1 bytes.  The extra byte could be '=' (after a field
+        // name), '&' (after all but the last value), or terminating null (after
+        // the final value), but it's always one extra character.
+        length += strlen(encodedStrings[i]) + 1;
     }
-    va_end(args);
     
-    // Second pass
-    char* result = malloc(length);
-    result[0] = '\0';
+    result = malloc(length);
     if (result == NULL)
     {
-        // Memory allocation error
-        return result;
+        // Memory error.  Cleanup and return NULL.
+        for (int i = 0; i < 2 * n; i++)
+        {
+            curl_free(encodedStrings[i]);
+        }
+        free(encodedStrings);
+        return NULL;
     }
-    va_start(args, n);
+    
+    // Start with an empty string, then add the URL-encoded field names and 
+    // values.
+    result[0] = '\0';
     for (int i = 0; i < n; i++)
     {
-        const char* field = va_arg(args, char*);
-        strcat(result, field);
-        strcat(result, "=");
+        // Add the field name and "=".
+        strcpy(result, encodedStrings[2 * i]);
+        strcpy(result, "=");
         
-        const char* value = va_arg(args, char*);
-        strcat(result, value);
+        // Add the value and (if applicable) "&".
+        strcpy(result, encodedStrings[2 * i + 1]);
         if (i < n - 1)
         {
-            // Needed for all but the last value
-            strcat(result, "&");
+            strcpy(result, "&");
         }
     }
-    va_end(args);
+    
+    // Clean up the encoded strings
+    for (int i = 0; i < 2 * n; i++)
+    {
+        curl_free(encodedStrings[i]);
+    }
+    free(encodedStrings);
+    
+    return result;
+}
+
+char* _gdrive_assemble_query_string(CURL* curlHandle, 
+                                    const char* url, 
+                                    int n, 
+                                    ...
+)
+{
+    // It would be nice to just reuse _gdrive_postdata_assemble(), then strcat()
+    // the result onto the url string, but I don't know how to do that with
+    // varargs.
+    
+    
+    char* result = NULL;
+    
+    if (n == 0)
+    {
+        // No arguments, just copy the original url.
+        result = malloc(strlen(url) + 1);
+        if (result != NULL)
+        {
+            strcpy(result, url);
+        }
+        return result;
+    }
+    
+    // Array to hold the URL-encoded strings
+    char** encodedStrings = malloc(2 * n * sizeof(char*));
+    if (encodedStrings == NULL)
+    {
+        // Memory error
+        return NULL;
+    }
+    
+    // Bytes needed to store the result.  Start with the length of the original
+    // URL string, plus the '?' (not including the terminating null)
+    size_t length = strlen(url) + 1;
+    
+    // URL-encode each of the arguments.
+    va_list args;
+    va_start(args, n);
+    for (int i = 0; i < 2 * n; i++)
+    {
+        const char* arg = va_arg(args, const char*);
+        encodedStrings[i] = curl_easy_escape(curlHandle, arg, 0);
+        
+        // Need strlen() + 1 bytes.  The extra byte could be '=' (after a field
+        // name), '&' (after all but the last value), or terminating null (after
+        // the final value), but it's always one extra character.
+        length += strlen(encodedStrings[i]) + 1;
+    }
+    
+    result = malloc(length);
+    if (result == NULL)
+    {
+        // Memory error
+        for (int i = 0; i < 2 * n; i++)
+        {
+            curl_free(encodedStrings[i]);
+        }
+        free(encodedStrings);
+        return NULL;
+    }
+    
+    // Copy the original URL and append "?".
+    strcpy(result, url);
+    strcat(result, "?");
+    
+    for (int i = 0; i < n; i++)
+    {
+        // Add the field name and "=".
+        strcpy(result, encodedStrings[2 * i]);
+        strcpy(result, "=");
+        
+        // Add the value and (if applicable) "&".
+        strcpy(result, encodedStrings[2 * i + 1]);
+        if (i < n - 1)
+        {
+            strcpy(result, "&");
+        }
+    }
+    
+    // Clean up the encoded strings
+    for (int i = 0; i < 2 * n; i++)
+    {
+        curl_free(encodedStrings[i]);
+    }
+    free(encodedStrings);
     
     return result;
 }
 
 int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo, 
                                Gdrive_Download_Buffer* pBuf,
+                               const char* grantType,
+                               const char* tokenString,
                                int tryNum,
                                int maxTries
 )
 {
-    if (pInternalInfo->refreshToken == NULL && 
-            pInternalInfo->refreshToken[0] == '\0')
+    // Make sure we were given a valid grant_type
+    if (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) && 
+            strcmp(grantType, GDRIVE_GRANTTYPE_REFRESH))
     {
-        // No existing refresh token
+        // Invalid grant_type
         return -1;
     }
     
@@ -574,14 +711,24 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
         }
     }
     
-    // Set up the POST data
+    // Set up the POST data.  It feels like there should be a cleaner (more
+    // uniform) way to do this.
     char* postData;
-    postData = _gdrive_postdata_assemble(
-            4, 
-            GDRIVE_FIELDNAME_REFRESHTOKEN, pInternalInfo->refreshToken,
+    postData = (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) == 0) ?
+        _gdrive_postdata_assemble(
+            pInternalInfo->curlHandle, 5, 
+            GDRIVE_FIELDNAME_CODE, tokenString,
+            "redirect_uri", GDRIVE_REDIRECT_URI,
             GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID,
             GDRIVE_FIELDNAME_CLIENTSECRET, GDRIVE_CLIENT_SECRET,
-            GDRIVE_FIELDNAME_GRANTTYPE, "refresh_token"
+            GDRIVE_FIELDNAME_GRANTTYPE, grantType
+            ) : 
+        _gdrive_postdata_assemble(
+            pInternalInfo->curlHandle, 4, 
+            GDRIVE_FIELDNAME_REFRESHTOKEN, tokenString,
+            GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID,
+            GDRIVE_FIELDNAME_CLIENTSECRET, GDRIVE_CLIENT_SECRET,
+            GDRIVE_FIELDNAME_GRANTTYPE, grantType
             );
     if (postData == NULL)
     {
@@ -592,7 +739,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
     CURL* curlHandle = pInternalInfo->curlHandle;
     
     curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
-    curl_easy_setopt(curlHandle, CURLOPT_URL, GDRIVE_URL_AUTH_REFRESH);
+    curl_easy_setopt(curlHandle, CURLOPT_URL, GDRIVE_URL_AUTH_TOKEN);
     curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData);
 
     long httpResult = 0;
@@ -627,7 +774,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
                 return -1;
             }
             reason[0] = '\0';
-            gdrive_json_object* pRoot = gdrive_json_from_str(pBuf->data);
+            gdrive_json_object* pRoot = gdrive_json_from_string(pBuf->data);
             if (pRoot != NULL)
             {
                 gdrive_json_object* pErrors = 
@@ -659,22 +806,10 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
             }
             else
             {
-                // Number of milliseconds to wait before retrying
-                long waitTime;
-                int i;
-                // Start with 2^tryNum seconds.
-                for (i = 0, waitTime = 1000; i < tryNum; i++, waitTime *= 2)
-                    ;   // No loop body.
-                // Randomly add up to 1 second more.
-                waitTime += (rand() % 1000) + 1;
-                // Convert waitTime to a timespec for use with nanosleep.
-                struct timespec waitTimeNano;
-                waitTimeNano.tv_sec = waitTime / 1000;  // Integer division
-                waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
-                nanosleep(&waitTimeNano, NULL);
-
+                _gdrive_exponential_wait(tryNum);
                 // Retry, and return whatever the next try returns.
-                returnVal = _gdrive_refresh_auth_token(pInternalInfo, pBuf, 
+                returnVal = _gdrive_refresh_auth_token(pInternalInfo, pBuf,
+                                                       grantType, tokenString, 
                                                        tryNum + 1, maxTries);
             }
         }
@@ -689,9 +824,10 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
     else
     {
         // If we've gotten this far, we have a good HTTP response.  Now we just
-        // need to pull the access_token string out of it.
+        // need to pull the access_token string (and refresh token string if
+        // present) out of it.
         
-        gdrive_json_object* pObj = gdrive_json_from_str(pBuf->data);
+        gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
         if (pObj == NULL)
         {
             // Couldn't locate JSON-formatted information in the server's 
@@ -702,7 +838,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
                                               GDRIVE_FIELDNAME_ACCESSTOKEN, 
                                               NULL, 0
         );
-        if (length == INT32_MIN || length == 0)
+        if (length == INT64_MIN || length == 0)
         {
             // We shouldn't get an empty string or non-string.  Treat this
             // as an error.
@@ -733,13 +869,263 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
                     );
             // Prepare to return success
             returnVal = 0;
+            
+            // We won't always have a refresh token.  Specifically, if we were
+            // already sending a refresh token, we may not get one back.
+            // Don't treat the lack of a refresh token as an error or a failure,
+            // and don't clobber the existing refresh token if we don't get a
+            // new one.
+            length = gdrive_json_get_string(pObj, 
+                                            GDRIVE_FIELDNAME_REFRESHTOKEN, 
+                                            NULL, 0
+                    );
+            if (length < 0 && length != INT64_MIN)
+            {
+                // We were given a refresh token
+                length *= -1;
+                // Make sure we have enough space to store the access_token string.
+                if (pInternalInfo->refreshTokenLength < length)
+                {
+                    pInternalInfo->refreshToken = 
+                            realloc(pInternalInfo->refreshToken, length);
+                    pInternalInfo->refreshTokenLength = length;
+                    if (pInternalInfo->refreshToken == NULL)
+                    {
+                        // Memory allocation error
+                        pInternalInfo->refreshTokenLength = 0;
+                        gdrive_json_kill(pObj);
+                        return -1;
+                    }
+                }
+                gdrive_json_get_string(pObj, 
+                                       GDRIVE_FIELDNAME_REFRESHTOKEN,
+                                       pInternalInfo->refreshToken,
+                                       pInternalInfo->refreshTokenLength
+                        );
+            }
         }
         gdrive_json_kill(pObj);
     }
     return returnVal;
 }
 
-int _gdrive_prompt_for_auth(Gdrive_Info_Internal* pInternalInfo)
+int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
 {
+    // List the possible access mode flags and related scopes (both arrays must
+    // keep the same order).
+    /*const int accessModes[] = {GDRIVE_ACCESS_META,
+                               GDRIVE_ACCESS_READ,
+                               GDRIVE_ACCESS_WRITE,
+                               GDRIVE_ACCESS_APPS
+                               };*/
+    /*const char* const scopes[] = {GDRIVE_SCOPE_META, 
+                                  GDRIVE_SCOPE_READ, 
+                                  GDRIVE_SCOPE_WRITE,
+                                  GDRIVE_SCOPE_APPS 
+                                  };*/
+    // Number of elements in each of the accessModes and scopes arrays.
+    //const int numModes = 4;
     
+    
+    char scopeStr[GDRIVE_SCOPE_MAXLENGTH] = "";
+    bool scopeFound = false;
+    
+    // Check each of the possible permissions, and add the appropriate scope
+    // if necessary.
+    for (int i = 0; i < GDRIVE_ACCESS_MODE_COUNT; i++)
+    {
+        if (pInfo->settings.mode & GDRIVE_ACCESS_MODES[i])
+        {
+            // If this isn't the first scope, add a space to separate scopes.
+            if (scopeFound)
+            {
+                strcat(scopeStr, " ");
+            }
+            // Add the current scope.
+            strcat(scopeStr, GDRIVE_ACCESS_SCOPES[i]);
+            scopeFound = true;
+        }
+    }
+    
+    char* authUrl = _gdrive_assemble_query_string(pInfo->pInternalInfo->curlHandle,
+                                                  GDRIVE_URL_AUTH_NEWAUTH,
+                                                  5,
+                                                  "response_type", "code",
+                                                  "client_id", GDRIVE_CLIENT_ID,
+                                                  "redirect_uri", 
+                                                  GDRIVE_REDIRECT_URI,
+                                                  "scope", scopeStr,
+                                                  "include_granted_scopes", 
+                                                  "true"
+    );
+    
+    if (authUrl == NULL)
+    {
+        // Return error
+        return -1;
+    }
+    
+    // Prompt the user.
+    puts("This program needs access to a Google Drive account.\n"
+            "To grant access, open the following URL in your web\n"
+            "browser.  Copy the code that you receive, and paste it\n"
+            "below.\n\n"
+            "The URL to open is:");
+    puts(authUrl);
+    puts("\nPlease paste the authorization code here:");
+    free(authUrl);
+    
+    // The authorization code should never be this long, so it's fine to ignore
+    // longer input
+    char authCode[1024] = "";
+    fgets(authCode, 1024, stdin);
+    
+    if (authCode[0] == '\0')
+    {
+        // No code entered, return failure.
+        return 1;
+    }
+    
+    // Exchange the authorization code for access and refresh tokens.
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(200);
+    int returnVal = _gdrive_refresh_auth_token(pInfo->pInternalInfo, 
+                                               pBuf, GDRIVE_GRANTTYPE_CODE, 
+                                               authCode, 0, GDRIVE_RETRY_LIMIT);
+    _gdrive_download_buffer_free(pBuf);
+    
+    return returnVal;
+}
+
+int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
+                         Gdrive_Info* pInfo, 
+                         int tryNum, 
+                         int maxTries
+)
+{
+    Gdrive_Info_Internal* pInternalInfo = pInfo->pInternalInfo;
+    CURL* curlHandle = pInternalInfo->curlHandle;
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    char* url = _gdrive_assemble_query_string(curlHandle, 
+                                              GDRIVE_URL_AUTH_TOKENINFO, 
+                                              1, 
+                                              GDRIVE_FIELDNAME_ACCESSTOKEN,
+                                              pInternalInfo->accessToken
+    );
+    if (url == NULL)
+    {
+        // Memory error
+        return -1;
+    }
+    
+    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
+    
+    long httpResp = 0;
+    CURLcode curlCode = _gdrive_download_to_buffer(curlHandle, pBuf, &httpResp);
+    if (curlCode != CURLE_OK)
+    {
+        // Download error
+        _gdrive_download_buffer_free(pBuf);
+        return -1;
+    }
+    else if (httpResp >= 500 && tryNum < maxTries)
+    {
+        // Retry on 5xx server errors.  Use exponential backoff to determine
+        // how long to wait before retrying.
+        _gdrive_exponential_wait(tryNum);
+        return _gdrive_check_scopes(pBuf, pInfo, tryNum + 1, maxTries);
+    }
+    else if (httpResp >= 400)
+    {
+        // Either a 4xx error that shouldn't be retried, or a 5xx error after
+        // the maximum number of attempts has already been made.  Return error.
+        return -1;
+    }
+    
+    // If we've made it this far, we have an ok response.  Extract the scopes
+    // from the JSON array that should have been returned, and compare them
+    // with the expected scopes.
+    
+    gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    if (pObj == NULL)
+    {
+        // Couldn't interpret the response as JSON, return error.
+        return -1;
+    }
+    long length =  gdrive_json_get_string(pObj, "scope", NULL, 0);
+    if (length == INT64_MIN || length == 0)
+    {
+        // Key not found, or value not a string.  Return error.
+        gdrive_json_kill(pObj);
+        return -1;
+    }
+    length *= -1;
+    char* grantedScopes = malloc(length);
+    gdrive_json_get_string(pObj, "scope", grantedScopes, length);
+    gdrive_json_kill(pObj);
+    
+    
+    // Go through each of the space-separated scopes in the string, comparing
+    // each one to the GDRIVE_ACCESS_SCOPES array.
+    long startIndex = 0;
+    long endIndex = 0;
+    int matchedScopes = 0;
+    while (grantedScopes[startIndex] != '\0')
+    {
+        // After the loop executes, startIndex indicates the start of a scope,
+        // and endIndex indicates the (null or space) terminator character.
+        for (
+                endIndex = startIndex; 
+                !(grantedScopes[endIndex] == ' ' || grantedScopes[endIndex] == '\0');
+                endIndex++
+                );  // No loop body
+        
+        // Compare the current scope to each of the entries in 
+        // GDRIVE_ACCESS_SCOPES.  If there's a match, set the appropriate bit(s)
+        // in matchedScopes.
+        for (int i = 0; i < GDRIVE_ACCESS_MODE_COUNT; i++)
+        {
+            if (strncmp(GDRIVE_ACCESS_SCOPES[i], 
+                        grantedScopes + startIndex, 
+                        endIndex - startIndex
+                    ) == 0)
+            {
+                matchedScopes = matchedScopes | GDRIVE_ACCESS_MODES[i];
+            }
+        }
+        
+        startIndex = endIndex + 1;
+    }
+    free(grantedScopes);
+    
+    // Compare the access mode we encountered to the one we expected, one piece
+    // at a time.  If we don't find what we need, return failure.
+    for (int i = 0; i < GDRIVE_ACCESS_MODE_COUNT; i++)
+    {
+        if ((pInfo->settings.mode & GDRIVE_ACCESS_MODES[i]) && 
+                !(matchedScopes & GDRIVE_ACCESS_MODES[i])
+                )
+        {
+            return -1;
+        }
+    }
+    
+    // If we made it through to here, return success.
+    return 0;
+}
+
+void _gdrive_exponential_wait(int tryNum)
+{
+    // Number of milliseconds to wait before retrying
+    long waitTime;
+    int i;
+    // Start with 2^tryNum seconds.
+    for (i = 0, waitTime = 1000; i < tryNum; i++, waitTime *= 2)
+        ;   // No loop body.
+    // Randomly add up to 1 second more.
+    waitTime += (rand() % 1000) + 1;
+    // Convert waitTime to a timespec for use with nanosleep.
+    struct timespec waitTimeNano;
+    waitTimeNano.tv_sec = waitTime / 1000;  // Integer division
+    waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
+    nanosleep(&waitTimeNano, NULL);
 }
