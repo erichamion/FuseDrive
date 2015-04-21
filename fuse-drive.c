@@ -208,7 +208,7 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
  */
 static void fudr_destroy(void* private_data)
 {
-    
+    gdrive_cleanup((Gdrive_Info*) private_data);
 }
 
 /**
@@ -263,22 +263,47 @@ fuse_file_info* fi)
 
 static int fudr_getattr(const char *path, struct stat *stbuf)
 {
-    int retval = 0;
-    
     memset(stbuf, 0, sizeof(struct stat));
-    if (strcmp(path, "/") == 0) {
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2;
-    } else if (strcmp(path, "/Test") == 0) {
-        struct fuse_context *context = fuse_get_context();
-        struct passwd *pwd = getpwuid(context->uid);
-        stbuf->st_mode = S_IFREG | 0444;
-        stbuf->st_nlink = 1;
-        stbuf->st_size = (pwd == NULL) ? 0 : strlen(pwd->pw_name);
-    } else
-        retval = -ENOENT;
     
-    return retval;
+    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
+    char* fileId = gdrive_filepath_to_id(pGdriveInfo, path);
+    if (fileId == NULL)
+    {
+        // File not found
+        return -ENOENT;
+    }
+    
+    Gdrive_Fileinfo fileinfo;
+    memset(&fileinfo, 0, sizeof(fileinfo));
+    if (gdrive_file_info_from_id(pGdriveInfo, fileId, &fileinfo) != 0)
+    {
+        // An error occurred.
+        free(fileId);
+        return -ENOMEM;
+    }
+    
+    switch(fileinfo.type)
+    {
+    case GDRIVE_FILETYPE_FOLDER:
+        stbuf->st_mode = S_IFDIR | 0555;
+        stbuf->st_nlink = fileinfo.nParents + 1; // Add 1 for "."
+        break;
+        
+    case GDRIVE_FILETYPE_FILE:
+    default:
+        stbuf->st_mode = S_IFREG | 0444;
+        stbuf->st_nlink = fileinfo.nParents;
+    }
+    
+    stbuf->st_uid = geteuid();
+    stbuf->st_gid = getegid();
+    stbuf->st_size = fileinfo.size;
+    stbuf->st_atime = fileinfo.accessTime;
+    stbuf->st_mtime = fileinfo.modificationTime;
+    stbuf->st_ctime = fileinfo.creationTime;
+    
+    free(fileId);
+    return 0;
 }
 
 static int fudr_getxattr(const char* path, const char* name, char* value, size_t size)
@@ -371,14 +396,53 @@ static int fudr_read_buf(const char* path, struct fuse_bufvec **bufp,
 static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 			 off_t offset, struct fuse_file_info *fi)
 {
+    // Suppress warnings for unused function parameters
     (void) offset;
     (void) fi;
     
-    if (strcmp(path, "/") != 0)
+    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
+    
+    char* folderId = gdrive_filepath_to_id(pGdriveInfo, path);
+    if (folderId == NULL)
+    {
         return -ENOENT;
-    filler(buf, ".", NULL, 0);
-    filler(buf, "..", NULL, 0);
-    filler(buf, "Test", NULL, 0);
+    }
+    
+    Gdrive_Fileinfo_Array* pFileArray = gdrive_fileinfo_array_create();
+    if (pFileArray == NULL)
+    {
+        free(folderId);
+        return -ENOMEM;
+    }
+    if (gdrive_folder_list(pGdriveInfo, folderId, pFileArray) == -1)
+    {
+        // An error occurred.
+        free(folderId);
+        gdrive_fileinfo_array_free(pFileArray);
+        return -ENOENT;
+    }
+    
+    //filler(buf, ".", NULL, 0);
+    //filler(buf, "..", NULL, 0);
+    for (int i = 0; i < pFileArray->nItems; i++)
+    {
+        Gdrive_Fileinfo* pCurrentFile = pFileArray->pArray + i;
+        struct stat st = {0};
+        switch (pCurrentFile->type)
+        {
+        case GDRIVE_FILETYPE_FILE:
+            st.st_mode = S_IFREG;
+            break;
+            
+        case GDRIVE_FILETYPE_FOLDER:
+            st.st_mode = S_IFDIR;
+            break;
+        }
+        filler(buf, pCurrentFile->filename, &st, 0);
+    }
+    
+    free(folderId);
+    gdrive_fileinfo_array_free(pFileArray);
     
     return 0;
 }
@@ -455,7 +519,7 @@ static struct fuse_operations fo = {
     .chmod          = NULL, //fudr_chmod,
     .chown          = NULL, //fudr_chown,
     .create         = NULL, //fudr_create,
-    .destroy        = NULL, //fudr_destroy,
+    .destroy        = fudr_destroy,
     .fallocate      = NULL, //fudr_fallocate,
     .fgetattr       = NULL, //fudr_fgetattr,
     .flock          = NULL, //fudr_flock,
@@ -501,8 +565,13 @@ static struct fuse_operations fo = {
  */
 int main(int argc, char** argv) 
 {
-    
-    return fuse_main(argc, argv, &fo, NULL);
+    Gdrive_Info* pGdrive = NULL;
+    if ((gdrive_init(&pGdrive, GDRIVE_ACCESS_META, "/home/me/.fuse-drive/.auth", GDRIVE_INTERACTION_STARTUP)) != 0)
+    {
+        printf("Could not set up a Google Drive connection.");
+        return 1;
+    }
+    return fuse_main(argc, argv, &fo, pGdrive);
 }
 
 #endif	/*__GDRIVE_TEST__*/
