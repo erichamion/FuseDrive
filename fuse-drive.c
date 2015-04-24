@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 
 
 // Temporary includes for testing
@@ -286,21 +287,25 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
     {
     case GDRIVE_FILETYPE_FOLDER:
         stbuf->st_mode = S_IFDIR | 0555;
-        stbuf->st_nlink = fileinfo.nParents + 1; // Add 1 for "."
+        stbuf->st_nlink = fileinfo.nParents + fileinfo.nChildren;
+        // Account for ".".  Also, if the root of the filesystem, account for 
+        // "..", which is outside of the Google Drive filesystem and thus not
+        // included in nParents.
+        stbuf->st_nlink += (strcmp(path, "/") == 0) ? 2 : 1;
         break;
         
     case GDRIVE_FILETYPE_FILE:
     default:
-        stbuf->st_mode = S_IFREG | 0444;
+        stbuf->st_mode = S_IFREG;
         stbuf->st_nlink = fileinfo.nParents;
     }
     
     stbuf->st_uid = geteuid();
     stbuf->st_gid = getegid();
     stbuf->st_size = fileinfo.size;
-    stbuf->st_atime = fileinfo.accessTime;
-    stbuf->st_mtime = fileinfo.modificationTime;
-    stbuf->st_ctime = fileinfo.creationTime;
+    stbuf->st_atime = fileinfo.accessTime.tv_sec;
+    stbuf->st_mtime = fileinfo.modificationTime.tv_sec;
+    stbuf->st_ctime = fileinfo.creationTime.tv_sec;
     
     free(fileId);
     return 0;
@@ -312,7 +317,15 @@ static int fudr_getxattr(const char* path, const char* name, char* value, size_t
 }
 static void* fudr_init(struct fuse_conn_info *conn)
 {
-    return NULL;
+    // Add any desired capabilities.
+    conn->want = conn->want | FUSE_CAP_ATOMIC_O_TRUNC | FUSE_CAP_BIG_WRITES | FUSE_CAP_EXPORT_SUPPORT;
+    // Remove undesired capabilities.
+    conn->want = conn->want & !(FUSE_CAP_ASYNC_READ);
+    
+    // Need to turn off async read here, too.
+    conn->async_read = 0;
+    
+    return fuse_get_context()->private_data;
 }
 static int fudr_ioctl(const char* path, int cmd, void* arg, 
         struct fuse_file_info* fi, unsigned int flags, void* data)
@@ -422,8 +435,8 @@ static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         return -ENOENT;
     }
     
-    //filler(buf, ".", NULL, 0);
-    //filler(buf, "..", NULL, 0);
+    filler(buf, ".", NULL, 0);
+    filler(buf, "..", NULL, 0);
     for (int i = 0; i < pFileArray->nItems; i++)
     {
         Gdrive_Fileinfo* pCurrentFile = pFileArray->pArray + i;
@@ -529,7 +542,7 @@ static struct fuse_operations fo = {
     .ftruncate      = NULL, //fudr_ftruncate,
     .getattr        = fudr_getattr,
     .getxattr       = NULL, //fudr_getxattr,
-    .init           = NULL, //fudr_init,
+    .init           = fudr_init,
     .ioctl          = NULL, //fudr_ioctl,
     .link           = NULL, //fudr_link,
     .listxattr      = NULL, //fudr_listxattr,
