@@ -1005,6 +1005,9 @@ CURLcode _gdrive_download_to_buffer(CURL* curlHandle,
     // Make sure data gets written at the start of the buffer.
     pBuffer->usedSize = 0;
     
+    // Accept compressed responses.
+    curl_easy_setopt(curlHandle, CURLOPT_ACCEPT_ENCODING, "");
+    
     // Do the download.
     curl_easy_setopt(curlHandle, 
                      CURLOPT_WRITEFUNCTION, 
