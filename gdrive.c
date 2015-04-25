@@ -17,11 +17,15 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <math.h>
+#include <ctype.h>
+
+#include <errno.h>
 
 //#include "fuse-drive.h"
+#include "gdrive-json.h"
 #include "gdrive.h"
 #include "gdrive-internal.h"
-#include "gdrive-json.h"
 
 /*
  * gdrive_init():   Initializes the network connection, sets appropriate 
@@ -98,7 +102,15 @@ int gdrive_init_nocurl(Gdrive_Info** ppGdriveInfo,
     }
     
     // If a filename was given, attempt to open the file and read its contents.
-    _gdrive_read_auth_file(authFilename, pInfo->pInternalInfo);
+    if (authFilename != NULL)
+    {
+        pInfo->settings.authFilename = realpath(authFilename, NULL);
+        if (pInfo->settings.authFilename != NULL)
+        {
+            strcpy(pInfo->settings.authFilename, authFilename);
+            _gdrive_read_auth_file(authFilename, pInfo->pInternalInfo);
+        }
+    }
         
     // Authenticate or refresh access
     pInfo->settings.mode = access;
@@ -107,12 +119,45 @@ int gdrive_init_nocurl(Gdrive_Info** ppGdriveInfo,
         // Could not get the required permissions.  Return error.
         return -1;
     }
+    gdrive_save_auth(pInfo);
     // Can we continue prompting for authentication if needed later?
     pInfo->settings.userInteractionAllowed = 
             (interactionMode == GDRIVE_INTERACTION_ALWAYS);
     
     
     return 0;
+}
+
+int gdrive_save_auth(Gdrive_Info* pInfo)
+{
+    if (pInfo->settings.authFilename == NULL || 
+            pInfo->settings.authFilename[0] == '\0')
+    {
+        // Do nothing if there's no filename
+        return -1;
+    }
+    
+    // Create a JSON object, fill it with the necessary details, 
+    // convert to a string, and write to the file.
+    FILE* outFile = fopen(pInfo->settings.authFilename, "w");
+    if (outFile == NULL)
+    {
+        // Couldn't open file for writing.
+        return -1;
+    }
+    
+    gdrive_json_object* pObj = gdrive_json_new();
+    gdrive_json_add_string(pObj, GDRIVE_FIELDNAME_ACCESSTOKEN, 
+                           pInfo->pInternalInfo->accessToken
+            );
+    gdrive_json_add_string(pObj, GDRIVE_FIELDNAME_REFRESHTOKEN, 
+                           pInfo->pInternalInfo->refreshToken
+            );
+    int success = fputs(gdrive_json_to_string(pObj, true), outFile);
+    gdrive_json_kill(pObj);
+    fclose(outFile);
+    
+    return (success >= 0) ? 0 : -1;
 }
 
 int gdrive_auth(Gdrive_Info* pInfo)
@@ -139,11 +184,12 @@ int gdrive_auth(Gdrive_Info* pInfo)
             // Memory error
             return -1;
         }
-        int refreshSuccess = _gdrive_refresh_auth_token(pInfo->pInternalInfo, 
-                                                        downloadBuffer,
-                                                        GDRIVE_GRANTTYPE_REFRESH,
-                                                        pInfo->pInternalInfo->refreshToken,
-                                                        0, GDRIVE_RETRY_LIMIT
+        int refreshSuccess = _gdrive_refresh_auth_token(
+                pInfo->pInternalInfo, 
+                downloadBuffer,
+                GDRIVE_GRANTTYPE_REFRESH,
+                pInfo->pInternalInfo->refreshToken,
+                0, GDRIVE_RETRY_LIMIT
         );
         _gdrive_download_buffer_free(downloadBuffer);
         
@@ -185,6 +231,468 @@ int gdrive_auth(Gdrive_Info* pInfo)
     return _gdrive_prompt_for_auth(pInfo);
 }
 
+int gdrive_file_info_from_id(Gdrive_Info* pInfo, 
+                             const char* fileId, 
+                             Gdrive_Fileinfo** ppFileinfo
+)
+{
+    // Get the information from the cache, or put it in the cache if it isn't
+    // already there.
+    bool alreadyCached = false;
+    *ppFileinfo = _gdrive_cache_get_item(
+            &(pInfo->pInternalInfo->cache.pCacheHead), 
+            fileId,
+            true, 
+            &alreadyCached
+            );
+    if (*ppFileinfo == NULL)
+    {
+        // An error occurred, probably out of memory.
+        return -1;
+    }
+    
+    if (alreadyCached)
+    {
+puts("Loaded from cache, saved a network request.");
+        // Don't need to do anything else.
+        return 0;
+    }
+    
+    // Convenience assignments
+    Gdrive_Fileinfo* pFileinfo = *ppFileinfo;
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    struct curl_slist* pHeaders;
+    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
+    if (pHeaders == NULL)
+    {
+        // Unknown error, possibly memory
+        return -1;
+    }
+    
+    char* queryFields = "title,id,mimeType,fileSize,createdDate,"
+                        "modifiedDate,lastViewedByMeDate,parents(id)";
+    
+    
+    // String to hold the url.  Add 2 to the end to account for the '/' before
+    // the file ID, as well as the terminating null.
+    char* baseUrl = malloc(strlen(GDRIVE_URL_FILES) + strlen(fileId) + 2);
+    if (baseUrl == NULL)
+    {
+        // Memory error.
+        curl_slist_free_all(pHeaders);
+        return -1;
+    }
+    strcpy(baseUrl, GDRIVE_URL_FILES);
+    strcat(baseUrl, "/");
+    strcat(baseUrl, fileId);
+    char* url = _gdrive_assemble_query_string(curlHandle, baseUrl, 1, 
+                                              "fields", queryFields
+    );
+    free(baseUrl);
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
+    if (pBuf == NULL)
+    {
+        // Memory error.
+        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+        curl_slist_free_all(pHeaders);
+        free(url);
+        return -1;
+    }
+    
+    long httpResp = 0;
+    int result = _gdrive_download_to_buffer_with_retry(pInfo, 
+                                                       pBuf, 
+                                                       &httpResp, 
+                                                       true, 
+                                                       0, GDRIVE_RETRY_LIMIT
+    );
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+    curl_slist_free_all(pHeaders);
+    free(url);
+    
+    if (result != 0)
+    {
+        // Download failure
+        _gdrive_download_buffer_free(pBuf);
+        return -1;
+    }
+    // If we're here, we have a good response.  Extract the ID from the 
+    // response.
+    
+    // Convert to a JSON object.
+    gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    _gdrive_download_buffer_free(pBuf);
+    if (pObj == NULL)
+    {
+        // Couldn't convert to JSON object.
+        _gdrive_download_buffer_free(pBuf);
+        return -1;
+    }
+    
+    _gdrive_get_fileinfo_from_json(pObj, pFileinfo);
+    gdrive_json_kill(pObj);
+    
+    // If it's a folder, get the number of children.
+    if (pFileinfo->type == GDRIVE_FILETYPE_FOLDER)
+    {
+        Gdrive_Fileinfo_Array* pFileArray = gdrive_fileinfo_array_create();
+        if (pFileArray == NULL)
+        {
+            // Memory error
+            return -ENOMEM;
+        }
+        if (gdrive_folder_list(pInfo, fileId, pFileArray) != -1)
+        {
+            
+            pFileinfo->nChildren = pFileArray->nItems;
+        }
+        gdrive_fileinfo_array_free(pFileArray);
+    }
+    return 0;
+}
+
+int gdrive_folder_list(Gdrive_Info* pInfo, 
+                       const char* folderId, 
+                       Gdrive_Fileinfo_Array* pArray
+)
+{
+    if (pArray == NULL || pArray->nItems > 0 || pArray->pArray != NULL)
+    {
+        // Invalid argument
+        return -1;
+    }
+    pArray->nItems = -1;
+    
+    // Allow for an initial quote character in addition to the terminating null
+    char* filter = malloc(strlen(folderId) + strlen("' in parents") + 2);
+    if (filter == NULL)
+    {
+        return -1;
+    }
+    strcpy(filter, "'");
+    strcat(filter, folderId);
+    strcat(filter, "' in parents");
+    
+    char* query;
+    query = _gdrive_assemble_query_string(
+                                          pInfo->pInternalInfo->curlHandle, 
+                                          GDRIVE_URL_FILES, 2,
+                                          "q", filter,
+                                          "fields", "items(title,id,mimeType)"
+            );
+    free(filter);
+    if (query == NULL)
+    {
+        // Error, probably memory error.
+        return -1;
+    }
+    
+    struct curl_slist* pHeaders;
+    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
+    if (pHeaders == NULL)
+    {
+        // Unknown error, possibly memory
+        free(query);
+        return -1;
+    }
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(1024);
+    if (pBuf == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        free(query);
+        return -1;
+    }
+    
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    curl_easy_setopt(curlHandle, CURLOPT_URL, query);
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
+    
+    long httpResp = 0;
+    int transfer_result = _gdrive_download_to_buffer_with_retry(
+            pInfo, 
+            pBuf, 
+            &httpResp, 
+            true,
+            0,
+            GDRIVE_RETRY_LIMIT
+    );
+    
+    int returnVal = -1;
+    if (transfer_result == 0 && httpResp < 400)
+    {
+        // Transfer was successful.  Convert result to a JSON object and extract
+        // the file meta-info.
+        gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+        if (pObj != NULL)
+        {
+            returnVal = gdrive_json_array_length(pObj, "items");
+            if (returnVal > 0)
+            {
+                // Create the array of Gdrive_Fileinfo structs and initialize
+                // it to all 0s.
+                pArray->pArray = malloc(returnVal * sizeof(Gdrive_Fileinfo));
+                memset(pArray->pArray, 0, returnVal * sizeof(Gdrive_Fileinfo));
+                if (pArray->pArray != NULL)
+                {
+                    // Extract the file info from each member of the array.
+                    Gdrive_Fileinfo* infoArray = pArray->pArray;
+                    for (int index = 0; index < returnVal; index++)
+                    {
+                        gdrive_json_object* pFile = gdrive_json_array_get(
+                                pObj, 
+                                "items", 
+                                index
+                                );
+                        if (pFile != NULL)
+                        {
+                            _gdrive_get_fileinfo_from_json(pFile, 
+                                                           infoArray + index
+                                    );
+                        }
+                    }
+                }
+                else
+                {
+                    // Memory error.
+                    returnVal = -1;
+                }
+            }
+            // else either failure (return -1) or 0-length array (return 0),
+            // nothing special needs to be done.
+            
+            gdrive_json_kill(pObj);
+        }
+        // else do nothing.  Already prepared to return error.
+    }
+    
+    _gdrive_download_buffer_free(pBuf);
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+    curl_slist_free_all(pHeaders);
+    free(query);
+    
+    pArray->nItems = returnVal;
+    return returnVal;
+}
+
+/*
+ * The path argument should be an absolute path, starting with '/'. Can be 
+ * either a file or a directory (folder).
+ */
+char* gdrive_filepath_to_id(Gdrive_Info* pInfo, const char* path)
+{
+    char* result = NULL;
+    if (path == NULL || (path[0] != '/'))
+    {
+        // Invalid path
+        return NULL;
+    }
+    
+    // Treat an empty string as 
+    
+    // Try to get the ID from the cache.
+    const char* cachedId = _gdrive_fileid_cache_get_item(
+            &(pInfo->pInternalInfo->cache.fileIdCacheHead), 
+            path
+    );
+    if (cachedId != NULL)
+    {
+printf("'%s' found in File ID Cache, no network lookup needed.\n", path);
+        result = malloc(strlen(cachedId) + 1);
+        if (result != NULL)
+        {
+            strcpy(result, cachedId);
+        }
+        return result;
+    }
+    // else ID isn't in the cache yet
+printf("Couldn't find '%s' in File ID Cache.\n", path);
+
+    
+    // Is this the root folder?
+    if (strcmp(path, "/") == 0)
+    {
+        result = _gdrive_get_root_folder_id(pInfo, 0, GDRIVE_RETRY_LIMIT);
+        if (result != NULL)
+        {
+            // Add to the fileId cache.
+            _gdrive_fileid_cache_add_item(
+                &(pInfo->pInternalInfo->cache.fileIdCacheHead), 
+                path, 
+                result
+                );
+        }
+        return result;
+    }
+    
+    // Not in cache, and not the root folder.  Some part of the path may be
+    // cached, and some part MUST be the root folder, so recursion seems like
+    // the easiest solution here.
+    
+    // Find the last '/' character (ignoring any trailing slashes, which we
+    // shouldn't get anyway). Everything before it is the parent, and everything
+    // after is the child.
+    int index;
+    // Ignore trailing slashes
+    for (index = strlen(path) - 1; path[index] == '/'; index--)
+        ;   // No loop body
+    // Find the last '/' before the current index.
+    for (/*No init*/; path[index] != '/'; index--)
+        ;   // No loop body
+    
+    // Find the parent's fileId.
+    
+    // Normally don't include the '/' at the end of the path, EXCEPT if we've
+    // reached the start of the string. We expect to see "/" for the root
+    // directory, not an empty string.
+    int parentLength = (index != 0) ? index : 1;
+    char* parentPath = malloc(parentLength + 1);
+    if (parentPath == NULL)
+    {
+        // Memory error
+        return NULL;
+    }
+    strncpy(parentPath, path, parentLength);
+    parentPath[parentLength] = '\0';
+    char* parentId = gdrive_filepath_to_id(pInfo, parentPath);
+    free(parentPath);
+    if (parentId == NULL)
+    {
+        // An error occurred.
+        return NULL;
+    }
+    // Use the parent's ID to find the child's ID.
+    result = _gdrive_get_child_id_by_name(pInfo, parentId, path + index + 1, 
+                                          0, GDRIVE_RETRY_LIMIT
+            );
+    free(parentId);
+    
+    // Add the ID to the fileId cache.
+    if (result != NULL)
+    {
+        _gdrive_fileid_cache_add_item(
+                &(pInfo->pInternalInfo->cache.fileIdCacheHead), 
+                path, 
+                result
+                );
+printf("Added '%s' to File ID Cache.\n", path);
+    }
+    return result;
+    
+//    // Find the first non-'/' character (normally index 1, but we'll treat
+//    // multiple consecutive slashes as a single path separator.  
+//    // "///path1//path2" would be equivalent to "/path1/path2".)
+//    int startIndex;
+//    for (startIndex = 1; path[startIndex] == '/'; startIndex++)
+//        ;   // No loop body
+//    
+//    // If the path is JUST the root, go ahead and return the root ID already.
+//    if (path[startIndex] == '\0')
+//    {
+//        return nextId;
+//    }
+//    
+//    // Start at index 1, not 0, because we already know the first element.
+//    //int startIndex = 1;
+//    int endIndex;
+//    while (path[startIndex] != '\0')
+//    {
+//        // Find the next '/' or the end of the string
+//        for (
+//                endIndex = startIndex + 1; 
+//                path[endIndex] != '/' && path[endIndex] != '\0'; 
+//                endIndex++
+//                );  // No loop body
+//        
+//        char* pathPart = malloc(endIndex - startIndex + 1);
+//        if (pathPart == NULL)
+//        {
+//            // Memory error
+//            free(lastId);
+//            free(nextId);
+//            return NULL;
+//        }
+//        strncpy(pathPart, path + startIndex, endIndex - startIndex);
+//        pathPart[endIndex - startIndex] = '\0';
+//        
+//        free(lastId);
+//        lastId = nextId;
+//        nextId = _gdrive_get_child_id_by_name(pInfo, 
+//                                              lastId, pathPart, 
+//                                              0, GDRIVE_RETRY_LIMIT
+//                );
+//        if (nextId == NULL)
+//        {
+//            // Some kind of error.  Possibly the file doesn't exist, or several
+//            // other errors could cause this.
+//            free(lastId);
+//            return NULL;
+//        }
+//        
+//        // Skip any consecutive '/' characters before starting the next
+//        // iteration of the while loop.
+//        for (startIndex = endIndex; path[startIndex] == '/'; startIndex++)
+//            ;   // No loop body
+//    }
+//    
+//    free(lastId);
+//    return nextId;
+}
+
+void gdrive_fileinfo_cleanup(Gdrive_Fileinfo* pFileinfo)
+{
+    free(pFileinfo->id);
+    pFileinfo->id = NULL;
+    free(pFileinfo->filename);
+    pFileinfo->filename = NULL;
+    pFileinfo->type = 0;
+    pFileinfo->size = 0;
+    memset(&(pFileinfo->creationTime), 0, sizeof(struct timespec));
+    memset(&(pFileinfo->modificationTime), 0, sizeof(struct timespec));
+    memset(&(pFileinfo->accessTime), 0, sizeof(struct timespec));
+    pFileinfo->nParents = 0;
+    pFileinfo->nChildren = 0;
+    
+}
+
+Gdrive_Fileinfo_Array* gdrive_fileinfo_array_create(void)
+{
+    Gdrive_Fileinfo_Array* pArray = malloc(sizeof(Gdrive_Fileinfo_Array));
+    if (pArray != NULL)
+    {
+        pArray->nItems = 0;
+        pArray->pArray = NULL;
+    }
+    return pArray;
+}
+
+void gdrive_fileinfo_array_free(Gdrive_Fileinfo_Array* pArray)
+{
+    for (int i = 0; i < pArray->nItems; i++)
+    {
+        gdrive_fileinfo_cleanup(pArray->pArray + i);
+    }
+    
+    if (pArray->nItems > 0)
+    {
+        free(pArray->pArray);
+    }
+    
+    // Not really necessary, but doesn't harm anything
+    pArray->nItems = 0;
+    pArray->pArray = NULL;
+    
+    free(pArray);
+}
+
 
 void gdrive_cleanup(Gdrive_Info* pInfo)
 {
@@ -197,6 +705,83 @@ void gdrive_cleanup_nocurl(Gdrive_Info* pInfo)
     _gdrive_info_free(pInfo);
 }
 
+
+int gdrive_rfc3339_to_epoch_timens(const char* rfcTime, 
+                                               struct timespec* pResultTime
+)
+{
+    // Get the time down to seconds. Don't do anything with it yet, because
+    // we still need to confirm the timezone.
+    struct tm epochTime = {0};
+    char* remainder = strptime(rfcTime, "%Y-%m-%dT%H:%M:%S", &epochTime);
+    if (remainder == NULL)
+    {
+        // Conversion failure.  
+        return -1;
+    }
+    
+    // Get the fraction of a second.  The remainder variable points to the next 
+    // character after seconds.  If and only if there are fractional seconds 
+    // (which Google Drive does use but which are optional per the RFC 3339 
+    // specification),  this will be the '.' character.
+    if (*remainder == '.')
+    {
+        // Rather than getting the integer after the decimal and needing to 
+        // count digits or count leading "0" characters, it's easier just to
+        // get a floating point (or double) fraction between 0 and 1, then
+        // multiply by 1000000000 to get nanoseconds.
+        char* start = remainder;
+        pResultTime->tv_nsec = lround(1000000000L * strtod(start, &remainder));
+    }
+    else
+    {
+        // No fractional part.
+        pResultTime->tv_nsec = 0;
+    }
+    
+    // Get the timezone offset from UTC. Google Drive appears to use UTC (offset
+    // is "Z"), but I don't know whether that's guaranteed. If not using UTC,
+    // the offset will start with either '+' or '-'.
+    if (*remainder != '+' && *remainder != '-' && toupper(*remainder) != 'Z')
+    {
+        // Invalid offset.
+        return -1;
+    }
+    if (toupper(*remainder) != 'Z')
+    {
+        // Get the hour portion of the offset.
+        char* start = remainder;
+        long offHour = strtol(start, &remainder, 10);
+        if (remainder != start + 2 || *remainder != ':')
+        {
+            // Invalid offset, not in the form of "+HH:MM" / "-HH:MM"
+            return -1;
+        }
+        
+        // Get the minute portion of the offset
+        start = remainder + 1;
+        long offMinute = strtol(start, &remainder, 10);
+        if (remainder != start + 2)
+        {
+            // Invalid offset, minute isn't a 2-digit number.
+            return -1;
+        }
+        
+        // Subtract the offset from the hour/minute parts of the tm struct.
+        // This may give out-of-range values (e.g., tm_hour could be -2 or 26),
+        // but mktime() is supposed to handle those.
+        epochTime.tm_hour -= offHour;
+        epochTime.tm_min -= offMinute;
+    }
+    
+    // Convert the broken-down time into seconds.
+    pResultTime->tv_sec = mktime(&epochTime);
+    
+    // Failure if mktime returned -1, success otherwise.
+    return pResultTime->tv_sec != (time_t)-1;
+    
+    
+}
 
 
 
@@ -306,10 +891,9 @@ int _gdrive_read_auth_file(const char* filename, Gdrive_Info_Internal* pInfo)
     }
     
     
-    // Make sure the file exists and is a regular file (or if it's a 
-    // symlink, it points to a regular file).
+    // Make sure the file exists and is a regular file.
     struct stat st;
-    if ((lstat(filename, &st) == 0) && (st.st_mode & S_IFREG))
+    if ((stat(filename, &st) == 0) && (st.st_mode & S_IFREG))
     {
         FILE* inFile = fopen(filename, "r");
         if (inFile == NULL)
@@ -339,30 +923,16 @@ int _gdrive_read_auth_file(const char* filename, Gdrive_Info_Internal* pInfo)
         }
         else
         {
-            int tokenLength = -gdrive_json_get_string(pObj, 
-                                                      GDRIVE_FIELDNAME_ACCESSTOKEN, 
-                                                      NULL, 0
+            pInfo->accessToken = _gdrive_new_string_from_json(
+                    pObj, 
+                    GDRIVE_FIELDNAME_ACCESSTOKEN, 
+                    &(pInfo->accessTokenLength)
                     );
-            if (tokenLength > 0)
-            {
-                pInfo->accessToken = malloc(tokenLength);
-                pInfo->accessTokenLength = tokenLength;
-                gdrive_json_get_string(pObj, GDRIVE_FIELDNAME_ACCESSTOKEN, 
-                                       pInfo->accessToken, tokenLength
-                        );
-            }
-            tokenLength = -gdrive_json_get_string(pObj, 
-                                                  GDRIVE_FIELDNAME_REFRESHTOKEN,
-                                                  NULL, 0
+            pInfo->refreshToken = _gdrive_new_string_from_json(
+                    pObj, 
+                    GDRIVE_FIELDNAME_REFRESHTOKEN, 
+                    &(pInfo->refreshTokenLength)
                     );
-            if (tokenLength > 0)
-            {
-                pInfo->refreshToken = malloc(tokenLength);
-                pInfo->refreshTokenLength = tokenLength;
-                gdrive_json_get_string(pObj, GDRIVE_FIELDNAME_REFRESHTOKEN, 
-                                       pInfo->refreshToken, tokenLength
-                        );
-            }
             
             if ((pInfo->accessToken == NULL) || (pInfo->refreshToken == NULL))
             {
@@ -374,9 +944,6 @@ int _gdrive_read_auth_file(const char* filename, Gdrive_Info_Internal* pInfo)
         free(buffer);
         fclose(inFile);
         return returnVal;
-
-
-
 
     }
     else
@@ -403,8 +970,8 @@ void _gdrive_settings_cleanup(Gdrive_Settings* pSettings)
     // DO NOT FREE pSettings!!!!  Only free any internal members that were
     // malloc'ed.
     
-    // For now, do nothing.  We'll add members to this struct later, and likely
-    // some of them will need cleaned up.
+    free(pSettings->authFilename);
+    pSettings->authFilename = NULL;
 }
 
 void _gdrive_info_internal_free(Gdrive_Info_Internal* pInfo)
@@ -431,7 +998,8 @@ void _gdrive_info_internal_free(Gdrive_Info_Internal* pInfo)
 
 CURLcode _gdrive_download_to_buffer(CURL* curlHandle, 
                                     Gdrive_Download_Buffer* pBuffer, 
-                                    long* pHttpResp
+                                    long* pHttpResp,
+                                    bool textMode
 )
 {
     // Make sure data gets written at the start of the buffer.
@@ -440,7 +1008,9 @@ CURLcode _gdrive_download_to_buffer(CURL* curlHandle,
     // Do the download.
     curl_easy_setopt(curlHandle, 
                      CURLOPT_WRITEFUNCTION, 
-                     _gdrive_download_buffer_callback
+                     (textMode ? 
+                         _gdrive_download_buffer_callback_text : 
+                         _gdrive_download_buffer_callback_bin)
             );
     curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, pBuffer);
     CURLcode returnVal = curl_easy_perform(curlHandle);
@@ -451,10 +1021,39 @@ CURLcode _gdrive_download_to_buffer(CURL* curlHandle,
     return returnVal;
 }
 
+size_t _gdrive_download_buffer_callback_text(char *newData, 
+                                             size_t size, 
+                                             size_t nmemb, 
+                                             void *userdata
+)
+{
+    return _gdrive_download_buffer_callback(newData, 
+                                            size, 
+                                            nmemb, 
+                                            userdata, 
+                                            true
+            );
+}
+
+size_t _gdrive_download_buffer_callback_bin(char *newData, 
+                                            size_t size, 
+                                            size_t nmemb, 
+                                            void *userdata
+)
+{
+    return _gdrive_download_buffer_callback(newData, 
+                                            size, 
+                                            nmemb, 
+                                            userdata, 
+                                            false
+            );
+}
+
 size_t _gdrive_download_buffer_callback(char *newData, 
                                         size_t size, 
                                         size_t nmemb, 
-                                        void *userdata
+                                        void *userdata,
+                                        bool textMode
 )
 {
     if (size == 0 || nmemb == 0)
@@ -462,17 +1061,23 @@ size_t _gdrive_download_buffer_callback(char *newData,
         // No data
         return 0;
     }
+    if (textMode != 0)
+    {
+        textMode = 1;
+    }
     
     Gdrive_Download_Buffer* pBuffer = (Gdrive_Download_Buffer*) userdata;
     
-    // Find the length of the data, and allocate more memory if needed.
+    // Find the length of the data, and allocate more memory if needed.  If
+    // textMode is true, include an extra byte to explicitly null terminate
+    // (doesn't hurt anything if it's already null terminated).
     size_t dataSize = size * nmemb;
-    size_t totalSize = dataSize + pBuffer->usedSize;
+    size_t totalSize = dataSize + pBuffer->usedSize + textMode;
     if (totalSize > pBuffer->allocatedSize)
     {
         // Allow extra room to reduce the number of realloc's.
         size_t allocSize = totalSize + dataSize;    
-        pBuffer->data = realloc(pBuffer->data, totalSize);
+        pBuffer->data = realloc(pBuffer->data, allocSize);
         if (pBuffer->data == NULL)
         {
             // Memory allocation error.
@@ -485,6 +1090,10 @@ size_t _gdrive_download_buffer_callback(char *newData,
     // Copy the data
     memcpy(pBuffer->data + pBuffer->usedSize, newData, dataSize);
     pBuffer->usedSize += dataSize;
+    if (textMode)
+    {
+        pBuffer->data[totalSize - 1] = '\0';
+    }
     return dataSize;
 }
 
@@ -575,14 +1184,14 @@ char* _gdrive_postdata_assemble(CURL* curlHandle, int n, ...)
     for (int i = 0; i < n; i++)
     {
         // Add the field name and "=".
-        strcpy(result, encodedStrings[2 * i]);
-        strcpy(result, "=");
+        strcat(result, encodedStrings[2 * i]);
+        strcat(result, "=");
         
         // Add the value and (if applicable) "&".
-        strcpy(result, encodedStrings[2 * i + 1]);
+        strcat(result, encodedStrings[2 * i + 1]);
         if (i < n - 1)
         {
-            strcpy(result, "&");
+            strcat(result, "&");
         }
     }
     
@@ -665,14 +1274,14 @@ char* _gdrive_assemble_query_string(CURL* curlHandle,
     for (int i = 0; i < n; i++)
     {
         // Add the field name and "=".
-        strcpy(result, encodedStrings[2 * i]);
-        strcpy(result, "=");
+        strcat(result, encodedStrings[2 * i]);
+        strcat(result, "=");
         
         // Add the value and (if applicable) "&".
-        strcpy(result, encodedStrings[2 * i + 1]);
+        strcat(result, encodedStrings[2 * i + 1]);
         if (i < n - 1)
         {
-            strcpy(result, "&");
+            strcat(result, "&");
         }
     }
     
@@ -710,7 +1319,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
             return -1;
         }
     }
-    
+
     // Set up the POST data.  It feels like there should be a cleaner (more
     // uniform) way to do this.
     char* postData;
@@ -735,7 +1344,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
         // Memory error
         return -1;
     }
-    
+        
     CURL* curlHandle = pInternalInfo->curlHandle;
     
     curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
@@ -745,10 +1354,12 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
     long httpResult = 0;
     CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
                                                      pBuf, 
-                                                     &httpResult
+                                                     &httpResult,
+                                                     true
             );
     curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, NULL);
     free(postData);
+    
     
     // Prepare to return a non-error failure.  If an error occurs or the
     // refresh succeeds, we'll change this.
@@ -834,73 +1445,34 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
             // response.  Return error.
             return -1;
         }
-        long length = gdrive_json_get_string(pObj, 
-                                              GDRIVE_FIELDNAME_ACCESSTOKEN, 
-                                              NULL, 0
-        );
-        if (length == INT64_MIN || length == 0)
+        returnVal = _gdrive_realloc_string_from_json(
+                pObj, 
+                GDRIVE_FIELDNAME_ACCESSTOKEN,
+                &(pInternalInfo->accessToken),
+                &(pInternalInfo->accessTokenLength)
+                );
+        // Only try to get refresh token if we successfully got the access 
+        // token.
+        if (returnVal == 0)
         {
-            // We shouldn't get an empty string or non-string.  Treat this
-            // as an error.
-            returnVal = -1;
-        }
-        else
-        {
-            length *= -1;
-            // Make sure we have enough space to store the access_token string.
-            if (pInternalInfo->accessTokenLength < length)
-            {
-                pInternalInfo->accessToken = realloc(pInternalInfo->accessToken,
-                                                     length
-                        );
-                pInternalInfo->accessTokenLength = length;
-                if (pInternalInfo->accessToken == NULL)
-                {
-                    // Memory allocation error
-                    pInternalInfo->accessTokenLength = 0;
-                    gdrive_json_kill(pObj);
-                    return -1;
-                }
-            }
-            gdrive_json_get_string(pObj, 
-                                   GDRIVE_FIELDNAME_ACCESSTOKEN,
-                                   pInternalInfo->accessToken,
-                                   pInternalInfo->accessTokenLength
-                    );
-            // Prepare to return success
-            returnVal = 0;
-            
             // We won't always have a refresh token.  Specifically, if we were
             // already sending a refresh token, we may not get one back.
             // Don't treat the lack of a refresh token as an error or a failure,
             // and don't clobber the existing refresh token if we don't get a
             // new one.
-            length = gdrive_json_get_string(pObj, 
+            
+            long length = gdrive_json_get_string(pObj, 
                                             GDRIVE_FIELDNAME_REFRESHTOKEN, 
                                             NULL, 0
                     );
             if (length < 0 && length != INT64_MIN)
             {
-                // We were given a refresh token
-                length *= -1;
-                // Make sure we have enough space to store the access_token string.
-                if (pInternalInfo->refreshTokenLength < length)
-                {
-                    pInternalInfo->refreshToken = 
-                            realloc(pInternalInfo->refreshToken, length);
-                    pInternalInfo->refreshTokenLength = length;
-                    if (pInternalInfo->refreshToken == NULL)
-                    {
-                        // Memory allocation error
-                        pInternalInfo->refreshTokenLength = 0;
-                        gdrive_json_kill(pObj);
-                        return -1;
-                    }
-                }
-                gdrive_json_get_string(pObj, 
-                                       GDRIVE_FIELDNAME_REFRESHTOKEN,
-                                       pInternalInfo->refreshToken,
-                                       pInternalInfo->refreshTokenLength
+                // We were given a refresh token, so store it.
+                _gdrive_realloc_string_from_json(
+                        pObj, 
+                        GDRIVE_FIELDNAME_REFRESHTOKEN,
+                        &(pInternalInfo->refreshToken),
+                        &(pInternalInfo->refreshTokenLength)
                         );
             }
         }
@@ -925,7 +1497,6 @@ int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
                                   };*/
     // Number of elements in each of the accessModes and scopes arrays.
     //const int numModes = 4;
-    
     
     char scopeStr[GDRIVE_SCOPE_MAXLENGTH] = "";
     bool scopeFound = false;
@@ -986,8 +1557,15 @@ int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
         return 1;
     }
     
+
+    
     // Exchange the authorization code for access and refresh tokens.
     Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(200);
+    if (pBuf == NULL)
+    {
+        // Memory error.
+        return -1;
+    }
     int returnVal = _gdrive_refresh_auth_token(pInfo->pInternalInfo, 
                                                pBuf, GDRIVE_GRANTTYPE_CODE, 
                                                authCode, 0, GDRIVE_RETRY_LIMIT);
@@ -1020,7 +1598,11 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
     curl_easy_setopt(curlHandle, CURLOPT_URL, url);
     
     long httpResp = 0;
-    CURLcode curlCode = _gdrive_download_to_buffer(curlHandle, pBuf, &httpResp);
+    CURLcode curlCode = _gdrive_download_to_buffer(curlHandle, 
+                                                   pBuf, 
+                                                   &httpResp,
+                                                   true
+            );
     if (curlCode != CURLE_OK)
     {
         // Download error
@@ -1113,6 +1695,379 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
     return 0;
 }
 
+char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo, int tryNum, int maxTries)
+{
+    struct curl_slist* pHeaders;
+    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
+    if (pHeaders == NULL)
+    {
+        // Unknown error, possibly memory
+        return NULL;
+    }
+    
+    // String to hold the url
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + strlen("/root?fields=id") + 1);
+    if (url == NULL)
+    {
+        // Memory error.
+        curl_slist_free_all(pHeaders);
+        return NULL;
+    }
+    strcpy(url, GDRIVE_URL_FILES);
+    strcat(url, "/root?fields=id");
+    
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
+    if (pBuf == NULL)
+    {
+        // Memory error.
+        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+        curl_slist_free_all(pHeaders);
+        free(url);
+    }
+    
+    long httpResp = 0;
+    CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
+                                                     pBuf, 
+                                                     &httpResp,
+                                                     true
+            );
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+    curl_slist_free_all(pHeaders);
+    
+    if (curlResult != CURLE_OK)
+    {
+        // Download error
+        _gdrive_download_buffer_free(pBuf);
+        free(url);
+        return NULL;
+    }
+    if (httpResp >= 400)
+    {
+        // Handle HTTP error responses.  Normal error handling - 5xx gets 
+        // retried, 403 gets retried if it's due to rate limits, 401 gets
+        // retried after refreshing auth.
+        
+        // See whether we've already used our maximum attempts.
+        if (tryNum == maxTries)
+        {
+            return NULL;
+        }
+        
+        bool retry = false;
+        switch (_gdrive_retry_on_error(pBuf, httpResp))
+        {
+        case GDRIVE_RETRY_RETRY:
+            // Normal retry, use exponential backoff.
+            _gdrive_exponential_wait(tryNum);
+            retry = true;
+            break;
+
+        case GDRIVE_RETRY_RENEWAUTH:
+            // Authentication error, probably expired access token.
+            // Refresh auth and retry (unless auth fails).
+            retry = (gdrive_auth(pInfo) == 0);
+            break;
+            
+        case GDRIVE_RETRY_NORETRY:
+        default:
+            retry = false;
+            break;
+        }
+        
+        // Cleanup before either retrying or returning
+        _gdrive_download_buffer_free(pBuf);
+        free(url);
+        if (retry)
+        {
+            return _gdrive_get_root_folder_id(pInfo, tryNum + 1, maxTries);
+        }
+        else
+        {
+            return NULL;
+        }
+    }
+    
+    // If we're here, we have a good response.  Extract the ID from the 
+    // response.
+    
+    // Convert to a JSON object.
+    gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    if (pObj == NULL)
+    {
+        // Couldn't convert to JSON object.
+        _gdrive_download_buffer_free(pBuf);
+        free(url);
+        return NULL;
+    }
+    
+    char* id = _gdrive_new_string_from_json(pObj, "id", NULL);
+    
+    _gdrive_download_buffer_free(pBuf);
+    free(url);
+    
+    return id;
+}
+
+char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo, 
+                                   const char* parentId, 
+                                   const char* childName, 
+                                   int tryNum, 
+                                   int maxTries
+)
+{
+    struct curl_slist* pHeaders;
+    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
+    if (pHeaders == NULL)
+    {
+        // Unknown error, possibly memory
+        return NULL;
+    }
+    
+    char* filter = malloc(strlen("'' in parents and title = ''") + 
+                          strlen(parentId) + strlen(childName) + 1
+    );
+    if (filter == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        return NULL;
+    }
+    strcpy(filter, "'");
+    strcat(filter, parentId);
+    strcat(filter, "' in parents and title = '");
+    strcat(filter, childName);
+    strcat(filter, "'");
+    
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    char* queryUrl = _gdrive_assemble_query_string(curlHandle, GDRIVE_URL_FILES, 
+                                                   2,
+                                                   "q", filter,
+                                                   "fields", "items(id)"
+            );
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    curl_easy_setopt(curlHandle, CURLOPT_URL, queryUrl);
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
+    if (pBuf == NULL)
+    {
+        // Memory error.
+        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+        curl_slist_free_all(pHeaders);
+        free(queryUrl);
+    }
+    
+    long httpResp = 0;
+    int success = _gdrive_download_to_buffer_with_retry(pInfo, pBuf, &httpResp, 
+                                                        true, 
+                                                        0, GDRIVE_RETRY_LIMIT
+    );
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+    curl_slist_free_all(pHeaders);
+    free(queryUrl);
+    
+    if (success != 0)
+    {
+        // Download error
+        _gdrive_download_buffer_free(pBuf);
+        return NULL;
+    }
+    
+    
+    // If we're here, we have a good response.  Extract the ID from the 
+    // response.
+    
+    // Convert to a JSON object.
+    gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    if (pObj == NULL)
+    {
+        // Couldn't convert to JSON object.
+        _gdrive_download_buffer_free(pBuf);
+        return NULL;
+    }
+    
+    char* id = NULL;
+    gdrive_json_object* pArrayItem = gdrive_json_array_get(pObj, "items", 0);
+    if (pArrayItem != NULL)
+    {
+        id = _gdrive_new_string_from_json(pArrayItem, "id", NULL);
+    }
+    
+    _gdrive_download_buffer_free(pBuf);
+    
+    return id;
+}
+
+struct curl_slist* _gdrive_authbearer_header(
+        Gdrive_Info_Internal* pInternalInfo
+)
+{
+    // First form a string with the required text and the access token.
+    char* header = malloc(strlen("Authorization: Bearer ") + 
+                          strlen(pInternalInfo->accessToken) + 1
+    );
+    if (header == NULL)
+    {
+        // Memory error
+        return NULL;
+    }
+    strcpy(header, "Authorization: Bearer ");
+    strcat(header, pInternalInfo->accessToken);
+    
+    // Copy the string into a curl_slist for use in headers.
+    struct curl_slist* returnVal = NULL;
+    returnVal = curl_slist_append(returnVal, header);
+    return returnVal;
+}
+
+enum Gdrive_Retry_Method _gdrive_retry_on_error(Gdrive_Download_Buffer* pBuf, 
+                                                long httpResp
+)
+{
+    // Most transfers should retry:
+    // A. After HTTP 5xx errors, using exponential backoff
+    // B. After HTTP 403 errors with a reason of "rateLimitExceeded" or 
+    //    "userRateLimitExceeded", using exponential backoff
+    // C. After HTTP 401, after refreshing credentials
+    // If not one of the above cases, should not retry.
+    
+    if (httpResp >= 500)
+    {
+        // Always retry these
+        return GDRIVE_RETRY_RETRY;
+    }
+    else if (httpResp == 401)
+    {
+        // Always refresh credentials for 401.
+        return GDRIVE_RETRY_RENEWAUTH;
+    }
+    else if (httpResp == 403)
+    {
+        // Retry ONLY if the reason for the 403 was an exceeded rate limit
+        bool retry = false;
+        int reasonLength = strlen(GDRIVE_403_USERRATELIMIT) + 1;
+        char* reason = malloc(reasonLength);
+        if (reason == NULL)
+        {
+            // Memory error
+            return -1;
+        }
+        reason[0] = '\0';
+        gdrive_json_object* pRoot = gdrive_json_from_string(pBuf->data);
+        if (pRoot != NULL)
+        {
+            gdrive_json_object* pErrors = 
+                    gdrive_json_get_nested_object(pRoot, "error/errors");
+            gdrive_json_get_string(pErrors, "reason", reason, reasonLength);
+            if ((strcmp(reason, GDRIVE_403_RATELIMIT) == 0) || 
+                    (strcmp(reason, GDRIVE_403_USERRATELIMIT) == 0))
+            {
+                // Rate limit exceeded, retry.
+                retry = true;
+            }
+            // else do nothing (retry remains false for all other 403 
+            // errors)
+
+            // Cleanup
+            gdrive_json_kill(pRoot);
+        }
+        free(reason);
+        if (retry)
+        {
+            return GDRIVE_RETRY_RENEWAUTH;
+        }
+    }
+    
+    // For all other errors, don't retry.
+    return GDRIVE_RETRY_NORETRY;
+}
+
+int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo, 
+                                          Gdrive_Download_Buffer* pBuf, 
+                                          long* pHttpResp, 
+                                          bool retryOnAuthError,
+                                          int tryNum,
+                                          int maxTries
+)
+{
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
+                                                     pBuf, 
+                                                     pHttpResp,
+                                                     true
+            );
+    
+    if (curlResult != CURLE_OK)
+    {
+        // Download error
+        *pHttpResp = 0;
+        return -1;
+    }
+    if (*pHttpResp >= 400)
+    {
+        // Handle HTTP error responses.  Normal error handling - 5xx gets 
+        // retried, 403 gets retried if it's due to rate limits, 401 gets
+        // retried after refreshing auth.  If retryOnAuthError is false, 
+        // suppress the normal behavior for 401 and don't retry.
+        
+        // See whether we've already used our maximum attempts.
+        if (tryNum == maxTries)
+        {
+            return -1;
+        }
+        
+        bool retry = false;
+        switch (_gdrive_retry_on_error(pBuf, *pHttpResp))
+        {
+        case GDRIVE_RETRY_RETRY:
+            // Normal retry, use exponential backoff.
+            _gdrive_exponential_wait(tryNum);
+            retry = true;
+            break;
+
+        case GDRIVE_RETRY_RENEWAUTH:
+            // Authentication error, probably expired access token.
+            // If retryOnAuthError is true, refresh auth and retry (unless auth 
+            // fails).
+            if (retryOnAuthError)
+            {
+                retry = (gdrive_auth(pInfo) == 0);
+                break;
+            }
+            // else fall through
+            
+        case GDRIVE_RETRY_NORETRY:
+        default:
+            retry = false;
+            break;
+        }
+        
+        if (retry)
+        {
+            return _gdrive_download_to_buffer_with_retry(pInfo,
+                                                         pBuf, 
+                                                         pHttpResp, 
+                                                         retryOnAuthError,
+                                                         tryNum + 1,
+                                                         maxTries
+                    );
+        }
+        else
+        {
+            return -1;
+        }
+    }
+    
+    // If we're here, we have a good response.  Return success.
+    return 0;
+}
+
 void _gdrive_exponential_wait(int tryNum)
 {
     // Number of milliseconds to wait before retrying
@@ -1129,3 +2084,374 @@ void _gdrive_exponential_wait(int tryNum)
     waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
     nanosleep(&waitTimeNano, NULL);
 }
+
+int _gdrive_realloc_string_from_json(gdrive_json_object* pObj, 
+                                     const char* key,
+                                     char** pDest, 
+                                     long* pLength
+)
+{
+    // Find the length of the string.
+    long length = gdrive_json_get_string(pObj, key, NULL, 0);
+    if (length == INT64_MIN || length == 0)
+    {
+        // Not a string (length includes the null terminator, so it can't
+        // be 0).
+        return -1;
+    }
+
+    length *= -1;
+    // Make sure we have enough space to store the retrieved string.
+    // If not, make more space with realloc.
+    if (*pLength < length)
+    {
+        *pDest = realloc(*pDest, length);
+        *pLength = length;
+        if (*pDest == NULL)
+        {
+            // Memory allocation error
+            *pLength = 0;
+            return -1;
+        }
+    }
+
+    // Actually retrieve the string.  This should return a non-zero positive
+    // number, so determine success or failure based on that condition.
+    return (gdrive_json_get_string(pObj, key, *pDest, length) > 0) ?
+        0 :
+        -1;
+}
+
+void _gdrive_get_fileinfo_from_json(gdrive_json_object* pObj, 
+                                   Gdrive_Fileinfo* pFileinfo
+)
+{
+    pFileinfo->filename = _gdrive_new_string_from_json(pObj, "title", NULL);
+    pFileinfo->id = _gdrive_new_string_from_json(pObj, "id", NULL);
+    bool success;
+    pFileinfo->size = gdrive_json_get_int64(pObj, "fileSize", true, &success);
+    if (!success)
+    {
+        pFileinfo->size = 0;
+    }
+    
+    char* mimeType = _gdrive_new_string_from_json(pObj, "mimeType", NULL);
+    if (strcmp(mimeType, GDRIVE_MIMETYPE_FOLDER) == 0)
+    {
+        // Folder
+        pFileinfo->type = GDRIVE_FILETYPE_FOLDER;
+    }
+    else if (false)
+    {
+        // TODO: Add any other special file types.  This
+        // will likely include Google Docs.
+    }
+    else
+    {
+        // Regular file
+        pFileinfo->type = GDRIVE_FILETYPE_FILE;
+    }
+    free(mimeType);
+    
+    char* cTime = _gdrive_new_string_from_json(pObj, "createdDate", NULL);
+    if (cTime == NULL || 
+            gdrive_rfc3339_to_epoch_timens
+            (cTime, &(pFileinfo->creationTime)) == 0)
+    {
+        // Didn't get a createdDate or failed to convert it.
+        memset(&(pFileinfo->creationTime), 0, sizeof(struct timespec));
+    }
+    free(cTime);
+    
+    char* mTime = _gdrive_new_string_from_json(pObj, "modifiedDate", NULL);
+    if (mTime == NULL || 
+            gdrive_rfc3339_to_epoch_timens
+            (mTime, &(pFileinfo->modificationTime)) == 0)
+    {
+        // Didn't get a modifiedDate or failed to convert it.
+        memset(&(pFileinfo->modificationTime), 0, sizeof(struct timespec));
+    }
+    free(mTime);
+    
+    char* aTime = _gdrive_new_string_from_json(pObj, 
+            "lastViewedByMeDate", 
+            NULL
+    );
+    if (aTime == NULL || 
+            gdrive_rfc3339_to_epoch_timens
+            (aTime, &(pFileinfo->accessTime)) == 0)
+    {
+        // Didn't get an accessed date or failed to convert it.
+        memset(&(pFileinfo->accessTime), 0, sizeof(struct timespec));
+    }
+    free(aTime);
+    
+    pFileinfo->nParents = gdrive_json_array_length(pObj, "parents");
+}
+
+char* _gdrive_new_string_from_json(gdrive_json_object* pObj, 
+                                 const char* key,
+                                 long* pLength
+)
+{
+    // Find the length of the string.
+    long length = gdrive_json_get_string(pObj, key, NULL, 0);
+    if (length == INT64_MIN || length == 0)
+    {
+        // Not a string (length includes the null terminator, so it can't
+        // be 0).
+        return NULL;
+    }
+
+    length *= -1;
+    // Allocate enough space to store the retrieved string.
+    char* result = malloc(length);
+    if (pLength != NULL)
+    {
+        *pLength = length;
+    }
+    if (result == NULL)
+    {
+        // Memory allocation error
+        if (pLength != NULL)
+        {
+            *pLength = 0;
+        }
+        return NULL;
+    }
+
+    // Actually retrieve the string.
+    gdrive_json_get_string(pObj, key, result, length);
+    return result;
+}
+
+Gdrive_Fileinfo* _gdrive_cache_get_item(Gdrive_Cache_Node** ppRoot, 
+                                        const char* fileId,
+                                        bool addIfDoesntExist,
+                                        bool* pAlreadyExists
+)
+{
+    *pAlreadyExists = false;
+    
+    if (*ppRoot == NULL)
+    {
+        // Item doesn't exist in the cache. Either fail, or create a new item.
+        if (!addIfDoesntExist)
+        {
+            // Not allowed to create a new item, return failure.
+            return NULL;
+        }
+        // else create a new item.
+        *ppRoot = _gdrive_cache_node_create();
+        if (*ppRoot != NULL)
+        {
+            // Convenience to avoid things like "return &((*ppRoot)->fileinfo);"
+            Gdrive_Cache_Node* pRoot = *ppRoot;
+            
+            // Copy the fileId into the fileinfo.  Everything else is left null.
+            pRoot->fileinfo.id = malloc(strlen(fileId) + 1);
+            if (pRoot->fileinfo.id == NULL)
+            {
+                // Memory error.
+                _gdrive_cache_node_free(pRoot);
+                *ppRoot = NULL;
+                return NULL;
+            }
+            strcpy(pRoot->fileinfo.id, fileId);
+            
+            // Since this is a new entry, set the node's updated time.
+            pRoot->lastUpdateTime = time(NULL);
+            
+            return &(pRoot->fileinfo);
+        }
+    }
+    
+    // Convenience to avoid things like "&((*ppRoot)->pRight)"
+    Gdrive_Cache_Node* pRoot = *ppRoot;
+    
+    // Root node exists, try to find the fileId in the tree.
+    int cmp = strcmp(fileId, pRoot->fileinfo.id);
+    if (cmp == 0)
+    {
+        // Found it at the current node.
+        *pAlreadyExists = true;
+        return &(pRoot->fileinfo);
+    }
+    else if (cmp < 0)
+    {
+        // fileId is less than the current node. Look for it on the left.
+        return _gdrive_cache_get_item(&(pRoot->pLeft), fileId, 
+                                      addIfDoesntExist, pAlreadyExists
+                );
+    }
+    else
+    {
+        // fileId is greater than the current node. Look for it on the right.
+        return _gdrive_cache_get_item(&(pRoot->pRight), fileId, 
+                                      addIfDoesntExist, pAlreadyExists
+                );
+    }
+}
+
+Gdrive_Cache_Node* _gdrive_cache_node_create()
+{
+    Gdrive_Cache_Node* result = malloc(sizeof(Gdrive_Cache_Node));
+    if (result != NULL)
+    {
+        memset(result, 0, sizeof(Gdrive_Cache_Node));
+    }
+    return result;
+}
+
+/*
+ * NOT RECURSIVE.  FREES ONLY THE SINGLE NODE.
+ */
+void _gdrive_cache_node_free(Gdrive_Cache_Node* pNode)
+{
+    gdrive_fileinfo_cleanup(&(pNode->fileinfo));
+    pNode->pLeft = NULL;
+    pNode->pRight = NULL;
+    free(pNode);
+}
+        
+const char* _gdrive_fileid_cache_get_item(Gdrive_Fileid_Cache_Node* pHead, 
+                                          const char* path
+)
+{
+    Gdrive_Fileid_Cache_Node* pNode = pHead->pNext;
+    
+    while (true)
+    {
+        if (pNode == NULL)
+        {
+            // We've hit the end of the list without finding path.
+            return NULL;
+        }
+        int cmp = strcmp(path, pNode->path);
+        if (cmp == 0)
+        {
+            // Found it!
+            return pNode->fileId;
+        }
+        else if (cmp < 0)
+        {
+            // We've gone too far.  It's not here.
+            return NULL;
+        }
+        // else keep searching
+        pNode = pNode->pNext;
+    }
+}
+
+int _gdrive_fileid_cache_add_item(Gdrive_Fileid_Cache_Node* pHead, 
+                                          const char* path,
+                                          const char* fileId
+)
+{
+    Gdrive_Fileid_Cache_Node* pPrev = pHead;
+    
+    while (true)
+    {
+        Gdrive_Fileid_Cache_Node* pNext = pPrev->pNext;
+        // Find the string comparison.  If pNext is NULL, pretend pNext->path
+        // is greater than path (we insert after pPrev in both cases).
+        int cmp = (pNext != NULL) ? strcmp(path, pNext->path) : -1;
+        
+        if (cmp == 0)
+        {
+            // Item already exists, update it.
+            return _gdrive_fileid_cache_update_item(pNext, fileId);
+        }
+        else if (cmp < 0)
+        {
+            // Item doesn't exist yet, insert it between pPrev and pNext.
+            Gdrive_Fileid_Cache_Node* pNew = 
+                    _gdrive_fileid_cache_node_create(path, fileId);
+            if (pNew == NULL)
+            {
+                // Error, most likely memory.
+                return -1;
+            }
+            pPrev->pNext = pNew;
+            pNew->pNext = pNext;
+            return 0;
+        }
+        // else keep searching
+        pPrev = pNext;
+    }
+}
+
+Gdrive_Fileid_Cache_Node* _gdrive_fileid_cache_node_create(const char* filename,
+                                                           const char* fileId)
+{
+    Gdrive_Fileid_Cache_Node* pResult = malloc(sizeof(Gdrive_Fileid_Cache_Node));
+    if (pResult != NULL)
+    {
+        memset(pResult, 0, sizeof(Gdrive_Fileid_Cache_Node));
+        pResult->path = malloc(strlen(filename) + 1);
+        if (pResult->path == NULL)
+        {
+            // Memory error.
+            free(pResult);
+            return NULL;
+        }
+        strcpy(pResult->path, filename);
+        
+        // Only try copying the fileId if it was specified.
+        if (fileId != NULL)
+        {
+            pResult->fileId = malloc(strlen(fileId) + 1);
+            if (pResult->fileId == NULL)
+            {
+                // Memory error.
+                free(pResult->path);
+                free(pResult);
+                return NULL;
+            }
+            strcpy(pResult->fileId, fileId);
+        }
+        
+        // Set the updated time.
+        pResult->lastUpdateTime = time(NULL);
+    }
+    return pResult;
+}
+
+int _gdrive_fileid_cache_update_item(Gdrive_Fileid_Cache_Node* pNode, 
+                                     const char* fileId
+)
+{
+    // Update the time.
+    pNode->lastUpdateTime = time(NULL);
+    
+    if ((pNode->fileId == NULL) || (strcmp(fileId, pNode->fileId) != 0))
+    {
+        // pNode doesn't have a fileId or the IDs don't match. Copy the new
+        // fileId in.
+        free(pNode->fileId);
+        pNode->fileId = malloc(strlen(fileId) + 1);
+        if (pNode->fileId == NULL)
+        {
+            // Memory error.
+            return -1;
+        }
+        strcpy(pNode->fileId, fileId);
+        return 0;
+    }
+    // else the IDs already match.
+    return 0;
+}
+
+/*
+ * DOES NOT REMOVE FROM LIST.  FREES ONLY THE SINGLE NODE.
+ */
+void _gdrive_fileid_cache_node_free(Gdrive_Fileid_Cache_Node* pNode)
+{
+    free(pNode->fileId);
+    pNode->fileId = NULL;
+    free(pNode->path);
+    pNode->path = NULL;
+    pNode->pNext = NULL;
+    free(pNode);
+}
+
