@@ -36,6 +36,7 @@
 int gdrive_init(Gdrive_Info** ppGdriveInfo, 
                 int access, 
                 const char* authFilename, 
+                time_t cacheTTL,
                 enum Gdrive_Interaction interactionMode
 )
 {
@@ -66,6 +67,7 @@ int gdrive_init(Gdrive_Info** ppGdriveInfo,
     return gdrive_init_nocurl(ppGdriveInfo, 
                               access, 
                               authFilename, 
+                              cacheTTL,
                               interactionMode
             );
 }
@@ -76,9 +78,10 @@ int gdrive_init(Gdrive_Info** ppGdriveInfo,
  *                          curl_global_init()).
  */
 int gdrive_init_nocurl(Gdrive_Info** ppGdriveInfo, 
-                int access, 
-                const char* authFilename, 
-                enum Gdrive_Interaction interactionMode
+                       int access, 
+                       const char* authFilename, 
+                       time_t cacheTTL,
+                       enum Gdrive_Interaction interactionMode
 )
 {
     // Seed the RNG.
@@ -123,6 +126,10 @@ int gdrive_init_nocurl(Gdrive_Info** ppGdriveInfo,
     // Can we continue prompting for authentication if needed later?
     pInfo->settings.userInteractionAllowed = 
             (interactionMode == GDRIVE_INTERACTION_ALWAYS);
+    
+    // Initialize the cache
+    _gdrive_cache_init(pInfo);
+    pInfo->settings.cacheTTL = cacheTTL;
     
     
     return 0;
@@ -239,12 +246,7 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     // Get the information from the cache, or put it in the cache if it isn't
     // already there.
     bool alreadyCached = false;
-    *ppFileinfo = _gdrive_cache_get_item(
-            &(pInfo->pInternalInfo->cache.pCacheHead), 
-            fileId,
-            true, 
-            &alreadyCached
-            );
+    *ppFileinfo = _gdrive_cache_get_item(pInfo, fileId, true, &alreadyCached);
     if (*ppFileinfo == NULL)
     {
         // An error occurred, probably out of memory.
@@ -499,10 +501,7 @@ char* gdrive_filepath_to_id(Gdrive_Info* pInfo, const char* path)
     // Treat an empty string as 
     
     // Try to get the ID from the cache.
-    const char* cachedId = _gdrive_fileid_cache_get_item(
-            &(pInfo->pInternalInfo->cache.fileIdCacheHead), 
-            path
-    );
+    const char* cachedId = _gdrive_fileid_cache_get_item(pInfo, path);
     if (cachedId != NULL)
     {
 printf("'%s' found in File ID Cache, no network lookup needed.\n", path);
@@ -570,9 +569,7 @@ printf("Couldn't find '%s' in File ID Cache.\n", path);
         return NULL;
     }
     // Use the parent's ID to find the child's ID.
-    result = _gdrive_get_child_id_by_name(pInfo, parentId, path + index + 1, 
-                                          0, GDRIVE_RETRY_LIMIT
-            );
+    result = _gdrive_get_child_id_by_name(pInfo, parentId, path + index + 1);
     free(parentId);
     
     // Add the ID to the fileId cache.
@@ -1818,9 +1815,7 @@ char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo, int tryNum, int maxTries)
 
 char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo, 
                                    const char* parentId, 
-                                   const char* childName, 
-                                   int tryNum, 
-                                   int maxTries
+                                   const char* childName
 )
 {
     struct curl_slist* pHeaders;
@@ -2228,15 +2223,65 @@ char* _gdrive_new_string_from_json(gdrive_json_object* pObj,
     return result;
 }
 
-Gdrive_Fileinfo* _gdrive_cache_get_item(Gdrive_Cache_Node** ppRoot, 
+Gdrive_Fileinfo* _gdrive_cache_get_item(Gdrive_Info* pInfo, 
                                         const char* fileId,
                                         bool addIfDoesntExist,
                                         bool* pAlreadyExists
 )
 {
-    *pAlreadyExists = false;
+    Gdrive_Cache* pCache = &(pInfo->pInternalInfo->cache);
+    // Get the existing node (or a new one) from the cache.
+    Gdrive_Cache_Node* pNode = _gdrive_cache_get_node(NULL,
+                                                      &(pCache->pCacheHead), 
+                                                      fileId, 
+                                                      addIfDoesntExist, 
+                                                      pAlreadyExists
+            );
+    if (pNode == NULL)
+    {
+        // There was an error, or the node doesn't exist and we aren't allowed
+        // to create a new one.
+        return NULL;
+    }
     
-    if (*ppRoot == NULL)
+    // Test whether the cached information is too old.  Use last updated time
+    // for either the individual node or the entire cache, whichever is newer.
+    time_t expireTime = (pNode->lastUpdateTime > pCache->lastUpdateTime ?
+        pNode->lastUpdateTime : pCache->lastUpdateTime) +
+            pInfo->settings.cacheTTL;
+    if (expireTime < time(NULL))
+    {
+        // Update the cache and try again.
+        
+        // Folder nodes may be deleted by cache updates, but regular file nodes
+        // are safe.
+        bool isFolder = (pNode->fileinfo.type == GDRIVE_FILETYPE_FOLDER);
+        
+        _gdrive_update_cache(pInfo);
+        
+        return (isFolder ? 
+                _gdrive_cache_get_item(pInfo, fileId, 
+                                       addIfDoesntExist, pAlreadyExists) :
+                &(pNode->fileinfo));
+    }
+    
+    // We have a good node that's not too old.
+    return &(pNode->fileinfo);
+}
+
+Gdrive_Cache_Node* _gdrive_cache_get_node(Gdrive_Cache_Node* pParent,
+                                          Gdrive_Cache_Node** ppNode,
+                                          const char* fileId,
+                                          bool addIfDoesntExist,
+                                          bool* pAlreadyExists
+)
+{
+    if (pAlreadyExists != NULL)
+    {
+        *pAlreadyExists = false;
+    }
+    
+    if (*ppNode == NULL)
     {
         // Item doesn't exist in the cache. Either fail, or create a new item.
         if (!addIfDoesntExist)
@@ -2245,63 +2290,201 @@ Gdrive_Fileinfo* _gdrive_cache_get_item(Gdrive_Cache_Node** ppRoot,
             return NULL;
         }
         // else create a new item.
-        *ppRoot = _gdrive_cache_node_create();
-        if (*ppRoot != NULL)
+        *ppNode = _gdrive_cache_node_create(pParent);
+        if (*ppNode != NULL)
         {
-            // Convenience to avoid things like "return &((*ppRoot)->fileinfo);"
-            Gdrive_Cache_Node* pRoot = *ppRoot;
+            // Convenience to avoid things like "return &((*ppNode)->fileinfo);"
+            Gdrive_Cache_Node* pNode = *ppNode;
             
-            // Copy the fileId into the fileinfo.  Everything else is left null.
-            pRoot->fileinfo.id = malloc(strlen(fileId) + 1);
-            if (pRoot->fileinfo.id == NULL)
+            // Copy the fileId into the fileinfo. Everything else is left null.
+            pNode->fileinfo.id = malloc(strlen(fileId) + 1);
+            if (pNode->fileinfo.id == NULL)
             {
                 // Memory error.
-                _gdrive_cache_node_free(pRoot);
-                *ppRoot = NULL;
+                _gdrive_cache_node_free(pNode);
+                *ppNode = NULL;
                 return NULL;
             }
-            strcpy(pRoot->fileinfo.id, fileId);
+            strcpy(pNode->fileinfo.id, fileId);
             
             // Since this is a new entry, set the node's updated time.
-            pRoot->lastUpdateTime = time(NULL);
+            pNode->lastUpdateTime = time(NULL);
             
-            return &(pRoot->fileinfo);
+            return pNode;
         }
     }
     
-    // Convenience to avoid things like "&((*ppRoot)->pRight)"
-    Gdrive_Cache_Node* pRoot = *ppRoot;
+    // Convenience to avoid things like "&((*ppNode)->pRight)"
+    Gdrive_Cache_Node* pNode = *ppNode;
     
     // Root node exists, try to find the fileId in the tree.
-    int cmp = strcmp(fileId, pRoot->fileinfo.id);
+    int cmp = strcmp(fileId, pNode->fileinfo.id);
     if (cmp == 0)
     {
         // Found it at the current node.
-        *pAlreadyExists = true;
-        return &(pRoot->fileinfo);
+        if (pAlreadyExists != NULL)
+        {
+            *pAlreadyExists = true;
+        }
+        return pNode;
     }
     else if (cmp < 0)
     {
         // fileId is less than the current node. Look for it on the left.
-        return _gdrive_cache_get_item(&(pRoot->pLeft), fileId, 
+        return _gdrive_cache_get_node(pNode, &(pNode->pLeft), fileId, 
                                       addIfDoesntExist, pAlreadyExists
                 );
     }
     else
     {
         // fileId is greater than the current node. Look for it on the right.
-        return _gdrive_cache_get_item(&(pRoot->pRight), fileId, 
+        return _gdrive_cache_get_node(pNode, &(pNode->pRight), fileId, 
                                       addIfDoesntExist, pAlreadyExists
                 );
     }
 }
 
-Gdrive_Cache_Node* _gdrive_cache_node_create()
+void _gdrive_cache_remove_id(Gdrive_Cache_Node** ppHead, const char* fileId)
+{
+    // Find the node we want to remove.
+    Gdrive_Cache_Node* pNode = _gdrive_cache_get_node(NULL, ppHead, fileId, 
+                                                      false, NULL
+            );
+    if (pNode == NULL)
+    {
+        // Didn't find it.  Do nothing.
+        return;
+    }
+    
+    // Find whether the node is at the root of the tree.  If it's at the root,
+    // the pointer from its "parent" is *ppHead.  Otherwise, find which side
+    // it's on and get the address of the correct pointer.
+    Gdrive_Cache_Node** ppFromParent = ppHead;
+    if (pNode->pParent != NULL)
+    {
+        if (pNode->pParent->pLeft == pNode)
+        {
+            ppFromParent = &(pNode->pParent->pLeft);
+        }
+        else
+        {
+            ppFromParent = &(pNode->pParent->pRight);
+        }
+    }
+    _gdrive_cache_delete_node(ppFromParent, pNode);
+}
+
+void _gdrive_cache_delete_node(Gdrive_Cache_Node* * ppFromParent, 
+                               Gdrive_Cache_Node* pNode
+)
+{
+    // Simplest special case. pNode has no descendents.  Just delete it, and
+    // set the pointer from the parent to NULL.
+    if (pNode->pLeft == NULL && pNode->pRight == NULL)
+    {
+        *ppFromParent = NULL;
+        _gdrive_cache_node_free(pNode);
+        return;
+    }
+    
+    // Second special case. pNode has one side empty. Promote the descendent on
+    // the other side into pNode's place.
+    if (pNode->pLeft == NULL)
+    {
+        *ppFromParent = pNode->pRight;
+        pNode->pRight->pParent = pNode->pParent;
+        _gdrive_cache_node_free(pNode);
+        return;
+    }
+    if (pNode->pRight == NULL)
+    {
+        *ppFromParent = pNode->pLeft;
+        pNode->pLeft->pParent = pNode->pParent;
+        _gdrive_cache_node_free(pNode);
+        return;
+    }
+    
+    // General case with descendents on both sides. Find the node with the 
+    // closest value to pNode in one of its subtrees (leftmost node of the right
+    // subtree, or rightmost node of the left subtree), and switch places with
+    // pNode.  Which side we use doesn't really matter.  We'll rather 
+    // arbitrarily decide to use the same side subtree as the side from which
+    // pNode hangs off its parent (if pNode is on the right side of its parent,
+    // find the leftmost node of the right subtree), and treat the case where
+    // pNode is the root the same as if it were on the left side of its parent.
+    Gdrive_Cache_Node* pSwap = NULL;
+    Gdrive_Cache_Node** ppToSwap = NULL;
+    if (pNode->pParent != NULL && pNode->pParent->pRight == pNode)
+    {
+        // Find the leftmost node of the right subtree.
+        pSwap = pNode->pRight;
+        ppToSwap = &(pNode->pRight);
+        while (pSwap->pLeft != NULL)
+        {
+            ppToSwap = &(pSwap->pLeft);
+            pSwap = pSwap->pLeft;
+        }
+    }
+    else
+    {
+        // Find the rightmost node of the left subtree.
+        pSwap = pNode->pLeft;
+        ppToSwap = &(pNode->pLeft);
+        while (pSwap->pRight != NULL)
+        {
+            ppToSwap = &(pSwap->pRight);
+            pSwap = pSwap->pRight;
+        }
+    }
+    
+    // Swap the nodes
+    _gdrive_cache_node_swap(ppFromParent, pNode, ppToSwap, pSwap);
+    
+    // Find the pointer from pNode's new parent.  We don't need to worry about
+    // a NULL pParent, since pNode can't be at the root of the tree after
+    // swapping.
+    Gdrive_Cache_Node** ppFromNewParent = (pNode->pParent->pLeft == pNode ?
+        &(pNode->pParent->pLeft) :
+        &(pNode->pParent->pRight)
+            );
+    
+    _gdrive_cache_delete_node(ppFromNewParent, pNode);
+}
+
+void _gdrive_cache_node_swap(Gdrive_Cache_Node** ppFromParentOne,
+                             Gdrive_Cache_Node* pNodeOne,
+                             Gdrive_Cache_Node** ppFromParentTwo,
+                             Gdrive_Cache_Node* pNodeTwo
+)
+{
+    // Swap the pointers from the parents
+    *ppFromParentOne = pNodeTwo;
+    *ppFromParentTwo = pNodeOne;
+    
+    Gdrive_Cache_Node* pTempParent = pNodeOne->pParent;
+    Gdrive_Cache_Node* pTempLeft = pNodeOne->pLeft;
+    Gdrive_Cache_Node* pTempRight = pNodeOne->pRight;
+    
+    pNodeOne->pParent = pNodeTwo->pParent;
+    pNodeOne->pLeft = pNodeTwo->pLeft;
+    pNodeOne->pRight = pNodeTwo->pRight;
+    
+    pNodeTwo->pParent = pTempParent;
+    pNodeTwo->pLeft = pTempLeft;
+    pNodeTwo->pRight = pTempRight;
+}
+
+/*
+ * Set pParent to NULL for the root node of the tree (the node that has no
+ * parent).
+ */
+Gdrive_Cache_Node* _gdrive_cache_node_create(Gdrive_Cache_Node* pParent)
 {
     Gdrive_Cache_Node* result = malloc(sizeof(Gdrive_Cache_Node));
     if (result != NULL)
     {
         memset(result, 0, sizeof(Gdrive_Cache_Node));
+        result->pParent = pParent;
     }
     return result;
 }
@@ -2316,25 +2499,55 @@ void _gdrive_cache_node_free(Gdrive_Cache_Node* pNode)
     pNode->pRight = NULL;
     free(pNode);
 }
-        
-const char* _gdrive_fileid_cache_get_item(Gdrive_Fileid_Cache_Node* pHead, 
+
+const char* _gdrive_fileid_cache_get_item(Gdrive_Info* pInfo, 
                                           const char* path
+)
+{
+    Gdrive_Cache* pCache = &(pInfo->pInternalInfo->cache);
+    
+    // Get the cached node if it exists.  If it doesn't exist, fail.
+    Gdrive_Fileid_Cache_Node headNode = pCache->fileIdCacheHead;
+    Gdrive_Fileid_Cache_Node* pNode = _gdrive_fileid_cache_get_node(&headNode,
+                                                                    path
+            );
+    if (pNode == NULL)
+    {
+        // The path isn't cached.  Return null.
+        return NULL;
+    }
+    
+    // We have the cached item.  Test whether it's too old.  Use the last update
+    // either of the entire cache, or of the individual item, whichever is
+    // newer.
+    time_t expireTime = ((pNode->lastUpdateTime > pCache->lastUpdateTime) ?
+        pNode->lastUpdateTime : pCache->lastUpdateTime) + 
+            pInfo->settings.cacheTTL;
+    if (time(NULL) > expireTime)
+    {
+        // Item is expired.  Check for updates and try again.
+        _gdrive_update_cache(pInfo);
+        return _gdrive_fileid_cache_get_item(pInfo, path);
+    }
+    
+    // Item exists and is not expired.
+    return pNode->fileId;
+}
+        
+Gdrive_Fileid_Cache_Node* _gdrive_fileid_cache_get_node(
+        Gdrive_Fileid_Cache_Node* pHead, 
+        const char* path
 )
 {
     Gdrive_Fileid_Cache_Node* pNode = pHead->pNext;
     
-    while (true)
+    while (pNode != NULL)
     {
-        if (pNode == NULL)
-        {
-            // We've hit the end of the list without finding path.
-            return NULL;
-        }
         int cmp = strcmp(path, pNode->path);
         if (cmp == 0)
         {
             // Found it!
-            return pNode->fileId;
+            return pNode;
         }
         else if (cmp < 0)
         {
@@ -2344,11 +2557,14 @@ const char* _gdrive_fileid_cache_get_item(Gdrive_Fileid_Cache_Node* pHead,
         // else keep searching
         pNode = pNode->pNext;
     }
+    
+    // We've hit the end of the list without finding path.
+    return NULL;
 }
 
-int _gdrive_fileid_cache_add_item(Gdrive_Fileid_Cache_Node* pHead, 
-                                          const char* path,
-                                          const char* fileId
+int _gdrive_fileid_cache_add_item(Gdrive_Fileid_Cache_Node* pHead,
+                                  const char* path,
+                                  const char* fileId
 )
 {
     Gdrive_Fileid_Cache_Node* pPrev = pHead;
@@ -2445,6 +2661,35 @@ int _gdrive_fileid_cache_update_item(Gdrive_Fileid_Cache_Node* pNode,
     return 0;
 }
 
+void _gdrive_fileid_cache_remove_id(Gdrive_Fileid_Cache_Node* pHead, 
+                                    const char* fileId
+)
+{
+    // Need to walk through the whole list, since it's not keyed by fileId.
+    Gdrive_Fileid_Cache_Node* pPrev = pHead;
+    Gdrive_Fileid_Cache_Node* pNext = pPrev->pNext;
+    
+    while (pNext != NULL)
+    {
+        
+        // Compare the given fileId to the current one.
+        int cmp = strcmp(fileId, pNext->fileId);
+        
+        if (cmp == 0)
+        {
+            // Found it!
+            pPrev->pNext = pNext->pNext;
+            _gdrive_fileid_cache_node_free(pNext);
+            
+            // No need to keep going.
+            return;
+        }
+        // else keep searching
+        pPrev = pNext;
+        pNext = pPrev->pNext;
+    }
+}
+
 /*
  * DOES NOT REMOVE FROM LIST.  FREES ONLY THE SINGLE NODE.
  */
@@ -2456,5 +2701,233 @@ void _gdrive_fileid_cache_node_free(Gdrive_Fileid_Cache_Node* pNode)
     pNode->path = NULL;
     pNode->pNext = NULL;
     free(pNode);
+}
+
+int _gdrive_cache_init(Gdrive_Info* pInfo)
+{
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    struct curl_slist* pHeaders = 
+            _gdrive_authbearer_header(pInfo->pInternalInfo);
+    if (pHeaders == NULL)
+    {
+        // Error, probably memory
+        return -1;
+    }
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
+    
+    // Construct the request URL
+    char* url = _gdrive_assemble_query_string(curlHandle, GDRIVE_URL_ABOUT, 2,
+                                              "includeSubscribed", "false",
+                                              "fields", "largestChangeId"
+    );
+    if (url == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        return -1;
+    }
+    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
+    if (pBuf == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        free(url);
+        return -1;
+    }
+    
+    // Do the transfer.
+    long httpResp = 0;
+    CURLcode result = _gdrive_download_to_buffer_with_retry(pInfo, pBuf, 
+                                                            &httpResp, 
+                                                            true,
+                                                            0, 
+                                                            GDRIVE_RETRY_LIMIT
+            );
+    int returnVal = -1;
+    if (result == CURLE_OK && httpResp < 400)
+    {
+        // Response was good, try extracting the data.
+        gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+        if (pObj != NULL)
+        {
+            bool success = false;
+            pInfo->pInternalInfo->cache.nextChangeId = 
+                    gdrive_json_get_int64(pObj, "largestChangeId", 
+                                          true, &success
+                    ) + 1;
+            returnVal = success ? 0 : -1;
+            gdrive_json_kill(pObj);
+        }
+    }
+    
+    free(url);
+    curl_slist_free_all(pHeaders);
+    _gdrive_download_buffer_free(pBuf);
+    return returnVal;
+}
+
+int _gdrive_update_cache(Gdrive_Info* pInfo)
+{
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    Gdrive_Cache* pCache = &(pInfo->pInternalInfo->cache);
+    
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+    struct curl_slist* pHeaders = 
+            _gdrive_authbearer_header(pInfo->pInternalInfo);
+    if (pHeaders == NULL)
+    {
+        // Error, probably memory
+        return -1;
+    }
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
+    
+    // Construct the request URL
+    char* changeIdString = NULL;
+    size_t changeIdStringLen = snprintf(NULL, 0, "%lu", pCache->nextChangeId);
+    changeIdString = malloc(changeIdStringLen + 1);
+    if (changeIdString == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        return -1;
+    }
+    snprintf(changeIdString, changeIdStringLen + 1, "%lu", 
+            pCache->nextChangeId
+            );
+    char* url = _gdrive_assemble_query_string(
+            curlHandle, GDRIVE_URL_CHANGES, 3,
+            "startChangeId", changeIdString,
+            "includeSubscribed", "false",
+            "fields", "largestChangeId,items(fileId,deleted,file)"
+    );
+    free(changeIdString);
+    if (url == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        return -1;
+    }
+    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
+    if (pBuf == NULL)
+    {
+        // Memory error
+        curl_slist_free_all(pHeaders);
+        free(url);
+        return -1;
+    }
+    
+    // Do the transfer.
+    long httpResp = 0;
+    CURLcode result = _gdrive_download_to_buffer_with_retry(pInfo, pBuf, 
+                                                            &httpResp, 
+                                                            true,
+                                                            0, 
+                                                            GDRIVE_RETRY_LIMIT
+            );
+    int returnVal = -1;
+    if (result == CURLE_OK && httpResp < 400)
+    {
+        // Response was good, try extracting the data.
+        gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+        if (pObj != NULL)
+        {
+            // Update or remove cached data for each item in the "items" array.
+            gdrive_json_object* pChangeArray = 
+                    gdrive_json_get_nested_object(pObj, "items");
+            int arraySize = gdrive_json_array_length(pChangeArray, NULL);
+            for (int i = 0; i < arraySize; i++)
+            {
+                gdrive_json_object* pItem = 
+                        gdrive_json_array_get(pChangeArray, NULL, i);
+                if (pItem == NULL)
+                {
+                    // Couldn't get this item, skip to the next one.
+                    continue;
+                }
+                char* fileId = 
+                        _gdrive_new_string_from_json(pItem, "fileId", NULL);
+                if (fileId == NULL)
+                {
+                    // Couldn't get an ID for the changed file, skip to the
+                    // next one.
+                    continue;
+                }
+                
+                // We don't know whether the file has been renamed or moved,
+                // so remove it from the fileId cache.
+                _gdrive_fileid_cache_remove_id(&(pCache->fileIdCacheHead), 
+                                               fileId
+                        );
+                
+                // Update the file metadata cache.
+                Gdrive_Cache_Node* pCacheNode = 
+                        _gdrive_cache_get_node(NULL,
+                                               &(pCache->pCacheHead), 
+                                               fileId, 
+                                               false, 
+                                               NULL
+                        );
+                
+                // If this file was in the cache, update its information
+                if (pCacheNode != NULL)
+                {
+                    gdrive_fileinfo_cleanup(&(pCacheNode->fileinfo));
+                    _gdrive_get_fileinfo_from_json(
+                            gdrive_json_get_nested_object(pItem, "file"),
+                            &(pCacheNode->fileinfo)
+                            );
+                }
+                
+                // The file's parents may now have a different number of 
+                // children.  Remove the parents from the cache.
+                int numParents = gdrive_json_array_length(pItem, "parents");
+                for (int nParent = 0; nParent < numParents; nParent++)
+                {
+                    // Get the fileId of the current parent in the array.
+                    char* parentId = NULL;
+                    gdrive_json_object* pParentObj = 
+                            gdrive_json_array_get(pItem, "parents", nParent);
+                    if (pParentObj != NULL)
+                    {
+                        parentId = _gdrive_new_string_from_json(pParentObj, 
+                                                                "id", 
+                                                                NULL);
+                    }
+                    // Remove the parent from the cache, if present.
+                    if (parentId != NULL)
+                    {
+                        _gdrive_cache_remove_id(&(pCache->pCacheHead), 
+                                                parentId
+                                );
+                    }
+                    free(parentId);
+                }
+                
+                free(fileId);
+            }
+            
+            bool success = false;
+            pCache->nextChangeId = gdrive_json_get_int64(pObj, 
+                                                         "largestChangeId", 
+                                                         true, &success
+                    ) + 1;
+            returnVal = success ? 0 : -1;
+            gdrive_json_kill(pObj);
+        }
+    }
+    
+    // Reset the last updated time
+    pCache->lastUpdateTime = time(NULL);
+    
+    free(url);
+    curl_slist_free_all(pHeaders);
+    _gdrive_download_buffer_free(pBuf);
+    return returnVal;
 }
 
