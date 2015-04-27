@@ -210,9 +210,7 @@ int gdrive_auth(Gdrive_Info* pInfo)
                 // Memory error
                 return -1;
             }
-            int success = _gdrive_check_scopes(pBuf, pInfo, 
-                                               0, GDRIVE_RETRY_LIMIT
-            );
+            int success = _gdrive_check_scopes(pBuf, pInfo);
             _gdrive_download_buffer_free(pBuf);
             if (success == 0)
             {
@@ -1504,9 +1502,7 @@ int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
 }
 
 int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
-                         Gdrive_Info* pInfo, 
-                         int tryNum, 
-                         int maxTries
+                         Gdrive_Info* pInfo
 )
 {
     Gdrive_Info_Internal* pInternalInfo = pInfo->pInternalInfo;
@@ -1525,30 +1521,18 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
     }
     
     curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-    
     long httpResp = 0;
-    CURLcode curlCode = _gdrive_download_to_buffer(curlHandle, 
-                                                   pBuf, 
-                                                   &httpResp,
-                                                   true
+    CURLcode curlCode = _gdrive_download_to_buffer_with_retry(pInfo, 
+                                                              pBuf, 
+                                                              &httpResp, 
+                                                              false, 
+                                                              0, 
+                                                              GDRIVE_RETRY_LIMIT
             );
-    if (curlCode != CURLE_OK)
+    if (curlCode != CURLE_OK || httpResp >= 400)
     {
-        // Download error
+        // Download failed or gave a bad response.
         _gdrive_download_buffer_free(pBuf);
-        return -1;
-    }
-    else if (httpResp >= 500 && tryNum < maxTries)
-    {
-        // Retry on 5xx server errors.  Use exponential backoff to determine
-        // how long to wait before retrying.
-        _gdrive_exponential_wait(tryNum);
-        return _gdrive_check_scopes(pBuf, pInfo, tryNum + 1, maxTries);
-    }
-    else if (httpResp >= 400)
-    {
-        // Either a 4xx error that shouldn't be retried, or a 5xx error after
-        // the maximum number of attempts has already been made.  Return error.
         return -1;
     }
     
@@ -1562,16 +1546,13 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
         // Couldn't interpret the response as JSON, return error.
         return -1;
     }
-    long length =  gdrive_json_get_string(pObj, "scope", NULL, 0);
-    if (length == INT64_MIN || length == 0)
+    char* grantedScopes = _gdrive_new_string_from_json(pObj, "scope", NULL);
+    if (grantedScopes == NULL)
     {
         // Key not found, or value not a string.  Return error.
         gdrive_json_kill(pObj);
         return -1;
     }
-    length *= -1;
-    char* grantedScopes = malloc(length);
-    gdrive_json_get_string(pObj, "scope", grantedScopes, length);
     gdrive_json_kill(pObj);
     
     
@@ -1635,7 +1616,8 @@ char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo, int tryNum, int maxTries)
     }
     
     // String to hold the url
-    char* url = malloc(strlen(GDRIVE_URL_FILES) + strlen("/root?fields=id") + 1);
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + 
+                        strlen("/root?fields=id") + 1);
     if (url == NULL)
     {
         // Memory error.
@@ -1660,65 +1642,23 @@ char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo, int tryNum, int maxTries)
     }
     
     long httpResp = 0;
-    CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
-                                                     pBuf, 
-                                                     &httpResp,
-                                                     true
+    CURLcode curlResult = _gdrive_download_to_buffer_with_retry(
+            pInfo,
+            pBuf, 
+            &httpResp,
+            true,
+            0, 
+            GDRIVE_RETRY_LIMIT
             );
     curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
     curl_slist_free_all(pHeaders);
+    free(url);
     
-    if (curlResult != CURLE_OK)
+    if (curlResult != CURLE_OK || httpResp >= 400)
     {
-        // Download error
+        // Download error or bad response
         _gdrive_download_buffer_free(pBuf);
-        free(url);
         return NULL;
-    }
-    if (httpResp >= 400)
-    {
-        // Handle HTTP error responses.  Normal error handling - 5xx gets 
-        // retried, 403 gets retried if it's due to rate limits, 401 gets
-        // retried after refreshing auth.
-        
-        // See whether we've already used our maximum attempts.
-        if (tryNum == maxTries)
-        {
-            return NULL;
-        }
-        
-        bool retry = false;
-        switch (_gdrive_retry_on_error(pBuf, httpResp))
-        {
-        case GDRIVE_RETRY_RETRY:
-            // Normal retry, use exponential backoff.
-            _gdrive_exponential_wait(tryNum);
-            retry = true;
-            break;
-
-        case GDRIVE_RETRY_RENEWAUTH:
-            // Authentication error, probably expired access token.
-            // Refresh auth and retry (unless auth fails).
-            retry = (gdrive_auth(pInfo) == 0);
-            break;
-            
-        case GDRIVE_RETRY_NORETRY:
-        default:
-            retry = false;
-            break;
-        }
-        
-        // Cleanup before either retrying or returning
-        _gdrive_download_buffer_free(pBuf);
-        free(url);
-        if (retry)
-        {
-            return _gdrive_get_root_folder_id(pInfo, tryNum + 1, maxTries);
-        }
-        else
-        {
-            return NULL;
-        }
     }
     
     // If we're here, we have a good response.  Extract the ID from the 
@@ -1730,14 +1670,12 @@ char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo, int tryNum, int maxTries)
     {
         // Couldn't convert to JSON object.
         _gdrive_download_buffer_free(pBuf);
-        free(url);
         return NULL;
     }
     
     char* id = _gdrive_new_string_from_json(pObj, "id", NULL);
     
     _gdrive_download_buffer_free(pBuf);
-    free(url);
     
     return id;
 }
