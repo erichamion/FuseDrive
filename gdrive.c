@@ -252,7 +252,6 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     
     if (alreadyCached)
     {
-puts("Loaded from cache, saved a network request.");
         // Don't need to do anything else.
         return 0;
     }
@@ -501,7 +500,6 @@ char* gdrive_filepath_to_id(Gdrive_Info* pInfo, const char* path)
     const char* cachedId = _gdrive_fileid_cache_get_item(pInfo, path);
     if (cachedId != NULL)
     {
-printf("'%s' found in File ID Cache, no network lookup needed.\n", path);
         result = malloc(strlen(cachedId) + 1);
         if (result != NULL)
         {
@@ -510,13 +508,11 @@ printf("'%s' found in File ID Cache, no network lookup needed.\n", path);
         return result;
     }
     // else ID isn't in the cache yet
-printf("Couldn't find '%s' in File ID Cache.\n", path);
-
     
     // Is this the root folder?
     if (strcmp(path, "/") == 0)
     {
-        result = _gdrive_get_root_folder_id(pInfo, 0, GDRIVE_RETRY_LIMIT);
+        result = _gdrive_get_root_folder_id(pInfo);
         if (result != NULL)
         {
             // Add to the fileId cache.
@@ -577,7 +573,6 @@ printf("Couldn't find '%s' in File ID Cache.\n", path);
                 path, 
                 result
                 );
-printf("Added '%s' to File ID Cache.\n", path);
     }
     return result;
     
@@ -1605,7 +1600,7 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
     return 0;
 }
 
-char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo, int tryNum, int maxTries)
+char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo)
 {
     struct curl_slist* pHeaders;
     pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
