@@ -192,11 +192,10 @@ int gdrive_auth(Gdrive_Info* pInfo)
             return -1;
         }
         int refreshSuccess = _gdrive_refresh_auth_token(
-                pInfo->pInternalInfo, 
+                pInfo, 
                 downloadBuffer,
                 GDRIVE_GRANTTYPE_REFRESH,
-                pInfo->pInternalInfo->refreshToken,
-                0, GDRIVE_RETRY_LIMIT
+                pInfo->pInternalInfo->refreshToken
         );
         _gdrive_download_buffer_free(downloadBuffer);
         
@@ -1295,12 +1294,10 @@ char* _gdrive_assemble_query_string(CURL* curlHandle,
     return result;
 }
 
-int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo, 
+int _gdrive_refresh_auth_token(Gdrive_Info* pInfo, 
                                Gdrive_Download_Buffer* pBuf,
                                const char* grantType,
-                               const char* tokenString,
-                               int tryNum,
-                               int maxTries
+                               const char* tokenString
 )
 {
     // Make sure we were given a valid grant_type
@@ -1311,9 +1308,11 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
         return -1;
     }
     
-    if (pInternalInfo->curlHandle == NULL)
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    if (curlHandle == NULL)
     {
-        if ((pInternalInfo->curlHandle = curl_easy_init()) == NULL)
+        if ((curlHandle = curl_easy_init()) == NULL)
         {
             // Couldn't get a curl easy handle, return error.
             return -1;
@@ -1325,7 +1324,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
     char* postData;
     postData = (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) == 0) ?
         _gdrive_postdata_assemble(
-            pInternalInfo->curlHandle, 5, 
+            curlHandle, 5, 
             GDRIVE_FIELDNAME_CODE, tokenString,
             "redirect_uri", GDRIVE_REDIRECT_URI,
             GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID,
@@ -1333,7 +1332,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
             GDRIVE_FIELDNAME_GRANTTYPE, grantType
             ) : 
         _gdrive_postdata_assemble(
-            pInternalInfo->curlHandle, 4, 
+            curlHandle, 4, 
             GDRIVE_FIELDNAME_REFRESHTOKEN, tokenString,
             GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID,
             GDRIVE_FIELDNAME_CLIENTSECRET, GDRIVE_CLIENT_SECRET,
@@ -1345,159 +1344,87 @@ int _gdrive_refresh_auth_token(Gdrive_Info_Internal* pInternalInfo,
         return -1;
     }
         
-    CURL* curlHandle = pInternalInfo->curlHandle;
-    
     curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
     curl_easy_setopt(curlHandle, CURLOPT_URL, GDRIVE_URL_AUTH_TOKEN);
     curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData);
 
+    // Do the transfer. We're trying to get authorization, so don't retry on
+    // auth errors.
     long httpResult = 0;
-    CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
-                                                     pBuf, 
-                                                     &httpResult,
-                                                     true
+    CURLcode curlResult = _gdrive_download_to_buffer_with_retry(
+            pInfo, 
+            pBuf, 
+            &httpResult, 
+            false, 
+            0, 
+            GDRIVE_RETRY_LIMIT
             );
     curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, NULL);
     free(postData);
     
     
-    // Prepare to return a non-error failure.  If an error occurs or the
-    // refresh succeeds, we'll change this.
-    int returnVal = 1;
-    
     if (curlResult != CURLE_OK)
     {
         // There was an error sending the request and getting the response.
-        returnVal = -1;
+        return -1;
     }
-    else if (httpResult >= 400)
+    if (httpResult >= 400)
     {
-        // Some HTTP response codes should be retried, and some should not.
-        // Any 5xx codes should be retried, and *sometimes* 403 should be.
-        bool retry = (httpResult >= 500);
-        if (httpResult == 403)
-        {
-            int reasonLength = strlen(GDRIVE_403_USERRATELIMIT) + 1;
-            char* reason = malloc(reasonLength);
-            if (reason == NULL)
-            {
-                // Memory error
-                return -1;
-            }
-            reason[0] = '\0';
-            gdrive_json_object* pRoot = gdrive_json_from_string(pBuf->data);
-            if (pRoot != NULL)
-            {
-                gdrive_json_object* pErrors = 
-                        gdrive_json_get_nested_object(pRoot, "error/errors");
-                gdrive_json_get_string(pErrors, "reason", reason, reasonLength);
-                if ((strcmp(reason, GDRIVE_403_RATELIMIT) == 0) || 
-                        (strcmp(reason, GDRIVE_403_USERRATELIMIT) == 0))
-                {
-                    // Rate limit exceeded, retry.
-                    retry = true;
-                }
-                // else do nothing (retry remains false for all other 403 
-                // errors)
-                
-                // Cleanup
-                gdrive_json_kill(pRoot);
-            }
-            free(reason);
-        }
-        
-        if (retry)
-        {
-            if (tryNum == maxTries)
-            {
-                // This is a request that should be retried, but the maximum
-                // number of attempts has already been made.  Could be a server
-                // error or similar.  Return error.
-                returnVal = -1;
-            }
-            else
-            {
-                _gdrive_exponential_wait(tryNum);
-                // Retry, and return whatever the next try returns.
-                returnVal = _gdrive_refresh_auth_token(pInternalInfo, pBuf,
-                                                       grantType, tokenString, 
-                                                       tryNum + 1, maxTries);
-            }
-        }
-        else
-        {
             // Failure, but probably not an error.  Most likely, the user has
             // revoked permission or the refresh token has otherwise been
             // invalidated.
-            returnVal = 1;
-        }
+            return 1;
     }
-    else
+    
+    // If we've gotten this far, we have a good HTTP response.  Now we just
+    // need to pull the access_token string (and refresh token string if
+    // present) out of it.
+
+    gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    if (pObj == NULL)
     {
-        // If we've gotten this far, we have a good HTTP response.  Now we just
-        // need to pull the access_token string (and refresh token string if
-        // present) out of it.
-        
-        gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
-        if (pObj == NULL)
-        {
-            // Couldn't locate JSON-formatted information in the server's 
-            // response.  Return error.
-            return -1;
-        }
-        returnVal = _gdrive_realloc_string_from_json(
-                pObj, 
-                GDRIVE_FIELDNAME_ACCESSTOKEN,
-                &(pInternalInfo->accessToken),
-                &(pInternalInfo->accessTokenLength)
-                );
-        // Only try to get refresh token if we successfully got the access 
-        // token.
-        if (returnVal == 0)
-        {
-            // We won't always have a refresh token.  Specifically, if we were
-            // already sending a refresh token, we may not get one back.
-            // Don't treat the lack of a refresh token as an error or a failure,
-            // and don't clobber the existing refresh token if we don't get a
-            // new one.
-            
-            long length = gdrive_json_get_string(pObj, 
-                                            GDRIVE_FIELDNAME_REFRESHTOKEN, 
-                                            NULL, 0
-                    );
-            if (length < 0 && length != INT64_MIN)
-            {
-                // We were given a refresh token, so store it.
-                _gdrive_realloc_string_from_json(
-                        pObj, 
-                        GDRIVE_FIELDNAME_REFRESHTOKEN,
-                        &(pInternalInfo->refreshToken),
-                        &(pInternalInfo->refreshTokenLength)
-                        );
-            }
-        }
-        gdrive_json_kill(pObj);
+        // Couldn't locate JSON-formatted information in the server's 
+        // response.  Return error.
+        return -1;
     }
+    int returnVal = _gdrive_realloc_string_from_json(
+            pObj, 
+            GDRIVE_FIELDNAME_ACCESSTOKEN,
+            &(pInfo->pInternalInfo->accessToken),
+            &(pInfo->pInternalInfo->accessTokenLength)
+            );
+    // Only try to get refresh token if we successfully got the access 
+    // token.
+    if (returnVal == 0)
+    {
+        // We won't always have a refresh token.  Specifically, if we were
+        // already sending a refresh token, we may not get one back.
+        // Don't treat the lack of a refresh token as an error or a failure,
+        // and don't clobber the existing refresh token if we don't get a
+        // new one.
+
+        long length = gdrive_json_get_string(pObj, 
+                                        GDRIVE_FIELDNAME_REFRESHTOKEN, 
+                                        NULL, 0
+                );
+        if (length < 0 && length != INT64_MIN)
+        {
+            // We were given a refresh token, so store it.
+            _gdrive_realloc_string_from_json(
+                    pObj, 
+                    GDRIVE_FIELDNAME_REFRESHTOKEN,
+                    &(pInfo->pInternalInfo->refreshToken),
+                    &(pInfo->pInternalInfo->refreshTokenLength)
+                    );
+        }
+    }
+    gdrive_json_kill(pObj);
+    
     return returnVal;
 }
 
 int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
 {
-    // List the possible access mode flags and related scopes (both arrays must
-    // keep the same order).
-    /*const int accessModes[] = {GDRIVE_ACCESS_META,
-                               GDRIVE_ACCESS_READ,
-                               GDRIVE_ACCESS_WRITE,
-                               GDRIVE_ACCESS_APPS
-                               };*/
-    /*const char* const scopes[] = {GDRIVE_SCOPE_META, 
-                                  GDRIVE_SCOPE_READ, 
-                                  GDRIVE_SCOPE_WRITE,
-                                  GDRIVE_SCOPE_APPS 
-                                  };*/
-    // Number of elements in each of the accessModes and scopes arrays.
-    //const int numModes = 4;
-    
     char scopeStr[GDRIVE_SCOPE_MAXLENGTH] = "";
     bool scopeFound = false;
     
@@ -1566,9 +1493,11 @@ int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
         // Memory error.
         return -1;
     }
-    int returnVal = _gdrive_refresh_auth_token(pInfo->pInternalInfo, 
-                                               pBuf, GDRIVE_GRANTTYPE_CODE, 
-                                               authCode, 0, GDRIVE_RETRY_LIMIT);
+    int returnVal = _gdrive_refresh_auth_token(pInfo, 
+                                               pBuf, 
+                                               GDRIVE_GRANTTYPE_CODE, 
+                                               authCode
+    );
     _gdrive_download_buffer_free(pBuf);
     
     return returnVal;
