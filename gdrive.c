@@ -367,14 +367,15 @@ int gdrive_folder_list(Gdrive_Info* pInfo,
     pArray->nItems = -1;
     
     // Allow for an initial quote character in addition to the terminating null
-    char* filter = malloc(strlen(folderId) + strlen("' in parents") + 2);
+    char* filter = malloc(strlen(folderId) + 
+                            strlen("' in parents and trashed=false") + 2);
     if (filter == NULL)
     {
         return -1;
     }
     strcpy(filter, "'");
     strcat(filter, folderId);
-    strcat(filter, "' in parents");
+    strcat(filter, "' in parents and trashed=false");
     
     char* query;
     query = _gdrive_assemble_query_string(
