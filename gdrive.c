@@ -22,7 +22,6 @@
 
 #include <errno.h>
 
-//#include "fuse-drive.h"
 #include "gdrive-json.h"
 #include "gdrive.h"
 #include "gdrive-internal.h"
@@ -184,34 +183,18 @@ int gdrive_auth(Gdrive_Info* pInfo)
     if (pInfo->pInternalInfo->refreshToken != NULL && 
             pInfo->pInternalInfo->refreshToken[0] != '\0')
     {
-        Gdrive_Download_Buffer* downloadBuffer = 
-                _gdrive_download_buffer_create(200);
-        if (downloadBuffer == NULL)
-        {
-            // Memory error
-            return -1;
-        }
         int refreshSuccess = _gdrive_refresh_auth_token(
                 pInfo, 
-                downloadBuffer,
                 GDRIVE_GRANTTYPE_REFRESH,
                 pInfo->pInternalInfo->refreshToken
         );
-        _gdrive_download_buffer_free(downloadBuffer);
         
         if (refreshSuccess == 0)
         {
             // Refresh succeeded, but we don't know what scopes were previously
             // granted.  Check to make sure we have the required scopes.  If so,
             // then we don't need to do anything else and can return success.
-            Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(200);
-            if (pBuf == NULL)
-            {
-                // Memory error
-                return -1;
-            }
-            int success = _gdrive_check_scopes(pBuf, pInfo);
-            _gdrive_download_buffer_free(pBuf);
+            int success = _gdrive_check_scopes(pInfo);
             if (success == 0)
             {
                 // Refresh succeeded with correct scopes, return success.
@@ -260,17 +243,17 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     Gdrive_Fileinfo* pFileinfo = *ppFileinfo;
     CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
     
-    struct curl_slist* pHeaders;
-    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
-    if (pHeaders == NULL)
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    int success = _gdrive_query_add(pQuery, "fields", 
+            "title,id,mimeType,fileSize,createdDate,modifiedDate,"
+            "lastViewedByMeDate,parents(id)"
+    );
+    if (success != 0)
     {
-        // Unknown error, possibly memory
+        // Error, probably memory
+        _gdrive_query_free(pQuery);
         return -1;
     }
-    
-    char* queryFields = "title,id,mimeType,fileSize,createdDate,"
-                        "modifiedDate,lastViewedByMeDate,parents(id)";
-    
     
     // String to hold the url.  Add 2 to the end to account for the '/' before
     // the file ID, as well as the terminating null.
@@ -278,47 +261,34 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     if (baseUrl == NULL)
     {
         // Memory error.
-        curl_slist_free_all(pHeaders);
+        _gdrive_query_free(pQuery);
         return -1;
     }
     strcpy(baseUrl, GDRIVE_URL_FILES);
     strcat(baseUrl, "/");
     strcat(baseUrl, fileId);
-    char* url = _gdrive_assemble_query_string(curlHandle, baseUrl, 1, 
-                                              "fields", queryFields
-    );
-    free(baseUrl);
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
     
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
+    Gdrive_Download_Buffer* pBuf = _gdrive_do_transfer(pInfo, 
+                                                       GDRIVE_REQUEST_GET, 
+                                                       true, baseUrl, pQuery, 
+                                                       NULL
+            );
+    _gdrive_query_free(pQuery);
+    free(baseUrl);
     if (pBuf == NULL)
     {
-        // Memory error.
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-        curl_slist_free_all(pHeaders);
-        free(url);
+        // Download error
         return -1;
     }
     
-    long httpResp = 0;
-    int result = _gdrive_download_to_buffer_with_retry(pInfo, 
-                                                       pBuf, 
-                                                       &httpResp, 
-                                                       true, 
-                                                       0, GDRIVE_RETRY_LIMIT
-    );
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-    curl_slist_free_all(pHeaders);
-    free(url);
-    
-    if (result != 0)
+    if (pBuf->httpResp >= 400)
     {
-        // Download failure
+        // Server returned an error that couldn't be retried, or continued
+        // returning an error after retrying
         _gdrive_download_buffer_free(pBuf);
         return -1;
     }
+    
     // If we're here, we have a good response.  Extract the ID from the 
     // response.
     
@@ -359,6 +329,8 @@ int gdrive_folder_list(Gdrive_Info* pInfo,
                        Gdrive_Fileinfo_Array* pArray
 )
 {
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
     if (pArray == NULL || pArray->nItems > 0 || pArray->pArray != NULL)
     {
         // Invalid argument
@@ -377,56 +349,25 @@ int gdrive_folder_list(Gdrive_Info* pInfo,
     strcat(filter, folderId);
     strcat(filter, "' in parents and trashed=false");
     
-    char* query;
-    query = _gdrive_assemble_query_string(
-                                          pInfo->pInternalInfo->curlHandle, 
-                                          GDRIVE_URL_FILES, 2,
-                                          "q", filter,
-                                          "fields", "items(title,id,mimeType)"
-            );
-    free(filter);
-    if (query == NULL)
-    {
-        // Error, probably memory error.
-        return -1;
-    }
-    
-    struct curl_slist* pHeaders;
-    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
-    if (pHeaders == NULL)
-    {
-        // Unknown error, possibly memory
-        free(query);
-        return -1;
-    }
-    
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(1024);
-    if (pBuf == NULL)
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    if (pQuery == NULL)
     {
         // Memory error
-        curl_slist_free_all(pHeaders);
-        free(query);
+        free(filter);
         return -1;
     }
+    _gdrive_query_add(pQuery, "q", filter);
+    _gdrive_query_add(pQuery, "fields", "items(title,id,mimeType)");
+    free(filter);
     
-    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
-    
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    curl_easy_setopt(curlHandle, CURLOPT_URL, query);
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
-    
-    long httpResp = 0;
-    int transfer_result = _gdrive_download_to_buffer_with_retry(
-            pInfo, 
-            pBuf, 
-            &httpResp, 
-            true,
-            0,
-            GDRIVE_RETRY_LIMIT
-    );
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
+                                GDRIVE_URL_FILES, pQuery, NULL
+            );
+    _gdrive_query_free(pQuery);
     
     int returnVal = -1;
-    if (transfer_result == 0 && httpResp < 400)
+    if (pBuf != NULL && pBuf->httpResp < 400)
     {
         // Transfer was successful.  Convert result to a JSON object and extract
         // the file meta-info.
@@ -474,9 +415,7 @@ int gdrive_folder_list(Gdrive_Info* pInfo,
     }
     
     _gdrive_download_buffer_free(pBuf);
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-    curl_slist_free_all(pHeaders);
-    free(query);
+
     
     pArray->nItems = returnVal;
     return returnVal;
@@ -576,65 +515,6 @@ char* gdrive_filepath_to_id(Gdrive_Info* pInfo, const char* path)
                 );
     }
     return result;
-    
-//    // Find the first non-'/' character (normally index 1, but we'll treat
-//    // multiple consecutive slashes as a single path separator.  
-//    // "///path1//path2" would be equivalent to "/path1/path2".)
-//    int startIndex;
-//    for (startIndex = 1; path[startIndex] == '/'; startIndex++)
-//        ;   // No loop body
-//    
-//    // If the path is JUST the root, go ahead and return the root ID already.
-//    if (path[startIndex] == '\0')
-//    {
-//        return nextId;
-//    }
-//    
-//    // Start at index 1, not 0, because we already know the first element.
-//    //int startIndex = 1;
-//    int endIndex;
-//    while (path[startIndex] != '\0')
-//    {
-//        // Find the next '/' or the end of the string
-//        for (
-//                endIndex = startIndex + 1; 
-//                path[endIndex] != '/' && path[endIndex] != '\0'; 
-//                endIndex++
-//                );  // No loop body
-//        
-//        char* pathPart = malloc(endIndex - startIndex + 1);
-//        if (pathPart == NULL)
-//        {
-//            // Memory error
-//            free(lastId);
-//            free(nextId);
-//            return NULL;
-//        }
-//        strncpy(pathPart, path + startIndex, endIndex - startIndex);
-//        pathPart[endIndex - startIndex] = '\0';
-//        
-//        free(lastId);
-//        lastId = nextId;
-//        nextId = _gdrive_get_child_id_by_name(pInfo, 
-//                                              lastId, pathPart, 
-//                                              0, GDRIVE_RETRY_LIMIT
-//                );
-//        if (nextId == NULL)
-//        {
-//            // Some kind of error.  Possibly the file doesn't exist, or several
-//            // other errors could cause this.
-//            free(lastId);
-//            return NULL;
-//        }
-//        
-//        // Skip any consecutive '/' characters before starting the next
-//        // iteration of the while loop.
-//        for (startIndex = endIndex; path[startIndex] == '/'; startIndex++)
-//            ;   // No loop body
-//    }
-//    
-//    free(lastId);
-//    return nextId;
 }
 
 void gdrive_fileinfo_cleanup(Gdrive_Fileinfo* pFileinfo)
@@ -987,8 +867,8 @@ void _gdrive_info_internal_free(Gdrive_Info_Internal* pInfo)
 }
 
 CURLcode _gdrive_download_to_buffer(CURL* curlHandle, 
-                                    Gdrive_Download_Buffer* pBuffer, 
-                                    long* pHttpResp,
+                                    Gdrive_Download_Buffer* pBuffer /*, 
+                                    long* pHttpResp */,
                                     bool textMode
 )
 {
@@ -1006,12 +886,12 @@ CURLcode _gdrive_download_to_buffer(CURL* curlHandle,
                          _gdrive_download_buffer_callback_bin)
             );
     curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, pBuffer);
-    CURLcode returnVal = curl_easy_perform(curlHandle);
+    pBuffer->resultCode = curl_easy_perform(curlHandle);
     
     // Get the HTTP response
-    curl_easy_getinfo(curlHandle, CURLINFO_RESPONSE_CODE, pHttpResp);
+    curl_easy_getinfo(curlHandle, CURLINFO_RESPONSE_CODE, &(pBuffer->httpResp));
     
-    return returnVal;
+    return pBuffer->resultCode;
 }
 
 size_t _gdrive_download_buffer_callback_text(char *newData, 
@@ -1100,6 +980,8 @@ Gdrive_Download_Buffer* _gdrive_download_buffer_create(size_t initialSize)
     }
     pBuf->usedSize = 0;
     pBuf->allocatedSize = initialSize;
+    pBuf->httpResp = 0;
+    pBuf->resultCode = 0;
     pBuf->data = NULL;
     if (initialSize != 0)
     {
@@ -1289,7 +1171,7 @@ char* _gdrive_assemble_query_string(CURL* curlHandle,
 }
 
 int _gdrive_refresh_auth_token(Gdrive_Info* pInfo, 
-                               Gdrive_Download_Buffer* pBuf,
+                               //Gdrive_Download_Buffer* pBuf,
                                const char* grantType,
                                const char* tokenString
 )
@@ -1313,61 +1195,57 @@ int _gdrive_refresh_auth_token(Gdrive_Info* pInfo,
         }
     }
 
-    // Set up the POST data.  It feels like there should be a cleaner (more
-    // uniform) way to do this.
-    char* postData;
-    postData = (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) == 0) ?
-        _gdrive_postdata_assemble(
-            curlHandle, 5, 
-            GDRIVE_FIELDNAME_CODE, tokenString,
-            "redirect_uri", GDRIVE_REDIRECT_URI,
-            GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID,
-            GDRIVE_FIELDNAME_CLIENTSECRET, GDRIVE_CLIENT_SECRET,
-            GDRIVE_FIELDNAME_GRANTTYPE, grantType
-            ) : 
-        _gdrive_postdata_assemble(
-            curlHandle, 4, 
-            GDRIVE_FIELDNAME_REFRESHTOKEN, tokenString,
-            GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID,
-            GDRIVE_FIELDNAME_CLIENTSECRET, GDRIVE_CLIENT_SECRET,
-            GDRIVE_FIELDNAME_GRANTTYPE, grantType
-            );
-    if (postData == NULL)
+    Gdrive_Query* pPostData = _gdrive_query_create(curlHandle);
+    if (pPostData == NULL)
     {
         // Memory error
         return -1;
     }
+    const char* tokenOrCodeField = NULL;
+    if (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) == 0)
+    {
+        // Converting an auth code into auth and refresh tokens.  Interpret
+        // tokenString as the auth code.
+        _gdrive_query_add(pPostData,
+                          GDRIVE_FIELDNAME_REDIRECTURI, 
+                          GDRIVE_REDIRECT_URI
+                );
+        tokenOrCodeField = GDRIVE_FIELDNAME_CODE;
+    }
+    else
+    {
+        // Refreshing an existing refresh token.  Interpret tokenString as the
+        // refresh token.
+        tokenOrCodeField = GDRIVE_FIELDNAME_REFRESHTOKEN;
+    }
+    _gdrive_query_add(pPostData, tokenOrCodeField, tokenString);
+    _gdrive_query_add(pPostData, GDRIVE_FIELDNAME_CLIENTID, GDRIVE_CLIENT_ID);
+    _gdrive_query_add(pPostData,
+                      GDRIVE_FIELDNAME_CLIENTSECRET, 
+                      GDRIVE_CLIENT_SECRET
+            );
+    _gdrive_query_add(pPostData, GDRIVE_FIELDNAME_GRANTTYPE, grantType);
         
-    curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
-    curl_easy_setopt(curlHandle, CURLOPT_URL, GDRIVE_URL_AUTH_TOKEN);
-    curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData);
-
     // Do the transfer. We're trying to get authorization, so don't retry on
     // auth errors.
-    long httpResult = 0;
-    CURLcode curlResult = _gdrive_download_to_buffer_with_retry(
-            pInfo, 
-            pBuf, 
-            &httpResult, 
-            false, 
-            0, 
-            GDRIVE_RETRY_LIMIT
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_POST, false, 
+                                GDRIVE_URL_AUTH_TOKEN, pPostData, NULL
             );
-    curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, NULL);
-    free(postData);
+    _gdrive_query_free(pPostData);
     
-    
-    if (curlResult != CURLE_OK)
+    if (pBuf == NULL)
     {
         // There was an error sending the request and getting the response.
         return -1;
     }
-    if (httpResult >= 400)
+    if (pBuf->httpResp >= 400)
     {
-            // Failure, but probably not an error.  Most likely, the user has
-            // revoked permission or the refresh token has otherwise been
-            // invalidated.
-            return 1;
+        // Failure, but probably not an error.  Most likely, the user has
+        // revoked permission or the refresh token has otherwise been
+        // invalidated.
+        _gdrive_download_buffer_free(pBuf);
+        return 1;
     }
     
     // If we've gotten this far, we have a good HTTP response.  Now we just
@@ -1375,6 +1253,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info* pInfo,
     // present) out of it.
 
     gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    _gdrive_download_buffer_free(pBuf);
     if (pObj == NULL)
     {
         // Couldn't locate JSON-formatted information in the server's 
@@ -1478,54 +1357,34 @@ int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
         return 1;
     }
     
-
-    
     // Exchange the authorization code for access and refresh tokens.
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(200);
-    if (pBuf == NULL)
-    {
-        // Memory error.
-        return -1;
-    }
-    int returnVal = _gdrive_refresh_auth_token(pInfo, 
-                                               pBuf, 
-                                               GDRIVE_GRANTTYPE_CODE, 
-                                               authCode
-    );
-    _gdrive_download_buffer_free(pBuf);
-    
-    return returnVal;
+    return _gdrive_refresh_auth_token(pInfo, GDRIVE_GRANTTYPE_CODE, authCode);
 }
 
-int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
-                         Gdrive_Info* pInfo
-)
+int _gdrive_check_scopes(Gdrive_Info* pInfo)
 {
+    // Convenience assignments
     Gdrive_Info_Internal* pInternalInfo = pInfo->pInternalInfo;
     CURL* curlHandle = pInternalInfo->curlHandle;
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    char* url = _gdrive_assemble_query_string(curlHandle, 
-                                              GDRIVE_URL_AUTH_TOKENINFO, 
-                                              1, 
-                                              GDRIVE_FIELDNAME_ACCESSTOKEN,
-                                              pInternalInfo->accessToken
-    );
-    if (url == NULL)
+    
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    if (pQuery == NULL)
     {
         // Memory error
         return -1;
     }
-    
-    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-    long httpResp = 0;
-    CURLcode curlCode = _gdrive_download_to_buffer_with_retry(pInfo, 
-                                                              pBuf, 
-                                                              &httpResp, 
-                                                              false, 
-                                                              0, 
-                                                              GDRIVE_RETRY_LIMIT
+    _gdrive_query_add(pQuery, 
+                      GDRIVE_FIELDNAME_ACCESSTOKEN, 
+                      pInternalInfo->accessToken
             );
-    if (curlCode != CURLE_OK || httpResp >= 400)
+    
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, false, 
+                                GDRIVE_URL_AUTH_TOKENINFO, pQuery, NULL
+            );
+    _gdrive_query_free(pQuery);
+    
+    if (pBuf == NULL || pBuf->httpResp >= 400)
     {
         // Download failed or gave a bad response.
         _gdrive_download_buffer_free(pBuf);
@@ -1537,6 +1396,7 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
     // with the expected scopes.
     
     gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    _gdrive_download_buffer_free(pBuf);
     if (pObj == NULL)
     {
         // Couldn't interpret the response as JSON, return error.
@@ -1603,54 +1463,24 @@ int _gdrive_check_scopes(Gdrive_Download_Buffer* pBuf,
 
 char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo)
 {
-    struct curl_slist* pHeaders;
-    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
-    if (pHeaders == NULL)
-    {
-        // Unknown error, possibly memory
-        return NULL;
-    }
-    
     // String to hold the url
     char* url = malloc(strlen(GDRIVE_URL_FILES) + 
                         strlen("/root?fields=id") + 1);
     if (url == NULL)
     {
         // Memory error.
-        curl_slist_free_all(pHeaders);
         return NULL;
     }
     strcpy(url, GDRIVE_URL_FILES);
     strcat(url, "/root?fields=id");
     
-    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
-    
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
-    if (pBuf == NULL)
-    {
-        // Memory error.
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-        curl_slist_free_all(pHeaders);
-        free(url);
-    }
-    
-    long httpResp = 0;
-    CURLcode curlResult = _gdrive_download_to_buffer_with_retry(
-            pInfo,
-            pBuf, 
-            &httpResp,
-            true,
-            0, 
-            GDRIVE_RETRY_LIMIT
+    Gdrive_Download_Buffer* pBuf = _gdrive_do_transfer(pInfo, 
+                                                       GDRIVE_REQUEST_GET, true,
+                                                       url, NULL, NULL
             );
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-    curl_slist_free_all(pHeaders);
     free(url);
     
-    if (curlResult != CURLE_OK || httpResp >= 400)
+    if (pBuf == NULL || pBuf->httpResp >= 400)
     {
         // Download error or bad response
         _gdrive_download_buffer_free(pBuf);
@@ -1662,17 +1492,14 @@ char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo)
     
     // Convert to a JSON object.
     gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    _gdrive_download_buffer_free(pBuf);
     if (pObj == NULL)
     {
         // Couldn't convert to JSON object.
-        _gdrive_download_buffer_free(pBuf);
         return NULL;
     }
     
     char* id = _gdrive_new_string_from_json(pObj, "id", NULL);
-    
-    _gdrive_download_buffer_free(pBuf);
-    
     return id;
 }
 
@@ -1681,21 +1508,14 @@ char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo,
                                    const char* childName
 )
 {
-    struct curl_slist* pHeaders;
-    pHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo);
-    if (pHeaders == NULL)
-    {
-        // Unknown error, possibly memory
-        return NULL;
-    }
-    
+    // Construct a filter in the form of 
+    // "'<parentId>' in parents and title = '<childName>'"
     char* filter = malloc(strlen("'' in parents and title = ''") + 
                           strlen(parentId) + strlen(childName) + 1
     );
     if (filter == NULL)
     {
         // Memory error
-        curl_slist_free_all(pHeaders);
         return NULL;
     }
     strcpy(filter, "'");
@@ -1705,34 +1525,25 @@ char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo,
     strcat(filter, "'");
     
     CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
-    char* queryUrl = _gdrive_assemble_query_string(curlHandle, GDRIVE_URL_FILES, 
-                                                   2,
-                                                   "q", filter,
-                                                   "fields", "items(id)"
-            );
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    curl_easy_setopt(curlHandle, CURLOPT_URL, queryUrl);
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
-    
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
-    if (pBuf == NULL)
+
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    if (pQuery == NULL)
     {
-        // Memory error.
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-        curl_slist_free_all(pHeaders);
-        free(queryUrl);
+        // Memory error
+        free(filter);
+        return NULL;
     }
+    _gdrive_query_add(pQuery, "q", filter);
+    _gdrive_query_add(pQuery, "fields", "items(id)");
     
-    long httpResp = 0;
-    int success = _gdrive_download_to_buffer_with_retry(pInfo, pBuf, &httpResp, 
-                                                        true, 
-                                                        0, GDRIVE_RETRY_LIMIT
-    );
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-    curl_slist_free_all(pHeaders);
-    free(queryUrl);
+
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
+                                GDRIVE_URL_FILES, pQuery, NULL
+            );
+    _gdrive_query_free(pQuery);
     
-    if (success != 0)
+    if (pBuf == NULL || pBuf->httpResp >= 400)
     {
         // Download error
         _gdrive_download_buffer_free(pBuf);
@@ -1745,10 +1556,10 @@ char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo,
     
     // Convert to a JSON object.
     gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+    _gdrive_download_buffer_free(pBuf);
     if (pObj == NULL)
     {
         // Couldn't convert to JSON object.
-        _gdrive_download_buffer_free(pBuf);
         return NULL;
     }
     
@@ -1758,14 +1569,14 @@ char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo,
     {
         id = _gdrive_new_string_from_json(pArrayItem, "id", NULL);
     }
-    
-    _gdrive_download_buffer_free(pBuf);
-    
     return id;
 }
 
+/*
+ * pHeaders can be NULL, or an existing set of headers can be given.
+ */
 struct curl_slist* _gdrive_authbearer_header(
-        Gdrive_Info_Internal* pInternalInfo
+        Gdrive_Info_Internal* pInternalInfo, struct curl_slist* pHeaders
 )
 {
     // First form a string with the required text and the access token.
@@ -1781,8 +1592,7 @@ struct curl_slist* _gdrive_authbearer_header(
     strcat(header, pInternalInfo->accessToken);
     
     // Copy the string into a curl_slist for use in headers.
-    struct curl_slist* returnVal = NULL;
-    returnVal = curl_slist_append(returnVal, header);
+    struct curl_slist* returnVal = curl_slist_append(pHeaders, header);
     return returnVal;
 }
 
@@ -1848,9 +1658,113 @@ enum Gdrive_Retry_Method _gdrive_retry_on_error(Gdrive_Download_Buffer* pBuf,
     return GDRIVE_RETRY_NORETRY;
 }
 
+/*
+ * pHeaders can (and usually should) be NULL. If given a non-NULL pHeaders,
+ * then the calling function should NOT make any further use of this pointer,
+ * and should NOT call curl_slist_free_all().
+ */
+Gdrive_Download_Buffer* _gdrive_do_transfer(
+        Gdrive_Info* pInfo, enum Gdrive_Request_Type requestType,
+        bool retryOnAuthError, const char* url,  const Gdrive_Query* pQuery, 
+        struct curl_slist* pHeaders
+)
+{
+    // Convenience assignment
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    // Get the Authorization: Bearer header
+    struct curl_slist* pNewHeaders;
+    pNewHeaders = _gdrive_authbearer_header(pInfo->pInternalInfo, pHeaders);
+    if (pNewHeaders == NULL)
+    {
+        // Unknown error, possibly memory
+        return NULL;
+    }
+    
+    char* fullUrl = NULL;
+    char* postData = NULL;
+    
+    switch (requestType)
+    {
+    case GDRIVE_REQUEST_GET:
+        fullUrl = _gdrive_assemble_query_or_post(url, pQuery);
+        if (fullUrl == NULL)
+        {
+            // Memory error or invalid URL
+            curl_slist_free_all(pNewHeaders);
+            return NULL;
+        }
+        curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+        curl_easy_setopt(curlHandle, CURLOPT_URL, fullUrl);
+        // postData remains NULL and can be safely freed without harming 
+        // anything.
+        break;
+        
+    case GDRIVE_REQUEST_POST:
+        postData = _gdrive_assemble_query_or_post(NULL, pQuery);
+        if (postData == NULL)
+        {
+            // Memory error or invalid query
+            curl_slist_free_all(pNewHeaders);
+            return NULL;
+        }
+        curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
+        curl_easy_setopt(curlHandle, CURLOPT_URL, url);
+        curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData);
+        // fullUrl remains NULL and can be safely freed without harming
+        // anything.
+        break;
+        
+    default:
+        // Unsupported request type.  PATCH should be added later.
+        curl_slist_free_all(pNewHeaders);
+        return NULL;
+    }
+    
+    // Automatically follow redirects
+    curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
+    // Set headers
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pNewHeaders);
+
+    
+    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(512);
+    if (pBuf == NULL)
+    {
+        // Memory error.
+        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+        curl_slist_free_all(pNewHeaders);
+        free(fullUrl);
+        free(postData);
+        return NULL;
+    }
+    
+    //long httpResp = 0;
+    int result = _gdrive_download_to_buffer_with_retry(pInfo, 
+                                                       pBuf, 
+                                                       retryOnAuthError, 
+                                                       0, GDRIVE_RETRY_LIMIT
+    );
+    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+    curl_slist_free_all(pNewHeaders);
+    free(fullUrl);
+    free(postData);
+    
+    if (result != 0)
+    {
+        // Download failure
+        _gdrive_download_buffer_free(pBuf);
+        return NULL;
+    }
+    
+    // The HTTP Response may be success (i.e., 200) or failure (400 or higher),
+    // but the actual request succeeded as far as libcurl is concerned.  Return
+    // the buffer.
+    return pBuf;
+}
+
 int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo, 
-                                          Gdrive_Download_Buffer* pBuf, 
-                                          long* pHttpResp, 
+                                          Gdrive_Download_Buffer* pBuf /*, 
+                                          long* pHttpResp */, 
                                           bool retryOnAuthError,
                                           int tryNum,
                                           int maxTries
@@ -1859,18 +1773,19 @@ int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo,
     CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
     
     CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
-                                                     pBuf, 
-                                                     pHttpResp,
+                                                     pBuf /*, 
+                                                     pHttpResp */,
                                                      true
             );
     
     if (curlResult != CURLE_OK)
     {
         // Download error
-        *pHttpResp = 0;
+        //*pHttpResp = 0;
+        pBuf->httpResp = 0;
         return -1;
     }
-    if (*pHttpResp >= 400)
+    if (pBuf->httpResp >= 400)
     {
         // Handle HTTP error responses.  Normal error handling - 5xx gets 
         // retried, 403 gets retried if it's due to rate limits, 401 gets
@@ -1884,7 +1799,7 @@ int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo,
         }
         
         bool retry = false;
-        switch (_gdrive_retry_on_error(pBuf, *pHttpResp))
+        switch (_gdrive_retry_on_error(pBuf, pBuf->httpResp))
         {
         case GDRIVE_RETRY_RETRY:
             // Normal retry, use exponential backoff.
@@ -1913,7 +1828,7 @@ int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo,
         {
             return _gdrive_download_to_buffer_with_retry(pInfo,
                                                          pBuf, 
-                                                         pHttpResp, 
+                                                         //pHttpResp, 
                                                          retryOnAuthError,
                                                          tryNum + 1,
                                                          maxTries
@@ -1944,6 +1859,157 @@ void _gdrive_exponential_wait(int tryNum)
     waitTimeNano.tv_sec = waitTime / 1000;  // Integer division
     waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
     nanosleep(&waitTimeNano, NULL);
+}
+
+Gdrive_Query* _gdrive_query_create(CURL* curlHandle)
+{
+    Gdrive_Query* result = malloc(sizeof(Gdrive_Query));
+    if (result != NULL)
+    {
+        memset(result, 0, sizeof(Gdrive_Query));
+        result->curlHandle = curlHandle;
+    }
+    return result;
+}
+
+int _gdrive_query_add(Gdrive_Query* pQuery, 
+                      const char* field, 
+                      const char* value
+)
+{
+    CURL* curlHandle = pQuery->curlHandle;
+    
+    Gdrive_Query* pLast = pQuery;
+    if (pLast->field != NULL || pLast->value != NULL)
+    {
+        while (pLast->pNext != NULL)
+        {
+            pLast = pLast->pNext;
+        }
+        pLast->pNext = _gdrive_query_create(curlHandle);
+        if (pLast->pNext == NULL)
+        {
+            // Memory error
+            return -1;
+        }
+        pLast = pLast->pNext;
+    }
+    
+    pLast->field = curl_easy_escape(curlHandle, field, 0);
+    if (pLast->field == NULL)
+    {
+        // Error
+        return -1;
+    }
+    pLast->value = curl_easy_escape(curlHandle, value, 0);
+    if (pLast->value == NULL)
+    {
+        // Error
+        return -1;
+    }
+    return 0;
+}
+
+void _gdrive_query_free(Gdrive_Query* pQuery)
+{
+    // Work from the end back to the beginning with recursion.
+    if (pQuery->pNext != NULL)
+    {
+        _gdrive_query_free(pQuery->pNext);
+    }
+    
+    // Free up the strings.  They were created with curl_easy_escape(), so we 
+    // need to use curl_free().
+    if (pQuery->field != NULL)
+    {
+        curl_free(pQuery->field);
+    }
+    if (pQuery->value != NULL)
+    {
+        curl_free(pQuery->value);
+    }
+    
+    // Free the struct itself.
+    free(pQuery);
+}
+
+char* _gdrive_assemble_query_or_post(const char* url, 
+                                     const Gdrive_Query* pQuery
+)
+{
+    // If there is a url, allow for its length plus the '?' character (or the
+    // url length plus terminating null if there is no query string).
+    int totalLength = (url == NULL) ? 0 : (strlen(url) +1);
+    
+    // If there is a query string (or POST data, which is handled the same way),
+    // each field adds its length plus 1 for the '=' character. Each value adds
+    // its length plus 1, for either the '&' character (all but the last item)
+    // or the terminating null (on the last item).
+    const Gdrive_Query* pCurrentQuery = pQuery;
+    while (pCurrentQuery != NULL)
+    {
+        totalLength += strlen(pCurrentQuery->field) + 1;
+        totalLength += strlen(pCurrentQuery->value) + 1;
+        pCurrentQuery = pCurrentQuery->pNext;
+    }
+    
+    if (totalLength < 1)
+    {
+        // Invalid arguments
+        return NULL;
+    }
+    
+    // Allocate a string long enough to hold everything.
+    char* result = malloc(totalLength);
+    if (result == NULL)
+    {
+        // Memory error
+        return NULL;
+    }
+    
+    // Copy the url into the result string.  If there is no url, start with an
+    // empty string.
+    if (url != NULL)
+    {
+        strcpy(result, url);
+        if (pQuery == NULL)
+        {
+            // We had a URL string but no query string, so we're done.
+            return result;
+        }
+        else
+        {
+            // We have both a URL and a query, so they need to be separated
+            // with a '?'.
+            strcat(result, "?");
+        }
+    }
+    else
+    {
+        result[0] = '\0';
+    }
+    
+    if (pQuery == NULL)
+    {
+        // There was no query string, so we're done.
+        return result;
+    }
+    
+    // Copy each of the query field/value pairs into the result.
+    pCurrentQuery = pQuery;
+    while (pCurrentQuery != NULL)
+    {
+        strcat(result, pCurrentQuery->field);
+        strcat(result, "=");
+        strcat(result, pCurrentQuery->value);
+        if (pCurrentQuery->pNext != NULL)
+        {
+            strcat(result, "&");
+        }
+        pCurrentQuery = pCurrentQuery->pNext;
+    }
+    
+    return result;
 }
 
 int _gdrive_realloc_string_from_json(gdrive_json_object* pObj, 
@@ -2570,48 +2636,19 @@ int _gdrive_cache_init(Gdrive_Info* pInfo)
 {
     CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
     
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    struct curl_slist* pHeaders = 
-            _gdrive_authbearer_header(pInfo->pInternalInfo);
-    if (pHeaders == NULL)
-    {
-        // Error, probably memory
-        return -1;
-    }
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
-    
-    // Construct the request URL
-    char* url = _gdrive_assemble_query_string(curlHandle, GDRIVE_URL_ABOUT, 2,
-                                              "includeSubscribed", "false",
-                                              "fields", "largestChangeId"
-    );
-    if (url == NULL)
-    {
-        // Memory error
-        curl_slist_free_all(pHeaders);
-        return -1;
-    }
-    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-    
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
-    if (pBuf == NULL)
-    {
-        // Memory error
-        curl_slist_free_all(pHeaders);
-        free(url);
-        return -1;
-    }
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    _gdrive_query_add(pQuery, "includeSubscribed", "false");
+    _gdrive_query_add(pQuery, "fields", "largestChangeId");
     
     // Do the transfer.
-    long httpResp = 0;
-    CURLcode result = _gdrive_download_to_buffer_with_retry(pInfo, pBuf, 
-                                                            &httpResp, 
-                                                            true,
-                                                            0, 
-                                                            GDRIVE_RETRY_LIMIT
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
+                                GDRIVE_URL_ABOUT, pQuery, NULL
             );
+    _gdrive_query_free(pQuery);
+    
     int returnVal = -1;
-    if (result == CURLE_OK && httpResp < 400)
+    if (pBuf != NULL && pBuf->httpResp < 400)
     {
         // Response was good, try extracting the data.
         gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
@@ -2627,74 +2664,52 @@ int _gdrive_cache_init(Gdrive_Info* pInfo)
         }
     }
     
-    free(url);
-    curl_slist_free_all(pHeaders);
     _gdrive_download_buffer_free(pBuf);
     return returnVal;
 }
 
 int _gdrive_update_cache(Gdrive_Info* pInfo)
 {
+    // Convenience assignments
     CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
     Gdrive_Cache* pCache = &(pInfo->pInternalInfo->cache);
     
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-    struct curl_slist* pHeaders = 
-            _gdrive_authbearer_header(pInfo->pInternalInfo);
-    if (pHeaders == NULL)
-    {
-        // Error, probably memory
-        return -1;
-    }
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pHeaders);
-    
-    // Construct the request URL
+    // Convert the numeric largest change ID into a string
     char* changeIdString = NULL;
     size_t changeIdStringLen = snprintf(NULL, 0, "%lu", pCache->nextChangeId);
     changeIdString = malloc(changeIdStringLen + 1);
     if (changeIdString == NULL)
     {
         // Memory error
-        curl_slist_free_all(pHeaders);
         return -1;
     }
     snprintf(changeIdString, changeIdStringLen + 1, "%lu", 
             pCache->nextChangeId
             );
-    char* url = _gdrive_assemble_query_string(
-            curlHandle, GDRIVE_URL_CHANGES, 3,
-            "startChangeId", changeIdString,
-            "includeSubscribed", "false",
-            "fields", "largestChangeId,items(fileId,deleted,file)"
-    );
-    free(changeIdString);
-    if (url == NULL)
+    
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    if (pQuery == NULL)
     {
         // Memory error
-        curl_slist_free_all(pHeaders);
+        free(changeIdString);
         return -1;
     }
-    curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-    
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(100);
-    if (pBuf == NULL)
-    {
-        // Memory error
-        curl_slist_free_all(pHeaders);
-        free(url);
-        return -1;
-    }
-    
-    // Do the transfer.
-    long httpResp = 0;
-    CURLcode result = _gdrive_download_to_buffer_with_retry(pInfo, pBuf, 
-                                                            &httpResp, 
-                                                            true,
-                                                            0, 
-                                                            GDRIVE_RETRY_LIMIT
+    _gdrive_query_add(pQuery, "startChangeId", changeIdString);
+    _gdrive_query_add(pQuery, "includeSubscribed", "false");
+    _gdrive_query_add(pQuery, 
+                      "fields", 
+                      "largestChangeId,items(fileId,deleted,file)"
             );
+    free(changeIdString);
+    
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
+                                GDRIVE_URL_CHANGES, pQuery, NULL
+            );
+    _gdrive_query_free(pQuery);
+    
     int returnVal = -1;
-    if (result == CURLE_OK && httpResp < 400)
+    if (pBuf != NULL && pBuf->httpResp < 400)
     {
         // Response was good, try extracting the data.
         gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
@@ -2788,8 +2803,6 @@ int _gdrive_update_cache(Gdrive_Info* pInfo)
     // Reset the last updated time
     pCache->lastUpdateTime = time(NULL);
     
-    free(url);
-    curl_slist_free_all(pHeaders);
     _gdrive_download_buffer_free(pBuf);
     return returnVal;
 }
