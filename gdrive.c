@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <ctype.h>
+#include <fcntl.h>
 
 #include <errno.h>
 
@@ -36,7 +37,9 @@ int gdrive_init(Gdrive_Info** ppGdriveInfo,
                 int access, 
                 const char* authFilename, 
                 time_t cacheTTL,
-                enum Gdrive_Interaction interactionMode
+                enum Gdrive_Interaction interactionMode,
+                size_t minFileChunkSize,
+                int maxChunksPerFile
 )
 {
     // Allocate memory first.  Otherwise, if memory allocation fails, we won't
@@ -67,7 +70,9 @@ int gdrive_init(Gdrive_Info** ppGdriveInfo,
                               access, 
                               authFilename, 
                               cacheTTL,
-                              interactionMode
+                              interactionMode,
+                              minFileChunkSize,
+                              maxChunksPerFile
             );
 }
 
@@ -80,7 +85,9 @@ int gdrive_init_nocurl(Gdrive_Info** ppGdriveInfo,
                        int access, 
                        const char* authFilename, 
                        time_t cacheTTL,
-                       enum Gdrive_Interaction interactionMode
+                       enum Gdrive_Interaction interactionMode,
+                       size_t minFileChunkSize,
+                       int maxChunksPerFile
 )
 {
     // Seed the RNG.
@@ -130,6 +137,12 @@ int gdrive_init_nocurl(Gdrive_Info** ppGdriveInfo,
     _gdrive_cache_init(pInfo);
     pInfo->settings.cacheTTL = cacheTTL;
     
+    // Set chunk size
+    pInfo->settings.minChunkSize = (minFileChunkSize > 0) ?
+        _gdrive_divide_round_up(minFileChunkSize, GDRIVE_BASE_CHUNK_SIZE) * 
+            GDRIVE_BASE_CHUNK_SIZE :
+        GDRIVE_BASE_CHUNK_SIZE;
+    pInfo->settings.maxChunks = maxChunksPerFile;
     
     return 0;
 }
@@ -246,7 +259,7 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
     int success = _gdrive_query_add(pQuery, "fields", 
             "title,id,mimeType,fileSize,createdDate,modifiedDate,"
-            "lastViewedByMeDate,parents(id)"
+            "lastViewedByMeDate,parents(id),userPermission"
     );
     if (success != 0)
     {
@@ -271,7 +284,7 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     Gdrive_Download_Buffer* pBuf = _gdrive_do_transfer(pInfo, 
                                                        GDRIVE_REQUEST_GET, 
                                                        true, baseUrl, pQuery, 
-                                                       NULL
+                                                       NULL, NULL
             );
     _gdrive_query_free(pQuery);
     free(baseUrl);
@@ -302,7 +315,7 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
         return -1;
     }
     
-    _gdrive_get_fileinfo_from_json(pObj, pFileinfo);
+    _gdrive_get_fileinfo_from_json(pInfo, pObj, pFileinfo);
     gdrive_json_kill(pObj);
     
     // If it's a folder, get the number of children.
@@ -362,7 +375,7 @@ int gdrive_folder_list(Gdrive_Info* pInfo,
     
     Gdrive_Download_Buffer* pBuf = 
             _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
-                                GDRIVE_URL_FILES, pQuery, NULL
+                                GDRIVE_URL_FILES, pQuery, NULL, NULL
             );
     _gdrive_query_free(pQuery);
     
@@ -394,7 +407,8 @@ int gdrive_folder_list(Gdrive_Info* pInfo,
                                 );
                         if (pFile != NULL)
                         {
-                            _gdrive_get_fileinfo_from_json(pFile, 
+                            _gdrive_get_fileinfo_from_json(pInfo, 
+                                                           pFile, 
                                                            infoArray + index
                                     );
                         }
@@ -653,6 +667,103 @@ int gdrive_rfc3339_to_epoch_timens(const char* rfcTime,
     
 }
 
+Gdrive_Filehandle* gdrive_file_open(Gdrive_Info* pInfo, 
+                                    const char* fileId,
+                                    int flags
+)
+{
+    // Get the cache node from the cache if it exists.  If it doesn't exist,
+    // don't make a node with an empty Gdrive_Fileinfo.  Instead, use 
+    // gdrive_file_info_from_id() to create the node and fill out the struct, 
+    // then try again to get the node.
+    Gdrive_Cache_Node* pNode;
+    while ((pNode = 
+            _gdrive_cache_get_node(NULL, 
+                                   &(pInfo->pInternalInfo->cache.pCacheHead),
+                                   fileId, false, NULL)
+            ) == NULL)
+    {
+        Gdrive_Fileinfo* pDummy;
+        if (gdrive_file_info_from_id(pInfo, fileId, &pDummy) != 0)
+        {
+            // Problem getting the file info.  Return failure.
+            return NULL;
+        }
+    }
+    
+    // Don't open directories, only regular files.
+    if (pNode->fileinfo.type == GDRIVE_FILETYPE_FOLDER)
+    {
+        // Return failure
+        return NULL;
+    }
+    
+    // Increment open file counts.
+    if ((flags & O_RDONLY) || (flags & O_RDWR))
+    {
+        // Open for reading (not necessarily only reading)
+        pNode->openReads++;
+    }
+    if ((flags & O_WRONLY) || (flags & O_RDWR))
+    {
+        // Open for writing (not necessarily only writing)
+        pNode->openWrites++;
+    }
+    
+    // Return a pointer to the cache node (which is typedef'ed to 
+    // Gdrive_Filehandle)
+    return pNode;
+    
+}
+
+void gdrive_file_close(Gdrive_Info* pInfo, Gdrive_Filehandle* pFile)
+{
+    Gdrive_Cache_Node* pNode = pFile;
+    
+    // TODO: This is a stub.
+    (void) pInfo;
+    (void) pFile;
+    (void) pNode;
+}
+
+int gdrive_file_read(Gdrive_Info* pInfo, 
+                     char* buf,
+                     size_t size, 
+                     off_t offset, 
+                     Gdrive_Filehandle* pFile
+)
+{
+    off_t nextOffset = offset;
+    off_t bufferOffset = 0;
+    size_t bytesRemaining = size;
+    
+    while (bytesRemaining > 0)
+    {
+        off_t bytesRead = _gdrive_file_read_next_chunk(pInfo, 
+                                                      pFile,
+                                                      buf + bufferOffset,
+                                                      nextOffset, 
+                                                      bytesRemaining
+                );
+        if (bytesRead < 0)
+        {
+            // Read error.  bytesRead is the negative error number
+            return bytesRead;
+        }
+        if (bytesRead == 0)
+        {
+            // EOF. Return the total number of bytes actually read.
+            return size - bytesRemaining;
+        }
+        nextOffset += bytesRead;
+        bufferOffset += bytesRead;
+        bytesRemaining -= bytesRead;
+    }
+    
+    return size;
+}
+
+
 
 
 
@@ -867,8 +978,7 @@ void _gdrive_info_internal_free(Gdrive_Info_Internal* pInfo)
 }
 
 CURLcode _gdrive_download_to_buffer(CURL* curlHandle, 
-                                    Gdrive_Download_Buffer* pBuffer /*, 
-                                    long* pHttpResp */,
+                                    Gdrive_Download_Buffer* pBuffer,
                                     bool textMode
 )
 {
@@ -878,14 +988,29 @@ CURLcode _gdrive_download_to_buffer(CURL* curlHandle,
     // Accept compressed responses.
     curl_easy_setopt(curlHandle, CURLOPT_ACCEPT_ENCODING, "");
     
-    // Do the download.
-    curl_easy_setopt(curlHandle, 
-                     CURLOPT_WRITEFUNCTION, 
-                     (textMode ? 
-                         _gdrive_download_buffer_callback_text : 
-                         _gdrive_download_buffer_callback_bin)
-            );
-    curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, pBuffer);
+    // Automatically follow redirects
+    curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
+
+    
+    // Set the destination - either our own callback function to fill the
+    // in-memory buffer, or the default libcurl function to write to a FILE*.
+    if (pBuffer->fh == NULL)
+    {
+        curl_easy_setopt(curlHandle, 
+                         CURLOPT_WRITEFUNCTION, 
+                         (textMode ? 
+                             _gdrive_download_buffer_callback_text : 
+                             _gdrive_download_buffer_callback_bin)
+                );
+        curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, pBuffer);
+    }
+    else
+    {
+        curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, NULL);
+        curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, pBuffer->fh);
+    }
+    
+    // Do the transfer.
     pBuffer->resultCode = curl_easy_perform(curlHandle);
     
     // Get the HTTP response
@@ -983,6 +1108,7 @@ Gdrive_Download_Buffer* _gdrive_download_buffer_create(size_t initialSize)
     pBuf->httpResp = 0;
     pBuf->resultCode = 0;
     pBuf->data = NULL;
+    pBuf->fh = NULL;
     if (initialSize != 0)
     {
         if ((pBuf->data = malloc(initialSize)) == NULL)
@@ -1230,7 +1356,7 @@ int _gdrive_refresh_auth_token(Gdrive_Info* pInfo,
     // auth errors.
     Gdrive_Download_Buffer* pBuf = 
             _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_POST, false, 
-                                GDRIVE_URL_AUTH_TOKEN, pPostData, NULL
+                                GDRIVE_URL_AUTH_TOKEN, pPostData, NULL, NULL
             );
     _gdrive_query_free(pPostData);
     
@@ -1380,7 +1506,7 @@ int _gdrive_check_scopes(Gdrive_Info* pInfo)
     
     Gdrive_Download_Buffer* pBuf = 
             _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, false, 
-                                GDRIVE_URL_AUTH_TOKENINFO, pQuery, NULL
+                                GDRIVE_URL_AUTH_TOKENINFO, pQuery, NULL, NULL
             );
     _gdrive_query_free(pQuery);
     
@@ -1476,7 +1602,7 @@ char* _gdrive_get_root_folder_id(Gdrive_Info* pInfo)
     
     Gdrive_Download_Buffer* pBuf = _gdrive_do_transfer(pInfo, 
                                                        GDRIVE_REQUEST_GET, true,
-                                                       url, NULL, NULL
+                                                       url, NULL, NULL, NULL
             );
     free(url);
     
@@ -1539,7 +1665,7 @@ char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo,
 
     Gdrive_Download_Buffer* pBuf = 
             _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
-                                GDRIVE_URL_FILES, pQuery, NULL
+                                GDRIVE_URL_FILES, pQuery, NULL, NULL
             );
     _gdrive_query_free(pQuery);
     
@@ -1570,6 +1696,263 @@ char* _gdrive_get_child_id_by_name(Gdrive_Info* pInfo,
         id = _gdrive_new_string_from_json(pArrayItem, "id", NULL);
     }
     return id;
+}
+
+size_t _gdrive_file_read_next_chunk(Gdrive_Info* pInfo, 
+                                    Gdrive_Cache_Node* pNode,
+                                    char* destBuf, 
+                                    off_t offset, 
+                                    size_t size
+)
+{
+    // Do we already have a chunk that includes the starting point?
+    FILE* fileChunk = 
+            _gdrive_file_contents_find_chunk(pNode->pContents, offset);
+    
+    if (fileChunk == NULL)
+    {
+        // Chunk doesn't exist, need to create and download it.
+        fileChunk = _gdrive_file_contents_create_chunk(pInfo, 
+                                                       pNode, 
+                                                       offset, 
+                                                       size
+                );
+        
+        if (fileChunk == NULL)
+        {
+            // Error creating the chunk
+            return -EIO;
+        }
+    }
+    
+    // Read the data into the supplied buffer.
+    fseek(fileChunk, offset, SEEK_SET);
+    size_t bytesRead = fread(destBuf, 1, size, fileChunk);
+    
+    // If an error occurred, return negative.
+    if (bytesRead < size)
+    {
+        int err = ferror(fileChunk);
+        if (err != 0)
+        {
+            rewind(fileChunk);
+            return -err;
+        }
+    }
+    
+    // Return the number of bytes read (which may be less than size if we hit
+    // EOF).
+    return bytesRead;
+    
+}
+
+FILE* _gdrive_file_contents_find_chunk(Gdrive_File_Contents* pContents, 
+                                       off_t offset
+)
+{
+    if (pContents == NULL || pContents->fh == NULL)
+    {
+        // Nothing here, return failure.
+        return NULL;
+    }
+    
+    if (offset > pContents->start && offset < pContents->end)
+    {
+        // Found it!
+        return pContents->fh;
+    }
+    
+    // It's not at this node.  Try the next one.
+    return _gdrive_file_contents_find_chunk(pContents->pNext, offset);
+}
+
+FILE* _gdrive_file_contents_create_chunk(Gdrive_Info* pInfo, 
+                                         Gdrive_Cache_Node* pNode, 
+                                         off_t offset,
+                                         size_t size
+)
+{
+    // Get the normal chunk size for this file, the smallest multiple of
+    // minChunkSize that results in maxChunks or fewer chunks.
+    size_t fileSize = pNode->fileinfo.size;
+    int maxChunks = pInfo->settings.maxChunks;
+    size_t minChunkSize = pInfo->settings.minChunkSize;
+
+    size_t perfectChunkSize = _gdrive_divide_round_up(fileSize, maxChunks);
+    size_t chunkSize = _gdrive_divide_round_up(perfectChunkSize, minChunkSize) *
+            minChunkSize;
+    
+    // The actual chunk may be a multiple of chunkSize.  A read that starts at
+    // "offset" and is "size" bytes long should be within this single chunk.
+    off_t chunkStart = (offset / chunkSize) * chunkSize;
+    off_t chunkOffset = offset % chunkSize;
+    off_t endChunkOffset = chunkOffset + size - 1;
+    size_t realChunkSize = _gdrive_divide_round_up(endChunkOffset, chunkSize) *
+            chunkSize;
+    
+    Gdrive_File_Contents* pContents = _gdrive_file_contents_create(pNode);
+    if (pContents == NULL)
+    {
+        // Memory or file creation error
+        return NULL;
+    }
+    
+    int success = _gdrive_file_contents_fill_chunk(pInfo, 
+                                                   &(pNode->fileinfo),
+                                                   pContents, 
+                                                   chunkStart, 
+                                                   realChunkSize
+            );
+    if (success != 0)
+    {
+        // Didn't write the file.  Clean up the new Gdrive_File_Contents struct
+        _gdrive_file_contents_free(pNode, pContents);
+        return NULL;
+    }
+    
+    //Success
+    pContents->start = chunkStart;
+    pContents->end = chunkStart + realChunkSize - 1;
+    return (success == 0) ? pContents->fh : NULL;
+}
+
+Gdrive_File_Contents* _gdrive_file_contents_create(Gdrive_Cache_Node* pNode)
+{
+    // Find the last entry in the file contents list, and add a new one to the
+    // end.
+    Gdrive_File_Contents** ppContents = &(pNode->pContents);
+    while (*ppContents != NULL)
+    {
+        ppContents = &((*ppContents)->pNext);
+    }
+    *ppContents = malloc(sizeof(Gdrive_File_Contents));
+    
+    // Convenience assignment
+    Gdrive_File_Contents* pContents = *ppContents;
+    
+    if (pContents != NULL)
+    {
+        memset(pContents, 0, sizeof(Gdrive_File_Contents));
+        
+        // Create a temporary file on disk.  This will automatically be deleted
+        // when the file is closed or when this program terminates, so no 
+        // cleanup is needed.
+        pContents->fh = tmpfile();
+        if (pContents->fh == NULL)
+        {
+            // File creation error
+            free(pContents);
+            *ppContents = NULL;
+            return NULL;
+        }
+    }
+    return pContents;
+}
+
+void _gdrive_file_contents_free(Gdrive_Cache_Node* pNode, 
+                                Gdrive_File_Contents* pContents
+)
+{
+    // Find the pointer leading to pContents.
+    Gdrive_File_Contents** ppContents = &(pNode->pContents);
+    while (*ppContents != NULL && *ppContents != pContents)
+    {
+        ppContents = &((*ppContents)->pNext);
+    }
+    
+    // Take pContents out of the chain
+    if (*ppContents != NULL)
+    {
+        *ppContents = pContents->pNext;
+    }
+    
+    // Close the temp file
+    if (pContents->fh != NULL)
+    {
+        fclose(pContents->fh);
+        pContents->fh = NULL;
+    }
+    
+    free(pContents);
+}
+
+int _gdrive_file_contents_fill_chunk(Gdrive_Info* pInfo,
+                                     Gdrive_Fileinfo* pFileinfo, 
+                                     Gdrive_File_Contents* pContents,
+                                     off_t start, 
+                                     size_t size
+)
+{
+    // Construct the base URL in the form of "<GDRIVE_URL_FILES>/<fileId>".
+    char* fileUrl = malloc(strlen(GDRIVE_URL_FILES) + 
+                           strlen(pFileinfo->id) + 2
+    );
+    if (fileUrl == NULL)
+    {
+        // Memory error
+        return -1;
+    }
+    strcpy(fileUrl, GDRIVE_URL_FILES);
+    strcat(fileUrl, "/");
+    strcat(fileUrl, pFileinfo->id);
+    
+    // Construct query parameters
+    Gdrive_Query* pQuery = 
+            _gdrive_query_create(pInfo->pInternalInfo->curlHandle);
+    if (pQuery == NULL)
+    {
+        // Memory error
+        free(fileUrl);
+        return -1;
+    }
+    _gdrive_query_add(pQuery, "updateViewedDate", "true");
+    _gdrive_query_add(pQuery, "alt", "media");
+    
+    // Add the Range header.  Per 
+    // http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35 it is
+    // fine for the end of the range to be past the end of the file, so we won't
+    // worry about the file size.
+    off_t end = start + size - 1;
+    int rangeSize = snprintf(NULL, 0, "Range: bytes=%ld-%ld", start, end) + 1;
+    char* rangeHeader = malloc(rangeSize);
+    if (rangeHeader == NULL)
+    {
+        // Memory error
+        _gdrive_query_free(pQuery);
+        free(fileUrl);
+        return -1;
+    }
+    snprintf(rangeHeader, rangeSize, "Range: bytes=%ld-%ld", start, end);
+    struct curl_slist* pHeaders = curl_slist_append(NULL, rangeHeader);
+    free(rangeHeader);
+    if (pHeaders == NULL)
+    {
+        // An error occurred
+        _gdrive_query_free(pQuery);
+        free(fileUrl);
+        return -1;
+    }
+    
+    // Make sure the file position is at the start and any stream errors are
+    // cleared (this should be redundant, since we should normally have a newly
+    // created and opened temporary file).
+    rewind(pContents->fh);
+    
+    // Perform the transfer
+    Gdrive_Download_Buffer* pBuf = _gdrive_do_transfer(pInfo, 
+                                                       GDRIVE_REQUEST_GET, true,
+                                                       fileUrl, pQuery, 
+                                                       pHeaders, pContents->fh
+    );
+    
+    bool success = (pBuf != NULL && 
+            pBuf->resultCode == CURLE_OK && 
+            pBuf->httpResp < 400
+            );
+    _gdrive_download_buffer_free(pBuf);
+    _gdrive_query_free(pQuery);
+    free(fileUrl);
+    return success ? 0 : -1;
 }
 
 /*
@@ -1666,7 +2049,7 @@ enum Gdrive_Retry_Method _gdrive_retry_on_error(Gdrive_Download_Buffer* pBuf,
 Gdrive_Download_Buffer* _gdrive_do_transfer(
         Gdrive_Info* pInfo, enum Gdrive_Request_Type requestType,
         bool retryOnAuthError, const char* url,  const Gdrive_Query* pQuery, 
-        struct curl_slist* pHeaders
+        struct curl_slist* pHeaders, FILE* destFile
 )
 {
     // Convenience assignment
@@ -1721,13 +2104,12 @@ Gdrive_Download_Buffer* _gdrive_do_transfer(
         return NULL;
     }
     
-    // Automatically follow redirects
-    curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
     // Set headers
     curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pNewHeaders);
-
     
-    Gdrive_Download_Buffer* pBuf = _gdrive_download_buffer_create(512);
+    
+    Gdrive_Download_Buffer* pBuf;
+    pBuf = _gdrive_download_buffer_create((destFile == NULL) ? 512 : 0);
     if (pBuf == NULL)
     {
         // Memory error.
@@ -1737,8 +2119,8 @@ Gdrive_Download_Buffer* _gdrive_do_transfer(
         free(postData);
         return NULL;
     }
+    pBuf->fh = destFile;
     
-    //long httpResp = 0;
     int result = _gdrive_download_to_buffer_with_retry(pInfo, 
                                                        pBuf, 
                                                        retryOnAuthError, 
@@ -1763,8 +2145,7 @@ Gdrive_Download_Buffer* _gdrive_do_transfer(
 }
 
 int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo, 
-                                          Gdrive_Download_Buffer* pBuf /*, 
-                                          long* pHttpResp */, 
+                                          Gdrive_Download_Buffer* pBuf, 
                                           bool retryOnAuthError,
                                           int tryNum,
                                           int maxTries
@@ -1772,16 +2153,11 @@ int _gdrive_download_to_buffer_with_retry(Gdrive_Info* pInfo,
 {
     CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
     
-    CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, 
-                                                     pBuf /*, 
-                                                     pHttpResp */,
-                                                     true
-            );
+    CURLcode curlResult = _gdrive_download_to_buffer(curlHandle, pBuf, true);
     
     if (curlResult != CURLE_OK)
     {
         // Download error
-        //*pHttpResp = 0;
         pBuf->httpResp = 0;
         return -1;
     }
@@ -2049,7 +2425,8 @@ int _gdrive_realloc_string_from_json(gdrive_json_object* pObj,
         -1;
 }
 
-void _gdrive_get_fileinfo_from_json(gdrive_json_object* pObj, 
+void _gdrive_get_fileinfo_from_json(Gdrive_Info* pInfo,
+                                    gdrive_json_object* pObj, 
                                    Gdrive_Fileinfo* pFileinfo
 )
 {
@@ -2063,22 +2440,73 @@ void _gdrive_get_fileinfo_from_json(gdrive_json_object* pObj,
     }
     
     char* mimeType = _gdrive_new_string_from_json(pObj, "mimeType", NULL);
-    if (strcmp(mimeType, GDRIVE_MIMETYPE_FOLDER) == 0)
+    if (mimeType != NULL)
     {
-        // Folder
-        pFileinfo->type = GDRIVE_FILETYPE_FOLDER;
+        if (strcmp(mimeType, GDRIVE_MIMETYPE_FOLDER) == 0)
+        {
+            // Folder
+            pFileinfo->type = GDRIVE_FILETYPE_FOLDER;
+        }
+        else if (false)
+        {
+            // TODO: Add any other special file types.  This
+            // will likely include Google Docs.
+        }
+        else
+        {
+            // Regular file
+            pFileinfo->type = GDRIVE_FILETYPE_FILE;
+        }
+        free(mimeType);
     }
-    else if (false)
+    // Get permissions based on filesystem mount options.
+    int mountPerm = 0;
+    if (pInfo->settings.mode & GDRIVE_ACCESS_WRITE)
     {
-        // TODO: Add any other special file types.  This
-        // will likely include Google Docs.
+        // Full read-write access
+        mountPerm = S_IWOTH | S_IROTH;
     }
-    else
+    else if (pInfo->settings.mode & GDRIVE_ACCESS_READ)
     {
-        // Regular file
-        pFileinfo->type = GDRIVE_FILETYPE_FILE;
+        // Read-only access
+        mountPerm = S_IROTH;
     }
-    free(mimeType);
+    // else no access (at least for regular files - folders are handled down
+    // below)
+    
+    // Get the user's permissions for the file on the Google Drive account.
+    char* role = _gdrive_new_string_from_json(pObj, "userPermission/role", NULL);
+    if (role != NULL)
+    {
+        int basePerm = 0;
+        if (strcmp(role, "owner") == 0)
+        {
+            // Full read-write access
+            basePerm = S_IWOTH | S_IROTH;
+        }
+        else if (strcmp(role, "writer") == 0)
+        {
+            // Full read-write access
+            basePerm = S_IWOTH | S_IROTH;
+        }
+        else if (strcmp(role, "reader") == 0)
+        {
+            // Read-only access
+            basePerm = S_IROTH;
+        }
+        
+        // Find the intersection of the two sets of permissions.
+        pFileinfo->permissions = mountPerm & basePerm;
+        
+        // Directories need read and execute permissions to be navigable.  Even
+        // if the system has only meta-info permissions, add read/execute to
+        // any folder.
+        if (pFileinfo->type == GDRIVE_FILETYPE_FOLDER)
+        {
+            pFileinfo->permissions = pFileinfo->permissions | S_IROTH | S_IXOTH;
+        }
+        free(role);
+    }
     
     char* cTime = _gdrive_new_string_from_json(pObj, "createdDate", NULL);
     if (cTime == NULL || 
@@ -2643,7 +3071,7 @@ int _gdrive_cache_init(Gdrive_Info* pInfo)
     // Do the transfer.
     Gdrive_Download_Buffer* pBuf = 
             _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
-                                GDRIVE_URL_ABOUT, pQuery, NULL
+                                GDRIVE_URL_ABOUT, pQuery, NULL, NULL
             );
     _gdrive_query_free(pQuery);
     
@@ -2704,7 +3132,7 @@ int _gdrive_update_cache(Gdrive_Info* pInfo)
     
     Gdrive_Download_Buffer* pBuf = 
             _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
-                                GDRIVE_URL_CHANGES, pQuery, NULL
+                                GDRIVE_URL_CHANGES, pQuery, NULL, NULL
             );
     _gdrive_query_free(pQuery);
     
@@ -2757,6 +3185,7 @@ int _gdrive_update_cache(Gdrive_Info* pInfo)
                 {
                     gdrive_fileinfo_cleanup(&(pCacheNode->fileinfo));
                     _gdrive_get_fileinfo_from_json(
+                            pInfo,
                             gdrive_json_get_nested_object(pItem, "file"),
                             &(pCacheNode->fileinfo)
                             );
@@ -2807,3 +3236,14 @@ int _gdrive_update_cache(Gdrive_Info* pInfo)
     return returnVal;
 }
 
+long _gdrive_divide_round_up(long dividend, long divisor)
+{
+    // Could use ceill() or a similar function for this, but I don't  know 
+    // whether there might be some values that don't convert exactly between
+    // long int and long double and back.
+    
+    // Integer division rounds down.  If there's a remainder, add 1.
+    return (dividend % divisor == 0) ? 
+        (dividend / divisor) : 
+        (dividend / divisor + 1);
+}
