@@ -337,6 +337,28 @@ int gdrive_file_info_from_id(Gdrive_Info* pInfo,
     return 0;
 }
 
+const Gdrive_Fileinfo* gdrive_file_info_from_handle(Gdrive_Info* pInfo, 
+                                                    Gdrive_Filehandle* fh
+)
+{
+    // The pInfo parameter is needed for consistency with other external 
+    // gdrive_* functions, but isn't used here.  Suppress compiler warning for
+    // unused parameter.
+    (void) pInfo;
+    
+    if (fh == NULL)
+    {
+        // Invalid argument
+        return NULL;
+    }
+    
+    // Gdrive_Filehandle and Gdrive_Cache_Node are typedefs of the same struct,
+    // but it's easier to think about them differently. A filehandle is a token,
+    // and a cache node has an internal structure.
+    Gdrive_Cache_Node* pNode = fh;
+    return &(pNode->fileinfo);
+}
+
 int gdrive_folder_list(Gdrive_Info* pInfo, 
                        const char* folderId, 
                        Gdrive_Fileinfo_Array* pArray
@@ -709,6 +731,12 @@ Gdrive_Filehandle* gdrive_file_open(Gdrive_Info* pInfo,
         // Open for writing (not necessarily only writing)
         pNode->openWrites++;
     }
+    if (!(flags & (O_RDONLY | O_WRONLY | O_RDWR)))
+    {
+        // Some opens don't have any of these flags. I'm not sure what these
+        // are.
+        pNode->openOthers++;
+    }
     
     // Return a pointer to the cache node (which is typedef'ed to 
     // Gdrive_Filehandle)
@@ -716,14 +744,41 @@ Gdrive_Filehandle* gdrive_file_open(Gdrive_Info* pInfo,
     
 }
 
-void gdrive_file_close(Gdrive_Info* pInfo, Gdrive_Filehandle* pFile)
+void gdrive_file_close(Gdrive_Info* pInfo, Gdrive_Filehandle* pFile, int flags)
 {
+    // Avoid unused parameter warning.  For now, the pInfo parameter is here
+    // for consistency with other external gdrive_* functions.  Later, it will
+    // be needed when working with files that were opened for writing.
+    (void) pInfo;
+    
     Gdrive_Cache_Node* pNode = pFile;
     
-    // TODO: This is a stub.
-    (void) pInfo;
-    (void) pFile;
-    (void) pNode;
+    // Decrement open file counts.
+    if ((flags & O_RDONLY) || (flags & O_RDWR))
+    {
+        // Was opened for reading (not necessarily only reading)
+        pNode->openReads--;
+    }
+    if ((flags & O_WRONLY) || (flags & O_RDWR))
+    {
+        // Was opened for writing (not necessarily only writing)
+        pNode->openWrites--;
+        
+        // TODO: Upload the new version of the file to the Google Drive servers
+    }
+    if (!(flags & (O_RDONLY | O_WRONLY | O_RDWR)))
+    {
+        // Some opens don't have any of these flags. I'm not sure what these
+        // are.
+        pNode->openOthers--;
+    }
+    
+    // Get rid of any downloaded temp files if they aren't needed.
+    // TODO: Consider keeping some closed files around in case they're reopened
+    if (pNode->openReads + pNode->openWrites + pNode->openOthers == 0)
+    {
+        _gdrive_file_contents_free_all(&(pNode->pContents));
+    }
 }
 
 int gdrive_file_read(Gdrive_Info* pInfo, 
@@ -1706,19 +1761,19 @@ size_t _gdrive_file_read_next_chunk(Gdrive_Info* pInfo,
 )
 {
     // Do we already have a chunk that includes the starting point?
-    FILE* fileChunk = 
+    Gdrive_File_Contents* pChunkContents = 
             _gdrive_file_contents_find_chunk(pNode->pContents, offset);
     
-    if (fileChunk == NULL)
+    if (pChunkContents == NULL)
     {
         // Chunk doesn't exist, need to create and download it.
-        fileChunk = _gdrive_file_contents_create_chunk(pInfo, 
+        pChunkContents = _gdrive_file_contents_create_chunk(pInfo, 
                                                        pNode, 
                                                        offset, 
                                                        size
                 );
         
-        if (fileChunk == NULL)
+        if (pChunkContents == NULL || pChunkContents->fh == NULL)
         {
             // Error creating the chunk
             return -EIO;
@@ -1726,16 +1781,17 @@ size_t _gdrive_file_read_next_chunk(Gdrive_Info* pInfo,
     }
     
     // Read the data into the supplied buffer.
-    fseek(fileChunk, offset, SEEK_SET);
-    size_t bytesRead = fread(destBuf, 1, size, fileChunk);
+    FILE* chunkFile = pChunkContents->fh;
+    fseek(chunkFile, offset - pChunkContents->start, SEEK_SET);
+    size_t bytesRead = fread(destBuf, 1, size, chunkFile);
     
     // If an error occurred, return negative.
     if (bytesRead < size)
     {
-        int err = ferror(fileChunk);
+        int err = ferror(chunkFile);
         if (err != 0)
         {
-            rewind(fileChunk);
+            rewind(chunkFile);
             return -err;
         }
     }
@@ -1746,8 +1802,9 @@ size_t _gdrive_file_read_next_chunk(Gdrive_Info* pInfo,
     
 }
 
-FILE* _gdrive_file_contents_find_chunk(Gdrive_File_Contents* pContents, 
-                                       off_t offset
+Gdrive_File_Contents* _gdrive_file_contents_find_chunk(
+        Gdrive_File_Contents* pContents, 
+        off_t offset
 )
 {
     if (pContents == NULL || pContents->fh == NULL)
@@ -1759,17 +1816,15 @@ FILE* _gdrive_file_contents_find_chunk(Gdrive_File_Contents* pContents,
     if (offset > pContents->start && offset < pContents->end)
     {
         // Found it!
-        return pContents->fh;
+        return pContents;
     }
     
     // It's not at this node.  Try the next one.
     return _gdrive_file_contents_find_chunk(pContents->pNext, offset);
 }
 
-FILE* _gdrive_file_contents_create_chunk(Gdrive_Info* pInfo, 
-                                         Gdrive_Cache_Node* pNode, 
-                                         off_t offset,
-                                         size_t size
+Gdrive_File_Contents* _gdrive_file_contents_create_chunk(
+        Gdrive_Info* pInfo, Gdrive_Cache_Node* pNode, off_t offset, size_t size
 )
 {
     // Get the normal chunk size for this file, the smallest multiple of
@@ -1813,7 +1868,7 @@ FILE* _gdrive_file_contents_create_chunk(Gdrive_Info* pInfo,
     //Success
     pContents->start = chunkStart;
     pContents->end = chunkStart + realChunkSize - 1;
-    return (success == 0) ? pContents->fh : NULL;
+    return (success == 0) ? pContents : NULL;
 }
 
 Gdrive_File_Contents* _gdrive_file_contents_create(Gdrive_Cache_Node* pNode)
@@ -1876,6 +1931,34 @@ void _gdrive_file_contents_free(Gdrive_Cache_Node* pNode,
     free(pContents);
 }
 
+void _gdrive_file_contents_free_all(Gdrive_File_Contents** ppContents)
+{
+    if (ppContents == NULL || *ppContents == NULL)
+    {
+        // Nothing to do
+        return;
+    }
+    
+    // Convenience assignment
+    Gdrive_File_Contents* pContents = *ppContents;
+    
+    // Free the rest of the list after the current item.
+    _gdrive_file_contents_free_all(&(pContents->pNext));
+    
+    // Close the temp file, which will automatically delete it.
+    if (pContents->fh != NULL)
+    {
+        fclose(pContents->fh);
+        pContents->fh = NULL;
+    }
+    
+    // Free the memory associated with the item
+    free(pContents);
+    
+    // Clear the pointer to the item
+    *ppContents = NULL;
+}
+
 int _gdrive_file_contents_fill_chunk(Gdrive_Info* pInfo,
                                      Gdrive_Fileinfo* pFileinfo, 
                                      Gdrive_File_Contents* pContents,
@@ -1905,7 +1988,7 @@ int _gdrive_file_contents_fill_chunk(Gdrive_Info* pInfo,
         free(fileUrl);
         return -1;
     }
-    _gdrive_query_add(pQuery, "updateViewedDate", "true");
+    _gdrive_query_add(pQuery, "updateViewedDate", "false");
     _gdrive_query_add(pQuery, "alt", "media");
     
     // Add the Range header.  Per 
