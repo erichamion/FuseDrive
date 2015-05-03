@@ -231,6 +231,28 @@ int gdrive_auth(Gdrive_Info* pInfo)
     return _gdrive_prompt_for_auth(pInfo);
 }
 
+const Gdrive_Sysinfo* gdrive_get_sysinfo(Gdrive_Info* pInfo)
+{
+    // Do we already have sysinfo?
+    Gdrive_Sysinfo** ppSysinfo = &(pInfo->pInternalInfo->pSysinfo);
+    if (*ppSysinfo != NULL)
+    {
+        // We already have the info, but is it current?
+        // First, make sure the cache is up to date.
+        _gdrive_cache_update_if_stale(pInfo);
+        
+        // If the Sysinfo's next change ID is at least as high as the cache's
+        // next change ID, then our info is current.  No need to do anything
+        // else.
+        return *ppSysinfo;
+    }
+    
+    // Either we don't have any sysinfo, or it needs updated.
+    _gdrive_sysinfo_update(pInfo, ppSysinfo);
+    
+    return *ppSysinfo;
+}
+
 int gdrive_file_info_from_id(Gdrive_Info* pInfo, 
                              const char* fileId, 
                              Gdrive_Fileinfo** ppFileinfo
@@ -1032,6 +1054,112 @@ void _gdrive_info_internal_free(Gdrive_Info_Internal* pInfo)
     free(pInfo);
 }
 
+int _gdrive_sysinfo_update(Gdrive_Info* pInfo, Gdrive_Sysinfo** ppDest)
+{
+    if (*ppDest != NULL)
+    {
+        // Clean up the existing info.
+        _gdrive_sysinfo_cleanup(*ppDest);
+    }
+    {
+        // No existing Gdrive_Sysinfo struct, need to create one.
+        *ppDest = malloc(sizeof(Gdrive_Sysinfo));
+        if (*ppDest == NULL)
+        {
+            // Memory error.
+            return -1;
+        }
+        memset(*ppDest, 0, sizeof(Gdrive_Sysinfo));
+    }
+    
+    // Convenience assignments
+    Gdrive_Sysinfo* pDest = *ppDest;
+    CURL* curlHandle = pInfo->pInternalInfo->curlHandle;
+    
+    const char* const fieldString = "quotaBytesTotal,quotaBytesUsed,"
+            "largestChangeId,rootFolderId,importFormats,exportFormats";
+    
+    Gdrive_Query* pQuery = _gdrive_query_create(curlHandle);
+    if (pQuery == NULL)
+    {
+        // Memory error
+        return -1;
+    }
+    _gdrive_query_add(pQuery, "includeSubscribed", "false");
+    _gdrive_query_add(pQuery, "fields", fieldString);
+    
+    // Do the transfer.
+    Gdrive_Download_Buffer* pBuf = 
+            _gdrive_do_transfer(pInfo, GDRIVE_REQUEST_GET, true, 
+                                GDRIVE_URL_ABOUT, pQuery, NULL, NULL
+            );
+    _gdrive_query_free(pQuery);
+    
+    int returnVal = -1;
+    if (pBuf != NULL && pBuf->httpResp < 400)
+    {
+        // Response was good, try extracting the data.
+        gdrive_json_object* pObj = gdrive_json_from_string(pBuf->data);
+        if (pObj != NULL)
+        {
+            returnVal = _gdrive_sysinfo_fill_from_json(pDest, pObj);
+        }
+        gdrive_json_kill(pObj);
+    }
+    
+    _gdrive_download_buffer_free(pBuf);
+    
+    return returnVal;
+}
+
+int _gdrive_sysinfo_fill_from_json(Gdrive_Sysinfo* pDest, 
+                                   gdrive_json_object* pObj
+)
+{
+puts("Filling Gdrive_Sysinfo:");
+    bool currentSuccess = true;
+    bool totalSuccess = true;
+    pDest->nextChangeId = gdrive_json_get_int64(pObj, 
+                                                "largestChangeId", 
+                                                true, 
+                                                &currentSuccess
+            ) + 1;
+    totalSuccess = totalSuccess && currentSuccess;
+printf("nextChangeId: %lu\n", pDest->nextChangeId);
+    
+    pDest->quotaBytesTotal = gdrive_json_get_int64(pObj, 
+                                                   "quotaBytesTotal", 
+                                                   true,
+                                                   &currentSuccess
+            );
+    totalSuccess = totalSuccess && currentSuccess;
+printf("quotaBytesTotal: %lu\n", pDest->quotaBytesTotal);
+
+    
+    pDest->quotaBytesUsed = gdrive_json_get_int64(pObj, 
+                                                  "quotaBytesUsed", 
+                                                   true,
+                                                   &currentSuccess
+            );
+    totalSuccess = totalSuccess && currentSuccess;
+printf("quotaBytesUsed: %lu\n", pDest->quotaBytesUsed);
+    
+    pDest->rootId = _gdrive_new_string_from_json(pObj, "rootFolderId", NULL);
+    currentSuccess = totalSuccess && (pDest->rootId != NULL);
+printf("rootId: '%s'\n-----\n", pDest->rootId);
+
+    
+    // For now, we'll ignore the importFormats and exportFormats.
+    
+    return totalSuccess ? 0 : -1;
+}
+
+void _gdrive_sysinfo_cleanup(Gdrive_Sysinfo* pSysinfo)
+{
+    free(pSysinfo->rootId);
+    memset(pSysinfo, 0, sizeof(Gdrive_Sysinfo));
+}
+
 CURLcode _gdrive_download_to_buffer(CURL* curlHandle, 
                                     Gdrive_Download_Buffer* pBuffer,
                                     bool textMode
@@ -1261,96 +1389,6 @@ char* _gdrive_postdata_assemble(CURL* curlHandle, int n, ...)
     return result;
 }
 
-char* _gdrive_assemble_query_string(CURL* curlHandle, 
-                                    const char* url, 
-                                    int n, 
-                                    ...
-)
-{
-    // It would be nice to just reuse _gdrive_postdata_assemble(), then strcat()
-    // the result onto the url string, but I don't know how to do that with
-    // varargs.
-    
-    
-    char* result = NULL;
-    
-    if (n == 0)
-    {
-        // No arguments, just copy the original url.
-        result = malloc(strlen(url) + 1);
-        if (result != NULL)
-        {
-            strcpy(result, url);
-        }
-        return result;
-    }
-    
-    // Array to hold the URL-encoded strings
-    char** encodedStrings = malloc(2 * n * sizeof(char*));
-    if (encodedStrings == NULL)
-    {
-        // Memory error
-        return NULL;
-    }
-    
-    // Bytes needed to store the result.  Start with the length of the original
-    // URL string, plus the '?' (not including the terminating null)
-    size_t length = strlen(url) + 1;
-    
-    // URL-encode each of the arguments.
-    va_list args;
-    va_start(args, n);
-    for (int i = 0; i < 2 * n; i++)
-    {
-        const char* arg = va_arg(args, const char*);
-        encodedStrings[i] = curl_easy_escape(curlHandle, arg, 0);
-        
-        // Need strlen() + 1 bytes.  The extra byte could be '=' (after a field
-        // name), '&' (after all but the last value), or terminating null (after
-        // the final value), but it's always one extra character.
-        length += strlen(encodedStrings[i]) + 1;
-    }
-    
-    result = malloc(length);
-    if (result == NULL)
-    {
-        // Memory error
-        for (int i = 0; i < 2 * n; i++)
-        {
-            curl_free(encodedStrings[i]);
-        }
-        free(encodedStrings);
-        return NULL;
-    }
-    
-    // Copy the original URL and append "?".
-    strcpy(result, url);
-    strcat(result, "?");
-    
-    for (int i = 0; i < n; i++)
-    {
-        // Add the field name and "=".
-        strcat(result, encodedStrings[2 * i]);
-        strcat(result, "=");
-        
-        // Add the value and (if applicable) "&".
-        strcat(result, encodedStrings[2 * i + 1]);
-        if (i < n - 1)
-        {
-            strcat(result, "&");
-        }
-    }
-    
-    // Clean up the encoded strings
-    for (int i = 0; i < 2 * n; i++)
-    {
-        curl_free(encodedStrings[i]);
-    }
-    free(encodedStrings);
-    
-    return result;
-}
-
 int _gdrive_refresh_auth_token(Gdrive_Info* pInfo, 
                                //Gdrive_Download_Buffer* pBuf,
                                const char* grantType,
@@ -1499,17 +1537,23 @@ int _gdrive_prompt_for_auth(Gdrive_Info* pInfo)
         }
     }
     
-    char* authUrl = _gdrive_assemble_query_string(pInfo->pInternalInfo->curlHandle,
-                                                  GDRIVE_URL_AUTH_NEWAUTH,
-                                                  5,
-                                                  "response_type", "code",
-                                                  "client_id", GDRIVE_CLIENT_ID,
-                                                  "redirect_uri", 
-                                                  GDRIVE_REDIRECT_URI,
-                                                  "scope", scopeStr,
-                                                  "include_granted_scopes", 
-                                                  "true"
+    Gdrive_Query* pQuery = 
+            _gdrive_query_create(pInfo->pInternalInfo->curlHandle);
+    if (pQuery == NULL)
+    {
+        // Memory error
+        return -1;
+    }
+    _gdrive_query_add(pQuery, "response_type", "code");
+    _gdrive_query_add(pQuery, "client_id", GDRIVE_CLIENT_ID);
+    _gdrive_query_add(pQuery, "redirect_uri", GDRIVE_REDIRECT_URI);
+    _gdrive_query_add(pQuery, "scope", scopeStr);
+    _gdrive_query_add(pQuery, "include_granted_scopes", "true");
+    
+    char* authUrl = _gdrive_assemble_query_or_post(GDRIVE_URL_AUTH_NEWAUTH,
+                                                   pQuery
     );
+    _gdrive_query_free(pQuery);
     
     if (authUrl == NULL)
     {
@@ -3177,6 +3221,17 @@ int _gdrive_cache_init(Gdrive_Info* pInfo)
     
     _gdrive_download_buffer_free(pBuf);
     return returnVal;
+}
+
+int _gdrive_cache_update_if_stale(Gdrive_Info* pInfo)
+{
+    Gdrive_Cache* pCache = &(pInfo->pInternalInfo->cache);
+    if (pCache->lastUpdateTime + pInfo->settings.cacheTTL < time(NULL))
+    {
+        return _gdrive_update_cache(pInfo);
+    }
+    
+    return 0;
 }
 
 int _gdrive_update_cache(Gdrive_Info* pInfo)
