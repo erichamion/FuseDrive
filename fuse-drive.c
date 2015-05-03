@@ -30,6 +30,48 @@
 #include "gdrive.h"
 
 
+int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo, 
+                            bool isRoot, 
+                            struct stat* stbuf
+)
+{
+    switch(pFileinfo->type)
+    {
+    case GDRIVE_FILETYPE_FOLDER:
+        stbuf->st_mode = S_IFDIR;
+        stbuf->st_nlink = pFileinfo->nParents + pFileinfo->nChildren;
+        // Account for ".".  Also, if the root of the filesystem, account for 
+        // "..", which is outside of the Google Drive filesystem and thus not
+        // included in nParents.
+        stbuf->st_nlink += isRoot ? 2 : 1;
+        break;
+        
+    case GDRIVE_FILETYPE_FILE:
+    default:
+        stbuf->st_mode = S_IFREG;
+        stbuf->st_nlink = pFileinfo->nParents;
+    }
+    
+    // For now, Owner/Group/User permissions are identical.  Eventually should
+    // add a command-line option for a umask or similar.
+    // Owner permissions.
+    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions << 6);
+    // Group permissions
+    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions << 3);
+    // User permissions
+    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions);
+    
+    stbuf->st_uid = geteuid();
+    stbuf->st_gid = getegid();
+    stbuf->st_size = pFileinfo->size;
+    stbuf->st_atime = pFileinfo->accessTime.tv_sec;
+    stbuf->st_mtime = pFileinfo->modificationTime.tv_sec;
+    stbuf->st_ctime = pFileinfo->creationTime.tv_sec;
+    
+    return 0;
+}
+
+
 
 
 ///**
@@ -228,11 +270,24 @@ static void fudr_destroy(void* private_data)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_fgetattr(const char* path, struct stat* stbuf, 
-//        struct fuse_file_info* fi)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_fgetattr(const char* path, struct stat* stbuf, 
+        struct fuse_file_info* fi)
+{
+    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
+    Gdrive_Filehandle* fh = (Gdrive_Filehandle*) fi->fh;
+    const Gdrive_Fileinfo* pFileinfo = gdrive_file_info_from_handle(pGdriveInfo,
+                                                                   fh
+    );
+    
+    if (pFileinfo == NULL)
+    {
+        // Invalid file handle
+        return -EBADF;
+    }
+    
+    return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
+    
+}
 //
 ////According to fuse.h, the kernel handles local file locking if flock is
 ////not implemented.  Files probably can't be locked on Google Drive, so 
@@ -279,43 +334,10 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
     {
         // An error occurred.
         free(fileId);
-        return -ENOMEM;
+        return -ENOENT;
     }    
-    switch(pFileinfo->type)
-    {
-    case GDRIVE_FILETYPE_FOLDER:
-        stbuf->st_mode = S_IFDIR;
-        stbuf->st_nlink = pFileinfo->nParents + pFileinfo->nChildren;
-        // Account for ".".  Also, if the root of the filesystem, account for 
-        // "..", which is outside of the Google Drive filesystem and thus not
-        // included in nParents.
-        stbuf->st_nlink += (strcmp(path, "/") == 0) ? 2 : 1;
-        break;
-        
-    case GDRIVE_FILETYPE_FILE:
-    default:
-        stbuf->st_mode = S_IFREG;
-        stbuf->st_nlink = pFileinfo->nParents;
-    }
     
-    // For now, Owner/Group/User permissions are identical.  Eventually should
-    // add a command-line option for a umask or similar.
-    // Owner permissions.
-    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions << 6);
-    // Group permissions
-    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions << 3);
-    // User permissions
-    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions);
-    
-    stbuf->st_uid = geteuid();
-    stbuf->st_gid = getegid();
-    stbuf->st_size = pFileinfo->size;
-    stbuf->st_atime = pFileinfo->accessTime.tv_sec;
-    stbuf->st_mtime = pFileinfo->modificationTime.tv_sec;
-    stbuf->st_ctime = pFileinfo->creationTime.tv_sec;
-    
-    free(fileId);
-    return 0;
+    return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
 }
 
 //static int fudr_getxattr(const char* path, const char* name, char* value, size_t size)
@@ -505,10 +527,33 @@ static int fudr_release(const char* path, struct fuse_file_info *fi)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_statfs(const char* path, struct statvfs* stbuf)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_statfs(const char* path, struct statvfs* stbuf)
+{
+    // Suppress compiler warning about unused parameter
+    (void) path;
+    
+    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
+    
+    const Gdrive_Sysinfo* pSysinfo = gdrive_get_sysinfo(pGdriveInfo);
+    
+    if (pSysinfo == NULL)
+    {
+        // Return an error
+        return -EIO;
+    }
+    
+    unsigned long blockSize = pGdriveInfo->settings.minChunkSize;
+    unsigned long bytesTotal = pSysinfo->quotaBytesTotal;
+    unsigned long bytesFree = bytesTotal - pSysinfo->quotaBytesUsed;
+    
+    memset(stbuf, 0, sizeof(statvfs));
+    stbuf->f_bsize = blockSize;
+    stbuf->f_blocks = bytesTotal / blockSize;
+    stbuf->f_bfree = bytesFree / blockSize;
+    stbuf->f_bavail = stbuf->f_bfree;
+    
+    return 0;
+}
 //static int fudr_symlink(const char* to, const char* from)
 //{
 //    return -ENOSYS;
@@ -549,7 +594,7 @@ static struct fuse_operations fo = {
     .create         = NULL, //fudr_create,
     .destroy        = fudr_destroy,
     .fallocate      = NULL, //fudr_fallocate,
-    .fgetattr       = NULL, //fudr_fgetattr,
+    .fgetattr       = fudr_fgetattr,
     .flock          = NULL, //fudr_flock,
     .flush          = NULL, //fudr_flush,
     .fsync          = NULL, //fudr_fsync,
@@ -577,7 +622,7 @@ static struct fuse_operations fo = {
     .rename         = NULL, //fudr_rename,
     .rmdir          = NULL, //fudr_rmdir,
     .setxattr       = NULL, //fudr_setxattr,
-    .statfs         = NULL, //fudr_statfs,
+    .statfs         = fudr_statfs,
     .symlink        = NULL, //fudr_symlink,
     .truncate       = NULL, //fudr_truncate,
     .unlink         = NULL, //fudr_unlink,
@@ -603,3 +648,4 @@ int main(int argc, char** argv)
 }
 
 #endif	/*__GDRIVE_TEST__*/
+
