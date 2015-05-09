@@ -22,26 +22,6 @@ extern "C" {
     
 typedef struct Gdrive_File_Contents Gdrive_File_Contents;
 
-typedef struct Gdrive_Cache_Node
-{
-    time_t lastUpdateTime;
-    int openReads;
-    int openWrites;
-    int openOthers;
-    Gdrive_Fileinfo fileinfo;
-    Gdrive_File_Contents* pContents;
-    struct Gdrive_Cache_Node* pParent;
-    struct Gdrive_Cache_Node* pLeft;
-    struct Gdrive_Cache_Node* pRight;
-} Gdrive_Cache_Node;
-
-typedef struct Gdrive_Fileid_Cache_Node
-{
-    time_t lastUpdateTime;
-    char* path;
-    char* fileId;
-    struct Gdrive_Fileid_Cache_Node* pNext;
-} Gdrive_Fileid_Cache_Node;
 
 
 
@@ -53,30 +33,29 @@ typedef struct Gdrive_Cache Gdrive_Cache;
  *************************************************************************/
 
 /*
- * gdrive_cache_create():   Creates and initializes the cache.
+* gdrive_cache_init():  Initializes the cache.
  * Parameters:
  *      pInfo (Gdrive_Info*):
  *              The pointer to a struct created by gdrive_init() or 
  *              gdrive_init_nocurl().
  *      cacheTTL (time_t):
  *              The time (in seconds) for which cached data is considered good.
- *              If more than cacheTTL seconds have passed since both the 
- *              creation of an item being retrieved and the last time the cache
- *              was updated, the cache will be updated by getting a list of
- *              changes from Google Drive.
- * Return value (Gdrive_Cache*):
- *      The pointer to a newly created Gdrive_Cache struct. This pointer should
- *      be passed to gdrive_cache_free() when no longer needed.
+ *              When an item is retrieved from the cache, if more than cacheTTL 
+ *              seconds have passed since both the creation of the item being 
+ *              retrieved and the last time the cache was updated, the cache 
+ *              will be updated by getting a list of changes from Google Drive.
+ * Return value (int):
+ *      0 on success, other on failure.
  */
-Gdrive_Cache* gdrive_cache_create(Gdrive_Info* pInfo, time_t cacheTTL);
+int gdrive_cache_init(Gdrive_Info* pInfo, time_t cacheTTL);
+
+const Gdrive_Cache* gdrive_cache_get(void);
 
 /*
- * gdrive_cache_free(): Safely frees memory and files associated with the cache.
- * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache to be freed.
+ * gdrive_cache_cleanup():  Safely frees memory and files associated with the 
+ *                          cache.
  */
-void gdrive_cache_free(Gdrive_Cache* pCache);
+void gdrive_cache_cleanup(void);
 
 
 
@@ -87,38 +66,28 @@ void gdrive_cache_free(Gdrive_Cache* pCache);
 /*
  * gdrive_cache_get_fileidcachehead():  Retrieves the first item in the 
  *                                      file ID cache.
- * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache.
  * Return value (Gdrive_Fileid_Cache_Node*):
  *      A pointer to the first item in the file ID cache.
  */
-Gdrive_Fileid_Cache_Node* gdrive_cache_get_fileidcachehead(
-        Gdrive_Cache* pCache
-);
+Gdrive_Fileid_Cache_Node* gdrive_cache_get_fileidcachehead();
 
 /*
  * gdrive_cache_get_ttl():  Returns the number of seconds for which cached data
  *                          is considered good.
- * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache.
- * Return value (time_t):
  *      The time (in seconds) for which cached data is considered good and does
  *      not need refreshed.
  */
-time_t gdrive_cache_get_ttl(Gdrive_Cache* pCache);
+time_t gdrive_cache_get_ttl();
 
 /*
  * gdrive_cache_get_ttl():  Retrieves the time (in seconds since the epoch) the
  *                          cache was last updated.
- * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache.
  * Return value (time_t):
  *      The time the cache was last updated.
  */
-time_t gdrive_cache_get_lastupdatetime(Gdrive_Cache* pCache);
+time_t gdrive_cache_get_lastupdatetime();
+
+int64_t gdrive_cache_get_nextchangeid();
 
 
 
@@ -131,28 +100,22 @@ time_t gdrive_cache_get_lastupdatetime(Gdrive_Cache* pCache);
  * gdrive_cache_update_if_stale():  If the cache has not been updated within
  *                                  cacheTTL seconds, updates by getting a list
  *                                  of changes from Google Drive.
- * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache.
  * Return value (int):
  *      0 on success, other on error.
  */
-int gdrive_cache_update_if_stale(Gdrive_Cache* pCache);
+int gdrive_cache_update_if_stale();
 
 /*
  * gdrive_cache_update():   Updates the cache by getting a list of changes from 
  *                          Google Drive.
- * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache.
  * Return value (int):
  *      0 on success, other on error.
  */
-int gdrive_cache_update(Gdrive_Cache* pCache);
-Gdrive_Fileinfo* gdrive_cache_get_item(Gdrive_Cache* pCache, 
-                                        const char* fileId,
-                                        bool addIfDoesntExist,
-                                        bool* pAlreadyExists
+int gdrive_cache_update();
+
+Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId,
+                                       bool addIfDoesntExist,
+                                       bool* pAlreadyExists
 );
 
 /*
@@ -162,8 +125,6 @@ Gdrive_Fileinfo* gdrive_cache_get_item(Gdrive_Cache* pCache,
  *                              strings are copied, so the caller can safely
  *                              free them if desired.
  * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache struct that maintains the file ID cache.
  *      path (const char*):
  *              The full pathname of a file or folder on Google Drive, expressed
  *              as an absolute path within the Google Drive filesystem. The root
@@ -184,10 +145,7 @@ Gdrive_Fileinfo* gdrive_cache_get_item(Gdrive_Cache* pCache,
  * Return value (int):
  *      0 on success, other on failure.
  */
-int gdrive_cache_add_fileid(Gdrive_Cache* pCache, 
-                            const char* path, 
-                            const char* fileId
-);
+int gdrive_cache_add_fileid(const char* path, const char* fileId);
 
 /*
  * gdrive_cache_get_node(): Retrieves a pointer to the cache node used to store
@@ -195,8 +153,6 @@ int gdrive_cache_add_fileid(Gdrive_Cache* pCache,
  *                          cached file contents. Optionally creates the node
  *                          if it doesn't already exist in the cache.
  * Parameters:
- *      pCache (Gdrive_Cache*):
- *              A pointer to the cache.
  *      fileId (const char*):
  *              The Google Drive file ID identifying the file whose node to
  *              retrieve.
@@ -219,11 +175,27 @@ int gdrive_cache_add_fileid(Gdrive_Cache* pCache,
  * TODO:    Change this to gdrive_cache_get_filehandle() and return a
  *          Gdrive_Filehandle*.
  */
-Gdrive_Cache_Node* gdrive_cache_get_node(Gdrive_Cache* pCache, 
-                                         const char* fileId, 
+Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId, 
                                          bool addIfDoesntExist, 
                                          bool* pAlreadyExists
 );
+
+/*
+ * gdrive_cache_get_fileid():   Retrieve from the File ID cache the Google Drive
+ *                              file ID corresponding to a given path .
+ * Parameters:
+ *      path (const char*):
+ *              A string containing the pathname within the Google Drive 
+ *              directory structure (the Google Drive root folder is "/").
+ * Return value:
+ *      On success, a char* null-terminated string holding the Google Drive file
+ *      ID of the specified file. On failure, NULL. The caller should not free
+ *      or alter the memory pointed to by the return value.
+ */
+const char* gdrive_cache_get_fileid(const char* path);
+
+
+
     
 
 #ifdef	__cplusplus
