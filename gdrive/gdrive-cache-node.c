@@ -1,17 +1,13 @@
 
 
-#include <sys/types.h>
-#include <stdio.h>
-#include <stdbool.h>
+
+
+#include "gdrive-cache-node.h"
+#include "gdrive-cache.h"
+
+#include <errno.h>
 #include <string.h>
 #include <fcntl.h>
-#include <curl/curl.h>
-
-#include "gdrive.h"
-#include "gdrive-json.h"
-#include "gdrive-internal.h"
-#include "gdrive-cache-node.h"
-#include "gdrive-file.h"
 
 
 /*************************************************************************
@@ -44,6 +40,19 @@ gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
 static void
 gdrive_cnode_free(Gdrive_Cache_Node* pNode);
 
+static Gdrive_File_Contents* 
+gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode);
+
+static Gdrive_File_Contents* gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode,
+        Gdrive_Info* pInfo, off_t offset, size_t size
+);
+
+static size_t gdrive_file_read_next_chunk(Gdrive_File* pNode, 
+                                          Gdrive_Info* pInfo,
+                                          char* destBuf, 
+                                          off_t offset,
+                                          size_t size
+);
 
 
 
@@ -261,40 +270,20 @@ enum Gdrive_Filetype gdrive_cnode_get_filetype(Gdrive_Cache_Node* pNode)
 
 Gdrive_Fileinfo* gdrive_cnode_get_fileinfo(Gdrive_Cache_Node* pNode)
 {
-    // TODO: Make the fileinfo structure private, and provide functions that
-    // take a Gdrive_Filehandle* argument to provide all the fileinfo 
-    // information.
-    
     return &(pNode->fileinfo);
 }
 
-Gdrive_File_Contents* gdrive_cnode_get_contents(Gdrive_Cache_Node* pNode)
-{
-    return pNode->pContents;
-}
+//Gdrive_File_Contents* gdrive_cnode_get_contents(Gdrive_Cache_Node* pNode)
+//{
+//    return pNode->pContents;
+//}
 
-bool gdrive_cnode_set_contents(Gdrive_Cache_Node* pNode,
-                                    Gdrive_File_Contents* pContents
-)
-{
-    bool returnVal = false;
-    
-    if (pNode->pContents != NULL)
-    {
-        // A non-NULL pContents pointer already exists and has not been cleared.
-        // Clear the old one first and prepare to return true.
-        _gdrive_file_contents_free_all(&(pNode->pContents));
-        returnVal = true;
-    }
-    
-    pNode->pContents = pContents;
-    return returnVal;
-}
 
-Gdrive_Cache_Node* gdrive_cache_node_get_parent(Gdrive_Cache_Node* pNode)
-{
-    return pNode->pParent;
-}
+
+//Gdrive_Cache_Node* gdrive_cache_node_get_parent(Gdrive_Cache_Node* pNode)
+//{
+//    return pNode->pParent;
+//}
 
 
 /******************
@@ -302,7 +291,7 @@ Gdrive_Cache_Node* gdrive_cache_node_get_parent(Gdrive_Cache_Node* pNode)
  ******************/
 
 void gdrive_cnode_update_from_json(Gdrive_Cache_Node* pNode, 
-                                       gdrive_json_object* pObj
+                                       Gdrive_Json_Object* pObj
 )
 {
     if (pNode == NULL || pObj == NULL)
@@ -310,8 +299,8 @@ void gdrive_cnode_update_from_json(Gdrive_Cache_Node* pNode,
         // Nothing to do
         return;
     }
-    gdrive_fileinfo_cleanup(&(pNode->fileinfo));
-    _gdrive_get_fileinfo_from_json(pObj, &(pNode->fileinfo));
+    gdrive_finfo_cleanup(&(pNode->fileinfo));
+    gdrive_finfo_read_json(&(pNode->fileinfo), pObj);
     
     // Mark the node as having been updated.
     pNode->lastUpdateTime = time(NULL);
@@ -321,27 +310,7 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
                                 Gdrive_File_Contents* pContents
 )
 {
-    // Find the pointer leading to pContents.
-    Gdrive_File_Contents** ppContents = &(pNode->pContents);
-    while (*ppContents != NULL && *ppContents != pContents)
-    {
-        ppContents = &((*ppContents)->pNext);
-    }
-    
-    // Take pContents out of the chain
-    if (*ppContents != NULL)
-    {
-        *ppContents = pContents->pNext;
-    }
-    
-    // Close the temp file
-    if (pContents->fh != NULL)
-    {
-        fclose(pContents->fh);
-        pContents->fh = NULL;
-    }
-    
-    free(pContents);
+    gdrive_fcontents_delete(pContents, &(pNode->pContents));
 }
 
 
@@ -349,7 +318,7 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
  * Public functions to support Gdrive_Filehandle usage
  *************************************************************************/
 
-Gdrive_Filehandle* gdrive_file_open(Gdrive_Info* pInfo, 
+Gdrive_File* gdrive_file_open(Gdrive_Info* pInfo, 
                                     const char* fileId,
                                     int flags
 )
@@ -359,13 +328,11 @@ Gdrive_Filehandle* gdrive_file_open(Gdrive_Info* pInfo,
     // gdrive_file_info_from_id() to create the node and fill out the struct, 
     // then try again to get the node.
     Gdrive_Cache_Node* pNode;
-    while ((pNode = 
-            gdrive_cache_get_node(pInfo->pInternalInfo->pCache,
-                                  fileId, false, NULL)
-            ) == NULL)
+    while ((pNode = gdrive_cache_get_node(fileId, false, NULL)) == NULL)
     {
-        Gdrive_Fileinfo* pDummy;
-        if (gdrive_file_info_from_id(pInfo, fileId, &pDummy) != 0)
+        //Gdrive_Fileinfo* pDummy;
+        //if (gdrive_file_info_from_id(pInfo, fileId, &pDummy) != 0)
+        if (gdrive_finfo_get_by_id(pInfo, fileId) == NULL)
         {
             // Problem getting the file info.  Return failure.
             return NULL;
@@ -403,8 +370,11 @@ Gdrive_Filehandle* gdrive_file_open(Gdrive_Info* pInfo,
     
 }
 
-void gdrive_file_close(Gdrive_Filehandle* pFile, int flags)
+void gdrive_file_close(Gdrive_File* pFile, int flags)
 {
+    // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
+    // easier to think of the filehandle as just a token used to refer to a 
+    // file, whereas a cache node has internal structure to act upon.
     Gdrive_Cache_Node* pNode = pFile;
     
     // Decrement open file counts.
@@ -431,9 +401,62 @@ void gdrive_file_close(Gdrive_Filehandle* pFile, int flags)
     // TODO: Consider keeping some closed files around in case they're reopened
     if (pNode->openReads + pNode->openWrites + pNode->openOthers == 0)
     {
-        _gdrive_file_contents_free_all(&(pNode->pContents));
+        gdrive_fcontents_free_all(&(pNode->pContents));
     }
 }
+
+int gdrive_file_read(Gdrive_File* fh, 
+                     Gdrive_Info* pInfo, 
+                     char* buf,
+                     size_t size, 
+                     off_t offset)
+{
+    off_t nextOffset = offset;
+    off_t bufferOffset = 0;
+    size_t bytesRemaining = size;
+    
+    while (bytesRemaining > 0)
+    {
+        off_t bytesRead = gdrive_file_read_next_chunk(fh, pInfo,
+                                                      buf + bufferOffset,
+                                                      nextOffset, 
+                                                      bytesRemaining
+                );
+        if (bytesRead < 0)
+        {
+            // Read error.  bytesRead is the negative error number
+            return bytesRead;
+        }
+        if (bytesRead == 0)
+        {
+            // EOF. Return the total number of bytes actually read.
+            return size - bytesRemaining;
+        }
+        nextOffset += bytesRead;
+        bufferOffset += bytesRead;
+        bytesRemaining -= bytesRead;
+    }
+    
+    return size;
+}
+
+const Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
+{
+    if (fh == NULL)
+    {
+        // Invalid argument
+        return NULL;
+    }
+    
+    // Gdrive_Filehandle and Gdrive_Cache_Node are typedefs of the same struct,
+    // but it's easier to think about them differently. A filehandle is a token,
+    // and a cache node has an internal structure.
+    Gdrive_Cache_Node* pNode = fh;
+    return gdrive_cnode_get_fileinfo(pNode);
+}
+
+
+
 
 
 /*************************************************************************
@@ -485,13 +508,114 @@ gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
 static void
 gdrive_cnode_free(Gdrive_Cache_Node* pNode)
 {
-    gdrive_fileinfo_cleanup(&(pNode->fileinfo));
-    _gdrive_file_contents_free_all(&(pNode->pContents));
+    gdrive_finfo_cleanup(&(pNode->fileinfo));
+    gdrive_fcontents_free_all(&(pNode->pContents));
     pNode->pContents = NULL;
     pNode->pLeft = NULL;
     pNode->pRight = NULL;
     free(pNode);
 }
 
+static Gdrive_File_Contents* gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode)
+{
+    // Create the actual Gdrive_File_Contents struct, and add it to the existing
+    // chain if there is one.
+    Gdrive_File_Contents* pContents = gdrive_fcontents_add(pNode->pContents);
+    if (pContents == NULL)
+    {
+        // Memory or file creation error
+        return NULL;
+    }
+    
+    // If there is no existing chain, point to the new struct as the start of a
+    // new chain.
+    if (pNode->pContents == NULL)
+    {
+        pNode->pContents = pContents;
+    }
+    
+    
+    return pContents;
+}
 
+static Gdrive_File_Contents* 
+gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, Gdrive_Info* pInfo, 
+                          off_t offset, size_t size)
+{
+    // Get the normal chunk size for this file, the smallest multiple of
+    // minChunkSize that results in maxChunks or fewer chunks.
+    size_t fileSize = pNode->fileinfo.size;
+    int maxChunks = gdrive_get_maxchunks(pInfo);
+    size_t minChunkSize = gdrive_get_minchunksize(pInfo);
 
+    size_t perfectChunkSize = _gdrive_divide_round_up(fileSize, maxChunks);
+    size_t chunkSize = _gdrive_divide_round_up(perfectChunkSize, minChunkSize) *
+            minChunkSize;
+    
+    // The actual chunk may be a multiple of chunkSize.  A read that starts at
+    // "offset" and is "size" bytes long should be within this single chunk.
+    off_t chunkStart = (offset / chunkSize) * chunkSize;
+    off_t chunkOffset = offset % chunkSize;
+    off_t endChunkOffset = chunkOffset + size - 1;
+    size_t realChunkSize = _gdrive_divide_round_up(endChunkOffset, chunkSize) *
+            chunkSize;
+    
+    Gdrive_File_Contents* pContents = gdrive_cnode_add_contents(pNode);
+    if (pContents == NULL)
+    {
+        // Memory or file creation error
+        return NULL;
+    }
+    
+    int success = gdrive_fcontents_fill_chunk(pContents,
+            pInfo, pNode->fileinfo.id, 
+            chunkStart, realChunkSize
+    );
+    if (success != 0)
+    {
+        // Didn't write the file.  Clean up the new Gdrive_File_Contents struct
+        gdrive_cnode_delete_file_contents(pNode, pContents);
+        return NULL;
+    }
+    
+    //Success
+    return pContents;
+}
+
+static size_t gdrive_file_read_next_chunk(Gdrive_File* pFile, 
+                                           Gdrive_Info* pInfo,
+                                           char* destBuf,
+                                           off_t offset, 
+                                           size_t size
+)
+{
+    // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
+    // easier to think of the filehandle as just a token used to refer to a 
+    // file, whereas a cache node has internal structure to act upon.
+    Gdrive_Cache_Node* pNode = pFile;
+    
+    // Do we already have a chunk that includes the starting point?
+    Gdrive_File_Contents* pChunkContents = gdrive_fcontents_find_chunk(
+            pNode->pContents, offset
+            );
+    
+    if (pChunkContents == NULL)
+    {
+        // Chunk doesn't exist, need to create and download it.
+        pChunkContents = gdrive_cnode_create_chunk(pNode, pInfo, offset, size);
+        
+        if (pChunkContents == NULL)
+        {
+            // Error creating the chunk
+            // TODO: size_t is (or should be) unsigned. Rather than returning
+            // a negative value for error, we should probably return 0 and add
+            // a parameter for a pointer to an error value.
+            return -EIO;
+        }
+    }
+    
+    // Actually read from the buffer and return the number of bytes read (which
+    // may be less than size if we hit the end of the chunk), or return any 
+    // error up to the caller.
+    return gdrive_fcontents_read(pChunkContents, destBuf, offset, size);
+}
