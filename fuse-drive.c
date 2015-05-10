@@ -2,7 +2,7 @@
  * File:   fuse-drive.c
  * Author: me
  *
- * Created on December 28, 2014, 11:00 AM
+ * 
  */
 
 #ifndef __GDRIVE_TEST__
@@ -17,17 +17,13 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
-
-
-// Temporary includes for testing
-#include <sys/types.h>
-#include <pwd.h>
-#include <grp.h>
 #include <unistd.h>
+
+
 
 // Project header(s)
 #include "fuse-drive.h"
-#include "gdrive.h"
+#include "gdrive/gdrive.h"
 
 
 int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo, 
@@ -52,14 +48,15 @@ int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
         stbuf->st_nlink = pFileinfo->nParents;
     }
     
+    int perms = gdrive_finfo_real_perms(pFileinfo);
     // For now, Owner/Group/User permissions are identical.  Eventually should
     // add a command-line option for a umask or similar.
     // Owner permissions.
-    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions << 6);
+    stbuf->st_mode = stbuf->st_mode | (perms << 6);
     // Group permissions
-    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions << 3);
+    stbuf->st_mode = stbuf->st_mode | (perms << 3);
     // User permissions
-    stbuf->st_mode = stbuf->st_mode | (pFileinfo->permissions);
+    stbuf->st_mode = stbuf->st_mode | (perms);
     
     stbuf->st_uid = geteuid();
     stbuf->st_gid = getegid();
@@ -251,7 +248,10 @@ int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
  */
 static void fudr_destroy(void* private_data)
 {
-    gdrive_cleanup((Gdrive_Info*) private_data);
+    // Silence compiler warning about unused parameter
+    (void) private_data;
+    
+    gdrive_cleanup();
 }
 
 ///**
@@ -273,11 +273,8 @@ static void fudr_destroy(void* private_data)
 static int fudr_fgetattr(const char* path, struct stat* stbuf, 
         struct fuse_file_info* fi)
 {
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    Gdrive_Filehandle* fh = (Gdrive_Filehandle*) fi->fh;
-    const Gdrive_Fileinfo* pFileinfo = gdrive_file_info_from_handle(pGdriveInfo,
-                                                                   fh
-    );
+    Gdrive_File* fh = (Gdrive_File*) fi->fh;
+    const Gdrive_Fileinfo* pFileinfo = gdrive_file_get_info(fh);
     
     if (pFileinfo == NULL)
     {
@@ -321,19 +318,20 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
     
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    char* fileId = gdrive_filepath_to_id(pGdriveInfo, path);
+    const char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // File not found
         return -ENOENT;
     }
     
-    Gdrive_Fileinfo* pFileinfo;
-    if (gdrive_file_info_from_id(pGdriveInfo, fileId, &pFileinfo) != 0)
+    //Gdrive_Fileinfo* pFileinfo;
+    //if (gdrive_file_info_from_id(pGdriveInfo, fileId, &pFileinfo) != 0)
+    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
+    if (pFileinfo == NULL)
     {
         // An error occurred.
-        free(fileId);
+        //free(fileId);
         return -ENOENT;
     }    
     
@@ -385,10 +383,8 @@ static void* fudr_init(struct fuse_conn_info *conn)
 //
 static int fudr_open(const char *path, struct fuse_file_info *fi)
 {
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    
     // Get the file ID
-    char* fileId = gdrive_filepath_to_id(pGdriveInfo, path);
+    const char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // File not found
@@ -396,8 +392,8 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
     }
     
     // Open the file
-    Gdrive_Filehandle* pFile = gdrive_file_open(pGdriveInfo, fileId, fi->flags);
-    free(fileId);
+    Gdrive_File* pFile = gdrive_file_open(fileId, fi->flags);
+    //free(fileId);
     
     if (pFile == NULL)
     {
@@ -426,10 +422,9 @@ static int fudr_read(const char *path, char *buf, size_t size, off_t offset,
     // Silence compiler warning about unused parameter
     (void) path;
     
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    Gdrive_Filehandle* pFile = (Gdrive_Filehandle*) fi->fh;
+    Gdrive_File* pFile = (Gdrive_File*) fi->fh;
     
-    return gdrive_file_read(pGdriveInfo, buf, size, offset, pFile);
+    return gdrive_file_read(pFile, buf, size, offset);
 }
 
 //static int fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
@@ -445,33 +440,28 @@ static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     (void) offset;
     (void) fi;
     
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    
-    char* folderId = gdrive_filepath_to_id(pGdriveInfo, path);
+    const char* folderId = gdrive_filepath_to_id(path);
     if (folderId == NULL)
     {
         return -ENOENT;
     }
     
-    Gdrive_Fileinfo_Array* pFileArray = gdrive_fileinfo_array_create();
+    Gdrive_Fileinfo_Array* pFileArray = 
+            gdrive_folder_list(folderId);
     if (pFileArray == NULL)
     {
-        free(folderId);
-        return -ENOMEM;
-    }
-    if (gdrive_folder_list(pGdriveInfo, folderId, pFileArray) == -1)
-    {
         // An error occurred.
-        free(folderId);
-        gdrive_fileinfo_array_free(pFileArray);
         return -ENOENT;
     }
     
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-    for (int i = 0; i < pFileArray->nItems; i++)
+    const Gdrive_Fileinfo* pCurrentFile;
+    for (pCurrentFile = gdrive_finfoarray_get_first(pFileArray); 
+            pCurrentFile != NULL; 
+            pCurrentFile = gdrive_finfoarray_get_next(pFileArray, pCurrentFile)
+            )
     {
-        Gdrive_Fileinfo* pCurrentFile = pFileArray->pArray + i;
         struct stat st = {0};
         switch (pCurrentFile->type)
         {
@@ -486,8 +476,7 @@ static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         filler(buf, pCurrentFile->filename, &st, 0);
     }
     
-    free(folderId);
-    gdrive_fileinfo_array_free(pFileArray);
+    gdrive_finfoarray_free(pFileArray);
     
     return 0;
 }
@@ -502,8 +491,7 @@ static int fudr_release(const char* path, struct fuse_file_info *fi)
     // Suppress unused parameter warning
     (void) path;
     
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    gdrive_file_close(pGdriveInfo, (Gdrive_Filehandle*)fi->fh, fi->flags);
+    gdrive_file_close((Gdrive_File*)fi->fh, fi->flags);
     return 0;
 }
 //static int fudr_releasedir(const char* path, struct fuse_file_info *fi)
@@ -532,19 +520,9 @@ static int fudr_statfs(const char* path, struct statvfs* stbuf)
     // Suppress compiler warning about unused parameter
     (void) path;
     
-    Gdrive_Info* pGdriveInfo = (Gdrive_Info*) fuse_get_context()->private_data;
-    
-    const Gdrive_Sysinfo* pSysinfo = gdrive_get_sysinfo(pGdriveInfo);
-    
-    if (pSysinfo == NULL)
-    {
-        // Return an error
-        return -EIO;
-    }
-    
-    unsigned long blockSize = pGdriveInfo->settings.minChunkSize;
-    unsigned long bytesTotal = pSysinfo->quotaBytesTotal;
-    unsigned long bytesFree = bytesTotal - pSysinfo->quotaBytesUsed;
+    unsigned long blockSize = gdrive_get_minchunksize();
+    unsigned long bytesTotal = gdrive_sysinfo_get_size();
+    unsigned long bytesFree = bytesTotal - gdrive_sysinfo_get_used();
     
     memset(stbuf, 0, sizeof(statvfs));
     stbuf->f_bsize = blockSize;
@@ -638,13 +616,12 @@ static struct fuse_operations fo = {
  */
 int main(int argc, char** argv) 
 {
-    Gdrive_Info* pGdrive = NULL;
-    if ((gdrive_init(&pGdrive, GDRIVE_ACCESS_READ, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
+    if ((gdrive_init(GDRIVE_ACCESS_META, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
     {
         printf("Could not set up a Google Drive connection.");
         return 1;
     }
-    return fuse_main(argc, argv, &fo, pGdrive);
+    return fuse_main(argc, argv, &fo, NULL);
 }
 
 #endif	/*__GDRIVE_TEST__*/
