@@ -392,13 +392,14 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
     }
     
     // Open the file
-    Gdrive_File* pFile = gdrive_file_open(fileId, fi->flags);
+    int error = 0;
+    Gdrive_File* pFile = gdrive_file_open(fileId, fi->flags, &error);
     //free(fileId);
     
     if (pFile == NULL)
     {
         // An error occurred.
-        return -EACCES;
+        return -error;
     }
     
     // Store the file handle
@@ -616,7 +617,7 @@ static struct fuse_operations fo = {
  */
 int main(int argc, char** argv) 
 {
-    if ((gdrive_init(GDRIVE_ACCESS_META, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
+    if ((gdrive_init(GDRIVE_ACCESS_READ, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
     {
         printf("Could not set up a Google Drive connection.");
         return 1;
