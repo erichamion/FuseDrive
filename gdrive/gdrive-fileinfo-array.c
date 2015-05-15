@@ -1,9 +1,7 @@
-#include <string.h>
 
-#include "gdrive.h"
-#include "gdrive-internal.h"
-#include "gdrive-fileinfo.h"
 #include "gdrive-fileinfo-array.h"
+
+#include <string.h>
 
 
 
@@ -113,7 +111,7 @@ int gdrive_finfoarray_get_count(Gdrive_Fileinfo_Array* pArray)
  ******************/
 
 int gdrive_finfoarray_add_from_json(Gdrive_Fileinfo_Array* pArray, 
-                                        gdrive_json_object* pObj
+                                        Gdrive_Json_Object* pObj
 )
 {
     if (pArray == NULL || pObj == NULL)

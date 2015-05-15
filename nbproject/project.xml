@@ -19,9 +19,16 @@
                     <name>Release</name>
                     <type>1</type>
                 </confElem>
+                <confElem>
+                    <name>GDrive-test</name>
+                    <type>1</type>
+                </confElem>
             </confList>
             <formatting>
-                <project-formatting-style>false</project-formatting-style>
+                <project-formatting-style>true</project-formatting-style>
+                <c-style>ANSI|ANSI</c-style>
+                <cpp-style>ANSI|ANSI</cpp-style>
+                <header-style>ANSI|ANSI</header-style>
             </formatting>
         </data>
     </configuration>

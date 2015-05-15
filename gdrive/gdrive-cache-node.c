@@ -18,9 +18,8 @@
 typedef struct Gdrive_Cache_Node
 {
     time_t lastUpdateTime;
-    int openReads;
+    int openCount;
     int openWrites;
-    int openOthers;
     Gdrive_Fileinfo fileinfo;
     Gdrive_File_Contents* pContents;
     struct Gdrive_Cache_Node* pParent;
@@ -43,16 +42,16 @@ gdrive_cnode_free(Gdrive_Cache_Node* pNode);
 static Gdrive_File_Contents* 
 gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode);
 
-static Gdrive_File_Contents* gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode,
-        Gdrive_Info* pInfo, off_t offset, size_t size
-);
+static Gdrive_File_Contents* 
+gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size);
 
-static size_t gdrive_file_read_next_chunk(Gdrive_File* pNode, 
-                                          Gdrive_Info* pInfo,
-                                          char* destBuf, 
-                                          off_t offset,
-                                          size_t size
-);
+static size_t 
+gdrive_file_read_next_chunk(Gdrive_File* pNode, char* destBuf, off_t offset,
+                            size_t size);
+
+static bool 
+gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags);
+
 
 
 
@@ -273,17 +272,7 @@ Gdrive_Fileinfo* gdrive_cnode_get_fileinfo(Gdrive_Cache_Node* pNode)
     return &(pNode->fileinfo);
 }
 
-//Gdrive_File_Contents* gdrive_cnode_get_contents(Gdrive_Cache_Node* pNode)
-//{
-//    return pNode->pContents;
-//}
 
-
-
-//Gdrive_Cache_Node* gdrive_cache_node_get_parent(Gdrive_Cache_Node* pNode)
-//{
-//    return pNode->pParent;
-//}
 
 
 /******************
@@ -315,13 +304,10 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
 
 
 /*************************************************************************
- * Public functions to support Gdrive_Filehandle usage
+ * Public functions to support Gdrive_File usage
  *************************************************************************/
 
-Gdrive_File* gdrive_file_open(Gdrive_Info* pInfo, 
-                                    const char* fileId,
-                                    int flags
-)
+Gdrive_File* gdrive_file_open(const char* fileId, int flags, int* pError)
 {
     // Get the cache node from the cache if it exists.  If it doesn't exist,
     // don't make a node with an empty Gdrive_Fileinfo.  Instead, use 
@@ -330,11 +316,10 @@ Gdrive_File* gdrive_file_open(Gdrive_Info* pInfo,
     Gdrive_Cache_Node* pNode;
     while ((pNode = gdrive_cache_get_node(fileId, false, NULL)) == NULL)
     {
-        //Gdrive_Fileinfo* pDummy;
-        //if (gdrive_file_info_from_id(pInfo, fileId, &pDummy) != 0)
-        if (gdrive_finfo_get_by_id(pInfo, fileId) == NULL)
+        if (gdrive_finfo_get_by_id(fileId) == NULL)
         {
             // Problem getting the file info.  Return failure.
+            *pError = ENOENT;
             return NULL;
         }
     }
@@ -343,25 +328,26 @@ Gdrive_File* gdrive_file_open(Gdrive_Info* pInfo,
     if (pNode->fileinfo.type == GDRIVE_FILETYPE_FOLDER)
     {
         // Return failure
+        *pError = EISDIR;
         return NULL;
     }
     
-    // Increment open file counts.
-    if ((flags & O_RDONLY) || (flags & O_RDWR))
+    
+    if (!gdrive_file_check_perm(pNode, flags))
     {
-        // Open for reading (not necessarily only reading)
-        pNode->openReads++;
+        // Access error
+        *pError = EPERM;
+        return NULL;
     }
+    
+    
+    // Increment the open counter
+    pNode->openCount++;
+    
     if ((flags & O_WRONLY) || (flags & O_RDWR))
     {
-        // Open for writing (not necessarily only writing)
+        // Open for writing
         pNode->openWrites++;
-    }
-    if (!(flags & (O_RDONLY | O_WRONLY | O_RDWR)))
-    {
-        // Some opens don't have any of these flags. I'm not sure what these
-        // are.
-        pNode->openOthers++;
     }
     
     // Return a pointer to the cache node (which is typedef'ed to 
@@ -378,46 +364,41 @@ void gdrive_file_close(Gdrive_File* pFile, int flags)
     Gdrive_Cache_Node* pNode = pFile;
     
     // Decrement open file counts.
-    if ((flags & O_RDONLY) || (flags & O_RDWR))
-    {
-        // Was opened for reading (not necessarily only reading)
-        pNode->openReads--;
-    }
+    pNode->openCount--;
+    
     if ((flags & O_WRONLY) || (flags & O_RDWR))
     {
-        // Was opened for writing (not necessarily only writing)
+        // Was opened for writing
         pNode->openWrites--;
         
         // TODO: Upload the new version of the file to the Google Drive servers
     }
-    if (!(flags & (O_RDONLY | O_WRONLY | O_RDWR)))
-    {
-        // Some opens don't have any of these flags. I'm not sure what these
-        // are.
-        pNode->openOthers--;
-    }
+    
     
     // Get rid of any downloaded temp files if they aren't needed.
     // TODO: Consider keeping some closed files around in case they're reopened
-    if (pNode->openReads + pNode->openWrites + pNode->openOthers == 0)
+    if (pNode->openCount == 0)
     {
         gdrive_fcontents_free_all(&(pNode->pContents));
     }
 }
 
-int gdrive_file_read(Gdrive_File* fh, 
-                     Gdrive_Info* pInfo, 
-                     char* buf,
-                     size_t size, 
-                     off_t offset)
+int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
 {
+    // Make sure we have at least read access for the file.
+    if (!gdrive_file_check_perm(fh, O_RDONLY))
+    {
+        // Access error
+        return -EACCES;
+    }
+    
     off_t nextOffset = offset;
     off_t bufferOffset = 0;
     size_t bytesRemaining = size;
     
     while (bytesRemaining > 0)
     {
-        off_t bytesRead = gdrive_file_read_next_chunk(fh, pInfo,
+        off_t bytesRead = gdrive_file_read_next_chunk(fh, 
                                                       buf + bufferOffset,
                                                       nextOffset, 
                                                       bytesRemaining
@@ -455,7 +436,11 @@ const Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
     return gdrive_cnode_get_fileinfo(pNode);
 }
 
-
+int gdrive_file_get_perms(const Gdrive_File* fh)
+{
+    const Gdrive_Cache_Node* pNode = fh;
+    return gdrive_finfo_real_perms(&(pNode->fileinfo));
+}
 
 
 
@@ -539,14 +524,13 @@ static Gdrive_File_Contents* gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode)
 }
 
 static Gdrive_File_Contents* 
-gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, Gdrive_Info* pInfo, 
-                          off_t offset, size_t size)
+gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size)
 {
     // Get the normal chunk size for this file, the smallest multiple of
     // minChunkSize that results in maxChunks or fewer chunks.
     size_t fileSize = pNode->fileinfo.size;
-    int maxChunks = gdrive_get_maxchunks(pInfo);
-    size_t minChunkSize = gdrive_get_minchunksize(pInfo);
+    int maxChunks = gdrive_get_maxchunks();
+    size_t minChunkSize = gdrive_get_minchunksize();
 
     size_t perfectChunkSize = _gdrive_divide_round_up(fileSize, maxChunks);
     size_t chunkSize = _gdrive_divide_round_up(perfectChunkSize, minChunkSize) *
@@ -568,8 +552,8 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, Gdrive_Info* pInfo,
     }
     
     int success = gdrive_fcontents_fill_chunk(pContents,
-            pInfo, pNode->fileinfo.id, 
-            chunkStart, realChunkSize
+                                              pNode->fileinfo.id, 
+                                              chunkStart, realChunkSize
     );
     if (success != 0)
     {
@@ -582,12 +566,9 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, Gdrive_Info* pInfo,
     return pContents;
 }
 
-static size_t gdrive_file_read_next_chunk(Gdrive_File* pFile, 
-                                           Gdrive_Info* pInfo,
-                                           char* destBuf,
-                                           off_t offset, 
-                                           size_t size
-)
+static size_t 
+gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset, 
+                            size_t size)
 {
     // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
     // easier to think of the filehandle as just a token used to refer to a 
@@ -602,7 +583,7 @@ static size_t gdrive_file_read_next_chunk(Gdrive_File* pFile,
     if (pChunkContents == NULL)
     {
         // Chunk doesn't exist, need to create and download it.
-        pChunkContents = gdrive_cnode_create_chunk(pNode, pInfo, offset, size);
+        pChunkContents = gdrive_cnode_create_chunk(pNode, offset, size);
         
         if (pChunkContents == NULL)
         {
@@ -618,4 +599,30 @@ static size_t gdrive_file_read_next_chunk(Gdrive_File* pFile,
     // may be less than size if we hit the end of the chunk), or return any 
     // error up to the caller.
     return gdrive_fcontents_read(pChunkContents, destBuf, offset, size);
+}
+
+static bool 
+gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags)
+{
+    // What permissions do we have?
+    int perms = gdrive_finfo_real_perms(&(pNode->fileinfo));
+    
+    // What permissions do we need?
+    int neededPerms = 0;
+    // At least on my system, O_RDONLY is 0, which prevents testing for the
+    // individual bit flag. On systems like mine, just assume we always need
+    // read access. If there are other systems that have a different O_RDONLY
+    // value, we'll test for the flag on those systems.
+    if ((O_RDONLY == 0) || (accessFlags & O_RDONLY) || (accessFlags & O_RDWR))
+    {
+        neededPerms = neededPerms | S_IROTH;
+    }
+    if ((accessFlags & O_WRONLY) || (accessFlags & O_RDWR))
+    {
+        neededPerms = neededPerms | S_IWOTH;
+    }
+    
+    // If there is anything we need but don't have, return false.
+    return !(neededPerms & ~perms);
+    
 }

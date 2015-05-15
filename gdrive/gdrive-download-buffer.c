@@ -1,12 +1,16 @@
+#include "gdrive-download-buffer.h"
+#include "gdrive-info.h"
 
-
-#include <stdlib.h>
-#include <stdbool.h>
-#include <curl/curl.h>
 #include <string.h>
 
 
-#include "gdrive-download-buffer.h"
+
+/*************************************************************************
+ * Constants needed only internally within this file
+ *************************************************************************/
+
+#define GDRIVE_403_RATELIMIT "rateLimitExceeded"
+#define GDRIVE_403_USERRATELIMIT "userRateLimitExceeded"
 
 
 /*************************************************************************
@@ -27,12 +31,24 @@ typedef struct Gdrive_Download_Buffer
 static size_t 
 gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, void *userdata);
 
+static enum Gdrive_Retry_Method 
+gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp);
+
+static void gdrive_exponential_wait(int tryNum);
+
+
+
+
 
 
 
 /*************************************************************************
  * Implementations of public functions for internal or external use
  *************************************************************************/
+
+/******************
+ * Constructors and destructors
+ ******************/
 
 Gdrive_Download_Buffer* gdrive_dlbuf_create(size_t initialSize, FILE* fh)
 {
@@ -71,6 +87,11 @@ void gdrive_dlbuf_free(Gdrive_Download_Buffer* pBuf)
     free(pBuf);
 }
 
+
+/******************
+ * Getter and setter functions
+ ******************/
+
 long gdrive_dlbuf_get_httpResp(Gdrive_Download_Buffer* pBuf)
 {
     return pBuf->httpResp;
@@ -81,10 +102,17 @@ const char* gdrive_dlbuf_get_data(Gdrive_Download_Buffer* pBuf)
     return pBuf->data;
 }
 
-CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle)
+
+/******************
+ * Other accessible functions
+ ******************/
+
+CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf)
 {
     // Make sure data gets written at the start of the buffer.
     pBuf->usedSize = 0;
+    
+    CURL* curlHandle = gdrive_get_curlhandle();
     
     // Accept compressed responses.
     curl_easy_setopt(curlHandle, CURLOPT_ACCEPT_ENCODING, "");
@@ -117,6 +145,78 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle)
     
     return pBuf->resultCode;
 }
+
+int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
+                                     bool retryOnAuthError,
+                                     int tryNum,
+                                     int maxTries
+)
+{
+    CURLcode curlResult = gdrive_dlbuf_download(pBuf);
+
+    
+    if (curlResult != CURLE_OK)
+    {
+        // Download error
+        return -1;
+    }
+    if (gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    {
+        // Handle HTTP error responses.  Normal error handling - 5xx gets 
+        // retried, 403 gets retried if it's due to rate limits, 401 gets
+        // retried after refreshing auth.  If retryOnAuthError is false, 
+        // suppress the normal behavior for 401 and don't retry.
+        
+        // See whether we've already used our maximum attempts.
+        if (tryNum == maxTries)
+        {
+            return -1;
+        }
+        
+        bool retry = false;
+        switch (gdrive_dlbuf_retry_on_error(pBuf, gdrive_dlbuf_get_httpResp(pBuf)))
+        {
+        case GDRIVE_RETRY_RETRY:
+            // Normal retry, use exponential backoff.
+            gdrive_exponential_wait(tryNum);
+            retry = true;
+            break;
+
+        case GDRIVE_RETRY_RENEWAUTH:
+            // Authentication error, probably expired access token.
+            // If retryOnAuthError is true, refresh auth and retry (unless auth 
+            // fails).
+            if (retryOnAuthError)
+            {
+                retry = (gdrive_auth() == 0);
+                break;
+            }
+            // else fall through
+            
+        case GDRIVE_RETRY_NORETRY:
+        default:
+            retry = false;
+            break;
+        }
+        
+        if (retry)
+        {
+            return gdrive_dlbuf_download_with_retry(pBuf, 
+                                                    retryOnAuthError,
+                                                    tryNum + 1,
+                                                    maxTries
+                    );
+        }
+        else
+        {
+            return -1;
+        }
+    }
+    
+    // If we're here, we have a good response.  Return success.
+    return 0;
+}
+
 
 
 
@@ -166,4 +266,87 @@ gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, void *userdata)
     pBuffer->data[totalSize - 1] = '\0';
     
     return dataSize;
+}
+
+static enum Gdrive_Retry_Method 
+gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp)
+{
+    // TODO:    Currently only handles 403 errors correctly when pBuf->fh is 
+    //          NULL (when the downloaded data is stored in-memory, not in a 
+    //          file).
+          
+    
+    // Most transfers should retry:
+    // A. After HTTP 5xx errors, using exponential backoff
+    // B. After HTTP 403 errors with a reason of "rateLimitExceeded" or 
+    //    "userRateLimitExceeded", using exponential backoff
+    // C. After HTTP 401, after refreshing credentials
+    // If not one of the above cases, should not retry.
+    
+    if (httpResp >= 500)
+    {
+        // Always retry these
+        return GDRIVE_RETRY_RETRY;
+    }
+    else if (httpResp == 401)
+    {
+        // Always refresh credentials for 401.
+        return GDRIVE_RETRY_RENEWAUTH;
+    }
+    else if (httpResp == 403)
+    {
+        // Retry ONLY if the reason for the 403 was an exceeded rate limit
+        bool retry = false;
+        int reasonLength = strlen(GDRIVE_403_USERRATELIMIT) + 1;
+        char* reason = malloc(reasonLength);
+        if (reason == NULL)
+        {
+            // Memory error
+            return -1;
+        }
+        reason[0] = '\0';
+        Gdrive_Json_Object* pRoot = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+        if (pRoot != NULL)
+        {
+            Gdrive_Json_Object* pErrors = 
+                    gdrive_json_get_nested_object(pRoot, "error/errors");
+            gdrive_json_get_string(pErrors, "reason", reason, reasonLength);
+            if ((strcmp(reason, GDRIVE_403_RATELIMIT) == 0) || 
+                    (strcmp(reason, GDRIVE_403_USERRATELIMIT) == 0))
+            {
+                // Rate limit exceeded, retry.
+                retry = true;
+            }
+            // else do nothing (retry remains false for all other 403 
+            // errors)
+
+            // Cleanup
+            gdrive_json_kill(pRoot);
+        }
+        free(reason);
+        if (retry)
+        {
+            return GDRIVE_RETRY_RENEWAUTH;
+        }
+    }
+    
+    // For all other errors, don't retry.
+    return GDRIVE_RETRY_NORETRY;
+}
+
+static void gdrive_exponential_wait(int tryNum)
+{
+    // Number of milliseconds to wait before retrying
+    long waitTime;
+    int i;
+    // Start with 2^tryNum seconds.
+    for (i = 0, waitTime = 1000; i < tryNum; i++, waitTime *= 2)
+        ;   // No loop body.
+    // Randomly add up to 1 second more.
+    waitTime += (rand() % 1000) + 1;
+    // Convert waitTime to a timespec for use with nanosleep.
+    struct timespec waitTimeNano;
+    waitTimeNano.tv_sec = waitTime / 1000;  // Integer division
+    waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
+    nanosleep(&waitTimeNano, NULL);
 }

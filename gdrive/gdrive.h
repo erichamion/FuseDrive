@@ -186,6 +186,21 @@ size_t gdrive_get_minchunksize(void);
  */
 int gdrive_get_maxchunks(void);
 
+/*
+ * gdrive_get_filesystem_perms():   Retrieve the overall filesystem permissions
+ *                                  for a particular type of file (currently 
+ *                                  only distinguishes between folders and 
+ *                                  non-folders).
+ * Parameters:
+ *      type (enum Gdrive_Filetype):
+ *              The type of the file.
+ * Return value (int):
+ *      An integer value from 0 to 7, inclusive, representing Unix filesystem
+ *      permissions. All files of the given type are limited to (at most) the
+ *      returned permissions.
+ */
+int gdrive_get_filesystem_perms(enum Gdrive_Filetype type);
+
 
 /******************
  * Other fully public functions

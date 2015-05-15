@@ -1,12 +1,10 @@
 
+#include "gdrive-fileid-cache-node.h"
 
-#include <sys/types.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <time.h>
 
-#include "gdrive-fileid-cache-node.h"
 
 
 /*************************************************************************
@@ -132,7 +130,6 @@ void gdrive_fidnode_clear_all(Gdrive_Fileid_Cache_Node* pHead)
     if (pHead->pNext != NULL)
     {
         gdrive_fidnode_clear_all(pHead->pNext);
-        gdrive_fidnode_free(pHead->pNext);
     }
     
     // Free the head node.

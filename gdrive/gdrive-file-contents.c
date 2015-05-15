@@ -1,14 +1,8 @@
 
-#include <sys/types.h>
-#include <stdbool.h>
-#include <time.h>
-#include <stdio.h>
-#include <string.h>
-#include <curl/curl.h>
-
-#include "gdrive.h"
-#include "gdrive-internal.h"
 #include "gdrive-file-contents.h"
+
+#include <string.h>
+
 
 
 
@@ -146,7 +140,6 @@ gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, off_t offset)
 }
 
 int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents, 
-                                Gdrive_Info* pInfo,
                                 const char* fileId,
                                 off_t start,
                                 size_t size
@@ -166,16 +159,15 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     strcat(fileUrl, fileId);
     
     // Construct query parameters
-    Gdrive_Query* pQuery = 
-            gdrive_query_create(pInfo->pInternalInfo->curlHandle);
+    Gdrive_Query* pQuery = NULL;
+    pQuery = gdrive_query_add(pQuery, "updateViewedDate", "false");
+    pQuery = gdrive_query_add(pQuery, "alt", "media");
     if (pQuery == NULL)
     {
         // Memory error
         free(fileUrl);
         return -1;
     }
-    gdrive_query_add(pQuery, "updateViewedDate", "false");
-    gdrive_query_add(pQuery, "alt", "media");
     
     // Add the Range header.  Per 
     // http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35 it is
@@ -208,10 +200,9 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     rewind(pContents->fh);
     
     // Perform the transfer
-    Gdrive_Download_Buffer* pBuf = _gdrive_do_transfer(pInfo, 
-                                                       GDRIVE_REQUEST_GET, true,
-                                                       fileUrl, pQuery, 
-                                                       pHeaders, pContents->fh
+    Gdrive_Download_Buffer* pBuf = gdrive_do_transfer(GDRIVE_REQUEST_GET, true,
+                                                      fileUrl, pQuery, 
+                                                      pHeaders, pContents->fh
     );
     
     bool success = (pBuf != NULL && 

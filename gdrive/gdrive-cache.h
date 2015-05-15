@@ -19,13 +19,13 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+   
     
-typedef struct Gdrive_File_Contents Gdrive_File_Contents;
-
-
-
-
-
+#include "gdrive.h"
+#include "gdrive-fileid-cache-node.h"
+#include "gdrive-cache-node.h"
+    
+    
 typedef struct Gdrive_Cache Gdrive_Cache;
 
 /*************************************************************************
@@ -35,9 +35,6 @@ typedef struct Gdrive_Cache Gdrive_Cache;
 /*
 * gdrive_cache_init():  Initializes the cache.
  * Parameters:
- *      pInfo (Gdrive_Info*):
- *              The pointer to a struct created by gdrive_init() or 
- *              gdrive_init_nocurl().
  *      cacheTTL (time_t):
  *              The time (in seconds) for which cached data is considered good.
  *              When an item is retrieved from the cache, if more than cacheTTL 
@@ -47,8 +44,13 @@ typedef struct Gdrive_Cache Gdrive_Cache;
  * Return value (int):
  *      0 on success, other on failure.
  */
-int gdrive_cache_init(Gdrive_Info* pInfo, time_t cacheTTL);
+int gdrive_cache_init(time_t cacheTTL);
 
+/*
+ * gdrive_cache_get():  Retrieves a pointer to the cache.
+ * Return value (const Gdrive_Cache*):
+ *      A read-only pointer to the cache.
+ */
 const Gdrive_Cache* gdrive_cache_get(void);
 
 /*
@@ -87,6 +89,15 @@ time_t gdrive_cache_get_ttl();
  */
 time_t gdrive_cache_get_lastupdatetime();
 
+/*
+ * gdrive_cache_get_nextchangeid(): Retrieves the next change ID value from the
+ *                                  last time the cache was updated. This value
+ *                                  can be used to determine whether changes 
+ *                                  have been made since the last cache update.
+ * Return value (int64_t):
+ *      The next change ID (which is 1 higher than the "largestChangeId" from
+ *      Google Drive).
+ */
 int64_t gdrive_cache_get_nextchangeid();
 
 
