@@ -314,6 +314,7 @@ void gdrive_cleanup(void)
 
 void gdrive_cleanup_nocurl(void)
 {
+    gdrive_sysinfo_cleanup();
     gdrive_cache_cleanup();
     gdrive_info_cleanup();
 }
@@ -380,8 +381,7 @@ const char* gdrive_filepath_to_id(const char* path)
     }
     
     // Try to get the ID from the cache.
-    const char* cachedId = 
-            gdrive_cache_get_fileid(path);
+    const char* cachedId = gdrive_cache_get_fileid(path);
     if (cachedId != NULL)
     {
 //        result = malloc(strlen(cachedId) + 1);
@@ -444,15 +444,28 @@ const char* gdrive_filepath_to_id(const char* path)
         return NULL;
     }
     // Use the parent's ID to find the child's ID.
-    result = gdrive_get_child_id_by_name(parentId, path + index + 1);
+    char* id = gdrive_get_child_id_by_name(parentId, path + index + 1);
     //free(parentId);
     
     // Add the ID to the fileId cache.
-    if (result != NULL)
+    if (id != NULL)
     {
-        gdrive_cache_add_fileid(path, result);
+        // Don't just return the ID directly, because that would cause a memory
+        // leak. We need to return a pointer to const that does not need freed
+        // by the caller.
+        int success = gdrive_cache_add_fileid(path, id);
+        free(id);
+        if (success == 0)
+        {
+            return gdrive_cache_get_fileid(path);
+        }
+        else
+        {
+            return NULL;
+        }
     }
-    return result;
+    // else error
+    return NULL;
 }
 
 Gdrive_Fileinfo_Array* gdrive_folder_list(const char* folderId)
@@ -703,7 +716,7 @@ static int gdrive_read_auth_file(const char* filename)
                 // Didn't get one or more auth tokens from the file.
                 returnVal = -1;
             }
-
+            gdrive_json_kill(pObj);
         }
         free(buffer);
         fclose(inFile);
@@ -982,6 +995,7 @@ static int gdrive_check_scopes(void)
     
     // Send the network request
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
     if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
     {
@@ -1015,8 +1029,9 @@ static int gdrive_check_scopes(void)
     // each one to the GDRIVE_ACCESS_SCOPES array.
     long startIndex = 0;
     long endIndex = 0;
+    long scopeLength = strlen(grantedScopes);
     int matchedScopes = 0;
-    while (grantedScopes[startIndex] != '\0')
+    while (startIndex <= scopeLength)
     {
         // After the loop executes, startIndex indicates the start of a scope,
         // and endIndex indicates the (null or space) terminator character.
@@ -1135,6 +1150,7 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     {
         id = gdrive_json_get_new_string(pArrayItem, "id", NULL);
     }
+    gdrive_json_kill(pObj);
     return id;
 }
 
@@ -1159,6 +1175,7 @@ struct curl_slist* gdrive_get_authbearer_header(struct curl_slist* pHeaders)
     
     // Copy the string into a curl_slist for use in headers.
     struct curl_slist* returnVal = curl_slist_append(pHeaders, header);
+    free(header);
     return returnVal;
 }
 

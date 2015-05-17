@@ -26,10 +26,15 @@ typedef struct Gdrive_Sysinfo Gdrive_Sysinfo;
  * Constructors and destructors
  *************************************************************************/
 
-// No constructors or destructors. This is a single struct instance that lives
+// No constructors. This is a single struct instance that lives
 // in static memory for the lifetime of the application. Members are retrieved
 // using the gdrive_sysinfo_get_*() functions below.
 
+/*
+ * gdrive_sysinfo_cleanup():    Clears any dynamically allocated memory 
+ *                              associated with the Gdrive_Sysinfo struct.
+ */
+void gdrive_sysinfo_cleanup();
 
 
 /*************************************************************************

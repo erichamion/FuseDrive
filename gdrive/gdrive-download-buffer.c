@@ -69,8 +69,9 @@ Gdrive_Download_Buffer* gdrive_dlbuf_create(size_t initialSize, FILE* fh)
     pBuf->httpResp = 0;
     pBuf->resultCode = 0;
     pBuf->data = NULL;
-    pBuf->pReturnedHeaders = NULL;
-    pBuf->returnedHeaderSize = 0;
+    pBuf->pReturnedHeaders = malloc(1);
+    pBuf->pReturnedHeaders[0] = '\0';
+    pBuf->returnedHeaderSize = 1;
     pBuf->fh = fh;
     if (initialSize != 0)
     {
@@ -311,18 +312,17 @@ gdrive_dlbuf_header_callback(char* buffer, size_t size, size_t nitems,
     oldSize = (oldSize > 0) ? oldSize : 1;
     size_t newHeaderLength = size * nitems;
     size_t totalSize = oldSize + newHeaderLength + 1;
-    char* newHeader = realloc(pDlBuf->pReturnedHeaders, totalSize);
-    if (newHeader == NULL)
+    pDlBuf->pReturnedHeaders = realloc(pDlBuf->pReturnedHeaders, totalSize);
+    if (pDlBuf->pReturnedHeaders == NULL)
     {
         // Memory error
         return 0;
     }
-    pDlBuf->pReturnedHeaders = newHeader;
     pDlBuf->returnedHeaderSize = totalSize;
     
     strncpy(pDlBuf->pReturnedHeaders + oldSize - 1, buffer, newHeaderLength);
-    pDlBuf->pReturnedHeaders[totalSize - 1] = '\n';
-    pDlBuf->pReturnedHeaders[totalSize] = '\0';
+    pDlBuf->pReturnedHeaders[totalSize - 2] = '\n';
+    pDlBuf->pReturnedHeaders[totalSize -1] = '\0';
     
     return newHeaderLength;
 }

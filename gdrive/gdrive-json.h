@@ -166,7 +166,7 @@ char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj,
  *              freeing the memory pointed to by this pointer.
  *      pLength (long*):
  *              Must not be NULL. On input, points to the current length of the 
- *              buffer specified by pDest. Upon funtion return, points to the 
+ *              buffer specified by pDest. Upon function return, points to the 
  *              size of the retrieved string in bytes, including the terminating
  *              null.
  * Return value (int):

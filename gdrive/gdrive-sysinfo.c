@@ -5,6 +5,7 @@
 #include "gdrive-cache.h"
 
 #include <string.h>
+#include <stdbool.h>
     
 
 typedef struct Gdrive_Sysinfo
@@ -22,9 +23,9 @@ typedef struct Gdrive_Sysinfo
  * this file
  *************************************************************************/
 
-static const Gdrive_Sysinfo* gdrive_get_sysinfo(void);
+static const Gdrive_Sysinfo* gdrive_sysinfo_get_or_clear(bool cleanup);
 
-static void gdrive_sysinfo_cleanup(Gdrive_Sysinfo* pSysinfo);
+static void gdrive_sysinfo_cleanup_internal(Gdrive_Sysinfo* pSysinfo);
 
 static int gdrive_sysinfo_fill_from_json(Gdrive_Sysinfo* pDest, 
                                    Gdrive_Json_Object* pObj
@@ -43,9 +44,14 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest);
  * Constructors and destructors
  ******************/
 
-// No constructors or destructors. This is a single struct instance that lives
+// No constructors. This is a single struct instance that lives
 // in static memory for the lifetime of the application. Members are retrieved
 // using the gdrive_sysinfo_get_*() functions below.
+
+void gdrive_sysinfo_cleanup()
+{
+    gdrive_sysinfo_get_or_clear(true);
+}
 
 
 
@@ -56,17 +62,17 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest);
 
 int64_t gdrive_sysinfo_get_size(void)
 {
-    return gdrive_get_sysinfo()->quotaBytesTotal;
+    return gdrive_sysinfo_get_or_clear(false)->quotaBytesTotal;
 }
 
 int64_t gdrive_sysinfo_get_used()
 {
-    return gdrive_get_sysinfo()->quotaBytesUsed;
+    return gdrive_sysinfo_get_or_clear(false)->quotaBytesUsed;
 }
 
 const char* gdrive_sysinfo_get_rootid(void)
 {
-    return gdrive_get_sysinfo()->rootId;
+    return gdrive_sysinfo_get_or_clear(false)->rootId;
 }
 
 
@@ -81,11 +87,18 @@ const char* gdrive_sysinfo_get_rootid(void)
  * Implementations of private functions for use within this file
  *************************************************************************/
 
-static const Gdrive_Sysinfo* gdrive_get_sysinfo(void)
+static const Gdrive_Sysinfo* gdrive_sysinfo_get_or_clear(bool cleanup)
 {
     // Set the initial nextChangeId to the lowest possible value, guaranteeing
     // that the info will be updated the first time this function is called.
     static Gdrive_Sysinfo sysinfo = {.nextChangeId = INT64_MIN};
+    
+    if (cleanup)
+    {
+        // Clear out the struct and return NULL
+        gdrive_sysinfo_cleanup_internal(&sysinfo);
+        return NULL;
+    }
     
     
 
@@ -108,7 +121,7 @@ static const Gdrive_Sysinfo* gdrive_get_sysinfo(void)
     return &sysinfo;
 }
 
-static void gdrive_sysinfo_cleanup(Gdrive_Sysinfo* pSysinfo)
+static void gdrive_sysinfo_cleanup_internal(Gdrive_Sysinfo* pSysinfo)
 {
     free(pSysinfo->rootId);
     memset(pSysinfo, 0, sizeof(Gdrive_Sysinfo));
@@ -155,7 +168,7 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest)
     if (pDest != NULL)
     {
         // Clean up the existing info.
-        gdrive_sysinfo_cleanup(pDest);
+        gdrive_sysinfo_cleanup_internal(pDest);
     }
         
     const char* const fieldString = "quotaBytesTotal,quotaBytesUsed,"

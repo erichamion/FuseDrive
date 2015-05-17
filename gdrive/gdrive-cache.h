@@ -193,15 +193,15 @@ Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId,
 
 /*
  * gdrive_cache_get_fileid():   Retrieve from the File ID cache the Google Drive
- *                              file ID corresponding to a given path .
+ *                              file ID corresponding to a given path.
  * Parameters:
  *      path (const char*):
  *              A string containing the pathname within the Google Drive 
  *              directory structure (the Google Drive root folder is "/").
  * Return value:
  *      On success, a char* null-terminated string holding the Google Drive file
- *      ID of the specified file. On failure, NULL. The caller should not free
- *      or alter the memory pointed to by the return value.
+ *      ID of the specified file. On failure, NULL. The memory location returned
+ *      should not be altered or freed.
  */
 const char* gdrive_cache_get_fileid(const char* path);
 

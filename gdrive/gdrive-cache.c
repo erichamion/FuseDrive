@@ -1,6 +1,10 @@
 
 #include "gdrive-cache.h"
 
+#include <string.h>
+
+
+
 
 
 
@@ -110,7 +114,9 @@ void gdrive_cache_cleanup(void)
 {
     Gdrive_Cache* pCache = gdrive_cache_get_internal();
     gdrive_fidnode_clear_all(pCache->pFileIdCacheHead);
+    pCache->pFileIdCacheHead = NULL;
     gdrive_cnode_free_all(pCache->pCacheHead);
+    pCache->pCacheHead = NULL;
 }
 
 
@@ -195,6 +201,7 @@ int gdrive_cache_update()
     }
     free(changeIdString);
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
     
     int returnVal = -1;
@@ -360,9 +367,7 @@ const char* gdrive_cache_get_fileid(const char* path)
     
     // Get the cached node if it exists.  If it doesn't exist, fail.
     Gdrive_Fileid_Cache_Node* pHeadNode = pCache->pFileIdCacheHead;
-    Gdrive_Fileid_Cache_Node* pNode = gdrive_fidnode_get_node(pHeadNode,
-                                                                    path
-            );
+    Gdrive_Fileid_Cache_Node* pNode = gdrive_fidnode_get_node(pHeadNode, path);
     if (pNode == NULL)
     {
         // The path isn't cached.  Return null.
@@ -384,7 +389,14 @@ const char* gdrive_cache_get_fileid(const char* path)
         return gdrive_cache_get_fileid(path);
     }
     
-    // Item exists and is not expired.
+//    // Item exists and is not expired. Copy the file ID into a new string and
+//    // return the new string.
+//    const char* internalId = gdrive_fidnode_get_fileid(pNode);
+//    size_t idLength = strlen(internalId);
+//    char* returnVal = malloc(idLength + 1);
+//    strncpy(returnVal, internalId, idLength);
+//    returnVal[idLength] = '\0';
+//    return returnVal;
     return gdrive_fidnode_get_fileid(pNode);
 }
 
@@ -416,6 +428,3 @@ static void gdrive_cache_remove_id(const char* fileId)
 
     gdrive_cnode_delete(pNode, &(pCache->pCacheHead));
 }
-
-        
-

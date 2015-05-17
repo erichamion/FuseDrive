@@ -183,8 +183,10 @@ void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo,
                             Gdrive_Json_Object* pObj
 )
 {
-    pFileinfo->filename = gdrive_json_get_new_string(pObj, "title", NULL);
-    pFileinfo->id = gdrive_json_get_new_string(pObj, "id", NULL);
+    long length = 0;
+    gdrive_json_realloc_string(pObj, "title", &(pFileinfo->filename), &length);
+    length = 0;
+    gdrive_json_realloc_string(pObj, "id", &(pFileinfo->id), &length);
     bool success;
     pFileinfo->size = gdrive_json_get_int64(pObj, "fileSize", true, &success);
     if (!success)

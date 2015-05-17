@@ -90,7 +90,7 @@ int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead,
             return 0;
         }
         // else keep searching
-        *ppFromPrev = (*ppFromPrev)->pNext;
+        ppFromPrev = &((*ppFromPrev)->pNext);
         pNext = *ppFromPrev;
     }
 }
@@ -168,7 +168,7 @@ Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
         // No nodes to get.
         return NULL;
     }
-    Gdrive_Fileid_Cache_Node* pNode = pHead->pNext;
+    Gdrive_Fileid_Cache_Node* pNode = pHead;
     
     while (pNode != NULL)
     {
