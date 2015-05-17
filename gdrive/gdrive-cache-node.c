@@ -20,6 +20,7 @@ typedef struct Gdrive_Cache_Node
     time_t lastUpdateTime;
     int openCount;
     int openWrites;
+    bool dirty;
     Gdrive_Fileinfo fileinfo;
     Gdrive_File_Contents* pContents;
     struct Gdrive_Cache_Node* pParent;
@@ -49,7 +50,7 @@ static size_t
 gdrive_file_read_next_chunk(Gdrive_File* pNode, char* destBuf, off_t offset,
                             size_t size);
 
-static size_t 
+static off_t 
 gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset, 
                              size_t size);
 
@@ -647,7 +648,7 @@ gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset,
     return gdrive_fcontents_read(pChunkContents, destBuf, offset, size);
 }
 
-static size_t 
+static off_t 
 gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset, 
                              size_t size)
 {
@@ -678,17 +679,25 @@ gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset,
     // Actually write to the buffer and return the number of bytes read (which
     // may be less than size if we hit the end of the chunk), or return any 
     // error up to the caller.
-    size_t bytesWritten = gdrive_fcontents_write(pChunkContents, 
+    off_t bytesWritten = gdrive_fcontents_write(pChunkContents, 
                                                  buf, 
                                                  offset, 
                                                  size, 
                                                  extendChunk
             );
-    // Update the size of the file if applicable
-    if (offset + bytesWritten > pNode->fileinfo.size)
+    
+    if (bytesWritten > 0)
     {
-        pNode->fileinfo.size = offset + bytesWritten;
+        // Mark the file as having been written
+        pNode->dirty = true;
+        
+        if (offset + bytesWritten > pNode->fileinfo.size)
+        {
+            // Update the file size
+            pNode->fileinfo.size = offset + bytesWritten;
+        }
     }
+    
     return bytesWritten;
 }
 

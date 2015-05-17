@@ -234,7 +234,6 @@ void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo,
             basePerm = S_IROTH;
         }
         
-//        pFileinfo->basePermission = mountPerm & basePerm;
         pFileinfo->basePermission = basePerm;
         
         // Directories need read and execute permissions to be navigable, and 

@@ -268,6 +268,16 @@ int gdrive_init_nocurl(int access,
         
     // Authenticate or refresh access
     pInfo->mode = access;
+    if (pInfo->mode & GDRIVE_ACCESS_WRITE) 
+    {
+        // Write access implies read access
+        pInfo->mode = pInfo->mode | GDRIVE_ACCESS_READ;
+    }
+    if (pInfo->mode & GDRIVE_ACCESS_READ) 
+    {
+        // Read access implies meta-info access
+        pInfo->mode = pInfo->mode | GDRIVE_ACCESS_META;
+    }
     if (gdrive_auth() != 0)
     {
         // Could not get the required permissions.  Return error.

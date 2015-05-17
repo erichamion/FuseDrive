@@ -268,11 +268,11 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
     return bytesRead;
 }
     
-size_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
-                              const char* buf, 
-                              off_t offset,
-                              size_t size,
-                              bool extendChunk
+off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
+                             const char* buf, 
+                             off_t offset,
+                             size_t size,
+                             bool extendChunk
 )
 {
     // Only write to the end of the chunk, unless extendChunk is true
