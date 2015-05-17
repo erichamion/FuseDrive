@@ -24,7 +24,7 @@ extern "C" {
  * GDRIVE_CLIENT_SECRET
  */
     
-#include "gdrive-transfer-descriptor.h"
+#include "gdrive-transfer.h"
 #include "gdrive-util.h"
 #include "gdrive-download-buffer.h"
 #include "gdrive-query.h"
@@ -114,6 +114,12 @@ Gdrive_Download_Buffer* gdrive_do_transfer(
         const char* url,  const Gdrive_Query* pQuery, 
         struct curl_slist* pHeaders, FILE* destFile
 );
+
+/*
+ * Should probably be moved into gdrive-transfer.c and made static. Not ready
+ * for that yet.
+ */
+struct curl_slist* gdrive_get_authbearer_header(struct curl_slist* pHeaders);
 
 
 

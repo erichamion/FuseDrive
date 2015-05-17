@@ -48,7 +48,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/gdrive/gdrive-json.o \
 	${OBJECTDIR}/gdrive/gdrive-query.o \
 	${OBJECTDIR}/gdrive/gdrive-sysinfo.o \
-	${OBJECTDIR}/gdrive/gdrive-transfer-descriptor.o \
+	${OBJECTDIR}/gdrive/gdrive-transfer.o \
 	${OBJECTDIR}/gdrive/gdrive-util.o
 
 
@@ -141,10 +141,10 @@ ${OBJECTDIR}/gdrive/gdrive-sysinfo.o: gdrive/gdrive-sysinfo.c
 	${RM} "$@.d"
 	$(COMPILE.c) -g -Wall -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 -D__GDRIVE_TEST__ `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-sysinfo.o gdrive/gdrive-sysinfo.c
 
-${OBJECTDIR}/gdrive/gdrive-transfer-descriptor.o: gdrive/gdrive-transfer-descriptor.c 
+${OBJECTDIR}/gdrive/gdrive-transfer.o: gdrive/gdrive-transfer.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -g -Wall -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 -D__GDRIVE_TEST__ `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-transfer-descriptor.o gdrive/gdrive-transfer-descriptor.c
+	$(COMPILE.c) -g -Wall -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 -D__GDRIVE_TEST__ `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-transfer.o gdrive/gdrive-transfer.c
 
 ${OBJECTDIR}/gdrive/gdrive-util.o: gdrive/gdrive-util.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive

@@ -147,8 +147,8 @@ static const char* gdrive_get_root_folder_id(void);
 static char* 
 gdrive_get_child_id_by_name(const char* parentId, const char* childName);
 
-static struct curl_slist* 
-gdrive_get_authbearer_header(struct curl_slist* pHeaders);
+//static struct curl_slist* 
+//gdrive_get_authbearer_header(struct curl_slist* pHeaders);
 
 static int gdrive_save_auth(void);
 
@@ -1206,8 +1206,7 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
 /*
  * pHeaders can be NULL, or an existing set of headers can be given.
  */
-static struct curl_slist* 
-gdrive_get_authbearer_header(struct curl_slist* pHeaders)
+struct curl_slist* gdrive_get_authbearer_header(struct curl_slist* pHeaders)
 {
     Gdrive_Info* pInfo = gdrive_get_info();
     

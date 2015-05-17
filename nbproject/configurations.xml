@@ -18,7 +18,7 @@
         <itemPath>gdrive/gdrive-json.h</itemPath>
         <itemPath>gdrive/gdrive-query.h</itemPath>
         <itemPath>gdrive/gdrive-sysinfo.h</itemPath>
-        <itemPath>gdrive/gdrive-transfer-descriptor.h</itemPath>
+        <itemPath>gdrive/gdrive-transfer.h</itemPath>
         <itemPath>gdrive/gdrive-util.h</itemPath>
         <itemPath>gdrive/gdrive.h</itemPath>
         <itemPath>gdrive/header-template.h</itemPath>
@@ -45,7 +45,7 @@
         <itemPath>gdrive/gdrive-json.c</itemPath>
         <itemPath>gdrive/gdrive-query.c</itemPath>
         <itemPath>gdrive/gdrive-sysinfo.c</itemPath>
-        <itemPath>gdrive/gdrive-transfer-descriptor.c</itemPath>
+        <itemPath>gdrive/gdrive-transfer.c</itemPath>
         <itemPath>gdrive/gdrive-util.c</itemPath>
       </logicalFolder>
       <itemPath>fuse-drive.c</itemPath>
@@ -146,15 +146,9 @@
       </item>
       <item path="gdrive/gdrive-sysinfo.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="gdrive/gdrive-transfer-descriptor.c"
-            ex="false"
-            tool="0"
-            flavor2="0">
+      <item path="gdrive/gdrive-transfer.c" ex="false" tool="0" flavor2="0">
       </item>
-      <item path="gdrive/gdrive-transfer-descriptor.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="gdrive/gdrive-transfer.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="gdrive/gdrive-util.c" ex="false" tool="0" flavor2="0">
       </item>
@@ -255,15 +249,9 @@
       </item>
       <item path="gdrive/gdrive-sysinfo.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="gdrive/gdrive-transfer-descriptor.c"
-            ex="false"
-            tool="0"
-            flavor2="0">
+      <item path="gdrive/gdrive-transfer.c" ex="false" tool="0" flavor2="0">
       </item>
-      <item path="gdrive/gdrive-transfer-descriptor.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="gdrive/gdrive-transfer.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="gdrive/gdrive-util.c" ex="false" tool="0" flavor2="0">
       </item>
@@ -356,15 +344,9 @@
       </item>
       <item path="gdrive/gdrive-sysinfo.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="gdrive/gdrive-transfer-descriptor.c"
-            ex="false"
-            tool="0"
-            flavor2="0">
+      <item path="gdrive/gdrive-transfer.c" ex="false" tool="0" flavor2="0">
       </item>
-      <item path="gdrive/gdrive-transfer-descriptor.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="gdrive/gdrive-transfer.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="gdrive/gdrive-util.c" ex="false" tool="0" flavor2="0">
       </item>

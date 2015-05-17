@@ -52,21 +52,29 @@ int gdrive_cache_init(time_t cacheTTL)
     
     pCache->cacheTTL = cacheTTL;
     
-    Gdrive_Query* pQuery = NULL;
-    pQuery = gdrive_query_add(pQuery, "includeSubscribed", "false");
-    pQuery = gdrive_query_add(pQuery, "fields", "largestChangeId");
-    if (pQuery == NULL)
-    {
-        // Memory error.
-        //free(pCache);
-        return -1;
-    }
-    // Do the transfer.
-    Gdrive_Download_Buffer* pBuf = 
-            gdrive_do_transfer(GDRIVE_REQUEST_GET, true,
-                               GDRIVE_URL_ABOUT, pQuery, NULL, NULL
-            );
-    gdrive_query_free(pQuery);
+//    Gdrive_Query* pQuery = NULL;
+//    pQuery = gdrive_query_add(pQuery, "includeSubscribed", "false");
+//    pQuery = gdrive_query_add(pQuery, "fields", "largestChangeId");
+//    if (pQuery == NULL)
+//    {
+//        // Memory error.
+//        //free(pCache);
+//        return -1;
+//    }
+//    // Do the transfer.
+//    Gdrive_Download_Buffer* pBuf = 
+//            gdrive_do_transfer(GDRIVE_REQUEST_GET, true,
+//                               GDRIVE_URL_ABOUT, pQuery, NULL, NULL
+//            );
+//    gdrive_query_free(pQuery);
+    
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
+    gdrive_xfer_set_url(pTransfer, GDRIVE_URL_ABOUT);
+    gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false");
+    gdrive_xfer_add_query(pTransfer, "fields", "largestChangeId");
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
     bool success = false;
     if (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400)
