@@ -36,6 +36,7 @@ extern "C" {
 
     
 #define GDRIVE_URL_FILES "https://www.googleapis.com/drive/v2/files"
+#define GDRIVE_URL_UPLOAD "https://www.googleapis.com/upload/drive/v2/files"
 #define GDRIVE_URL_ABOUT "https://www.googleapis.com/drive/v2/about"
 #define GDRIVE_URL_CHANGES "https://www.googleapis.com/drive/v2/changes"
     

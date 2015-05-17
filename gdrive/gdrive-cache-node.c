@@ -57,6 +57,9 @@ gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset,
 static bool 
 gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags);
 
+static size_t 
+gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size, 
+                           void* userdata);
 
 
 
@@ -376,7 +379,8 @@ void gdrive_file_close(Gdrive_File* pFile, int flags)
         // Was opened for writing
         pNode->openWrites--;
         
-        // TODO: Upload the new version of the file to the Google Drive servers
+        // Upload any changes back to Google Drive
+        gdrive_file_sync(pFile);
     }
     
     
@@ -467,6 +471,77 @@ int gdrive_file_write(Gdrive_File* fh,
     }
     
     return size;
+}
+
+int gdrive_file_sync(Gdrive_File* fh)
+{
+    if (fh == NULL)
+    {
+        // Invalid argument
+        return -1;
+    }
+    
+    Gdrive_Cache_Node* pNode = fh;
+    
+    if (!pNode->dirty)
+    {
+        // Nothing to do
+        return 0;
+    }
+    
+    // Just using simple upload for now.
+    // TODO: Consider using resumable upload, possibly only for large files.
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+    
+    // Assemble the URL
+    size_t urlSize = strlen(GDRIVE_URL_UPLOAD) + strlen(pNode->fileinfo.id) + 2;
+    char* url = malloc(urlSize);
+    if (url == NULL)
+    {
+        // Memory error
+        gdrive_xfer_free(pTransfer);
+        return -ENOMEM;
+    }
+    strcpy(url, GDRIVE_URL_UPLOAD);
+    strcat(url, "/");
+    strcat(url, pNode->fileinfo.id);
+    if (gdrive_xfer_set_url(pTransfer, url) != 0)
+    {
+        // Error, probably memory
+        free(url);
+        gdrive_xfer_free(pTransfer);
+        return -ENOMEM;
+    }
+    free(url);
+    
+    // Add query parameter(s)
+    if (gdrive_xfer_add_postfield(pTransfer, "uploadType", "media") != 0)
+    {
+        // Error, probably memory
+        gdrive_xfer_free(pTransfer);
+        return -ENOMEM;
+    }
+    
+    // Set upload callback
+    gdrive_xfer_set_uploadcallback(pTransfer, gdrive_file_uploadcallback, fh);
+    
+    // Do the transfer
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400);
+    if (returnVal == 0)
+    {
+        // Success. Clear the dirty flag
+        pNode->dirty = false;
+    }
+    gdrive_dlbuf_free(pBuf);
+    return returnVal;
 }
 
 const Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
@@ -691,7 +766,7 @@ gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset,
         // Mark the file as having been written
         pNode->dirty = true;
         
-        if (offset + bytesWritten > pNode->fileinfo.size)
+        if ((size_t)(offset + bytesWritten) > pNode->fileinfo.size)
         {
             // Update the file size
             pNode->fileinfo.size = offset + bytesWritten;
@@ -725,4 +800,18 @@ gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags)
     // If there is anything we need but don't have, return false.
     return !(neededPerms & ~perms);
     
+}
+
+static size_t 
+gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size, 
+                           void* userdata)
+{
+    // All we need to do is read from a Gdrive_File* file handle into a buffer.
+    // We already know how to do exactly that.
+    int returnVal = gdrive_file_read((Gdrive_File*) userdata, 
+                                     buffer, 
+                                     size, 
+                                     offset
+    );
+    return (returnVal >= 0) ? (size_t) returnVal : (size_t)(-1);
 }

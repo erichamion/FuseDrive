@@ -35,17 +35,13 @@ typedef struct Gdrive_Transfer
 /*
  * Returns 0 on success, other on failure.
  */
-static int gdrive_xfer_add_query_or_post(Gdrive_Query** ppQuery, 
-                                         const char* field, 
-                                         const char* value
-);
+static int 
+gdrive_xfer_add_query_or_post(Gdrive_Query** ppQuery, const char* field, 
+                              const char* value);
 
-// Not static because this is used as a callback function.
-size_t gdrive_xfer_upload_callback_internal(char* buffer, 
-                                            size_t size, 
-                                            size_t nitems, 
-                                            void* instream
-);
+static size_t 
+gdrive_xfer_upload_callback_internal(char* buffer, size_t size, size_t nitems, 
+                                     void* instream);
 
 
 /*************************************************************************
@@ -231,6 +227,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     // Set upload data callback, if applicable
     if (pTransfer->uploadCallback != NULL)
     {
+        gdrive_xfer_add_header(pTransfer, "Transfer-Encoding: chunked");
         curl_easy_setopt(curlHandle, 
                          CURLOPT_READFUNCTION, 
                          gdrive_xfer_upload_callback_internal
@@ -288,12 +285,9 @@ static int gdrive_xfer_add_query_or_post(Gdrive_Query** ppQuery,
     return (*ppQuery == NULL);
 }
 
-// Not static because this is used as a callback function.
-size_t gdrive_xfer_upload_callback_internal(char* buffer, 
-                                            size_t size, 
-                                            size_t nitems, 
-                                            void* instream
-)
+static size_t 
+gdrive_xfer_upload_callback_internal(char* buffer, size_t size, size_t nitems, 
+                                     void* instream)
 {
     // Get the transfer struct.
     Gdrive_Transfer* pTransfer = (Gdrive_Transfer*) instream;

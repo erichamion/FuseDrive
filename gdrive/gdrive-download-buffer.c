@@ -25,11 +25,17 @@ typedef struct Gdrive_Download_Buffer
     long httpResp;
     CURLcode resultCode;
     char* data;
+    char* pReturnedHeaders;
+    size_t returnedHeaderSize;
     FILE* fh;
 } Gdrive_Download_Buffer;
 
 static size_t 
 gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, void *userdata);
+
+static size_t
+gdrive_dlbuf_header_callback(char* buffer, size_t size, size_t nitems, 
+                             void* userdata);
 
 static enum Gdrive_Retry_Method 
 gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp);
@@ -63,6 +69,8 @@ Gdrive_Download_Buffer* gdrive_dlbuf_create(size_t initialSize, FILE* fh)
     pBuf->httpResp = 0;
     pBuf->resultCode = 0;
     pBuf->data = NULL;
+    pBuf->pReturnedHeaders = NULL;
+    pBuf->returnedHeaderSize = 0;
     pBuf->fh = fh;
     if (initialSize != 0)
     {
@@ -79,11 +87,27 @@ Gdrive_Download_Buffer* gdrive_dlbuf_create(size_t initialSize, FILE* fh)
 
 void gdrive_dlbuf_free(Gdrive_Download_Buffer* pBuf)
 {
-    if (pBuf != NULL && pBuf->data != NULL && pBuf->allocatedSize > 0)
+    if (pBuf == NULL)
+    {
+        // Nothing to do
+        return;
+    }
+    
+    // Free data
+    if (pBuf->data != NULL && pBuf->allocatedSize > 0)
     {
         free(pBuf->data);
         pBuf->data = NULL;
     }
+    
+    // Free headers
+    if (pBuf->pReturnedHeaders != NULL)
+    {
+        free(pBuf->pReturnedHeaders);
+        pBuf->pReturnedHeaders = NULL;
+    }
+    
+    // Free the actual struct
     free(pBuf);
 }
 
@@ -136,6 +160,13 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf)
         curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, NULL);
         curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, pBuf->fh);
     }
+    
+    // Capture the returned headers with a callback
+    curl_easy_setopt(curlHandle, 
+                     CURLOPT_HEADERFUNCTION, 
+                     gdrive_dlbuf_header_callback
+            );
+    curl_easy_setopt(curlHandle, CURLOPT_HEADERDATA, pBuf);
     
     // Do the transfer.
     pBuf->resultCode = curl_easy_perform(curlHandle);
@@ -268,6 +299,34 @@ gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, void *userdata)
     return dataSize;
 }
 
+static size_t
+gdrive_dlbuf_header_callback(char* buffer, size_t size, size_t nitems, 
+                             void* userdata)
+{
+    Gdrive_Download_Buffer* pDlBuf = (Gdrive_Download_Buffer*) userdata;
+    
+    // Header data in passed in may not be null terminated or end in a newline, 
+    // so allow space for the newline and null terminator.
+    size_t oldSize = pDlBuf->returnedHeaderSize;
+    oldSize = (oldSize > 0) ? oldSize : 1;
+    size_t newHeaderLength = size * nitems;
+    size_t totalSize = oldSize + newHeaderLength + 1;
+    char* newHeader = realloc(pDlBuf->pReturnedHeaders, totalSize);
+    if (newHeader == NULL)
+    {
+        // Memory error
+        return 0;
+    }
+    pDlBuf->pReturnedHeaders = newHeader;
+    pDlBuf->returnedHeaderSize = totalSize;
+    
+    strncpy(pDlBuf->pReturnedHeaders + oldSize - 1, buffer, newHeaderLength);
+    pDlBuf->pReturnedHeaders[totalSize - 1] = '\n';
+    pDlBuf->pReturnedHeaders[totalSize] = '\0';
+    
+    return newHeaderLength;
+}
+
 static enum Gdrive_Retry_Method 
 gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp)
 {
@@ -349,4 +408,13 @@ static void gdrive_exponential_wait(int tryNum)
     waitTimeNano.tv_sec = waitTime / 1000;  // Integer division
     waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
     nanosleep(&waitTimeNano, NULL);
+}
+
+
+
+// Just for temporary debugging purposes. This might be kept around and moved to
+// a more appropriate place, or it might be removed.
+void gdrive_dlbuf_print_headers(const Gdrive_Download_Buffer* pBuf)
+{
+    puts(pBuf->pReturnedHeaders);
 }

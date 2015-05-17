@@ -86,6 +86,8 @@ int gdrive_file_write(Gdrive_File* fh,
                       off_t offset
 );
 
+int gdrive_file_sync(Gdrive_File* fh);
+
 
 /*
  * gdrive_file_get_info():  Retrieve the file information for an open file.
