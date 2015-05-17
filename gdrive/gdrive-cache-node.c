@@ -49,6 +49,10 @@ static size_t
 gdrive_file_read_next_chunk(Gdrive_File* pNode, char* destBuf, off_t offset,
                             size_t size);
 
+static size_t 
+gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset, 
+                             size_t size);
+
 static bool 
 gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags);
 
@@ -398,8 +402,11 @@ int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
     
     while (bytesRemaining > 0)
     {
+        // Read into the current position if we're given a real buffer, or pass
+        // in NULL otherwise
+        char* bufPos = (buf != NULL) ? buf + bufferOffset : NULL;
         off_t bytesRead = gdrive_file_read_next_chunk(fh, 
-                                                      buf + bufferOffset,
+                                                      bufPos,
                                                       nextOffset, 
                                                       bytesRemaining
                 );
@@ -416,6 +423,46 @@ int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
         nextOffset += bytesRead;
         bufferOffset += bytesRead;
         bytesRemaining -= bytesRead;
+    }
+    
+    return size;
+}
+
+int gdrive_file_write(Gdrive_File* fh, 
+                      const char* buf, 
+                      size_t size, 
+                      off_t offset
+)
+{
+    // Make sure we have read and write access for the file.
+    if (!gdrive_file_check_perm(fh, O_RDWR))
+    {
+        // Access error
+        return -EACCES;
+    }
+    
+    // Read any needed chunks into the cache.
+    gdrive_file_read(fh, NULL, size, offset);
+    
+    off_t nextOffset = offset;
+    off_t bufferOffset = 0;
+    size_t bytesRemaining = size;
+    
+    while (bytesRemaining > 0)
+    {
+        off_t bytesWritten = gdrive_file_write_next_chunk(fh, 
+                                                          buf + bufferOffset,
+                                                          nextOffset, 
+                                                          bytesRemaining
+                );
+        if (bytesWritten < 0)
+        {
+            // Write error.  bytesWritten is the negative error number
+            return bytesWritten;
+        }
+        nextOffset += bytesWritten;
+        bufferOffset += bytesWritten;
+        bytesRemaining -= bytesWritten;
     }
     
     return size;
@@ -576,9 +623,8 @@ gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset,
     Gdrive_Cache_Node* pNode = pFile;
     
     // Do we already have a chunk that includes the starting point?
-    Gdrive_File_Contents* pChunkContents = gdrive_fcontents_find_chunk(
-            pNode->pContents, offset
-            );
+    Gdrive_File_Contents* pChunkContents = 
+            gdrive_fcontents_find_chunk(pNode->pContents, offset);
     
     if (pChunkContents == NULL)
     {
@@ -595,10 +641,55 @@ gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset,
         }
     }
     
-    // Actually read from the buffer and return the number of bytes read (which
+    // Actually read to the buffer and return the number of bytes read (which
     // may be less than size if we hit the end of the chunk), or return any 
     // error up to the caller.
     return gdrive_fcontents_read(pChunkContents, destBuf, offset, size);
+}
+
+static size_t 
+gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset, 
+                             size_t size)
+{
+    // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
+    // easier to think of the filehandle as just a token used to refer to a 
+    // file, whereas a cache node has internal structure to act upon.
+    Gdrive_Cache_Node* pNode = pFile;
+    
+    // If the starting point is 1 byte past the end of the file, we'll extend 
+    // the final chunk. Otherwise, we'll write to the end of the chunk and stop.
+    bool extendChunk = (offset == (off_t) pNode->fileinfo.size);
+    
+    // Find the chunk that includes the starting point, or the last chunk if
+    // the starting point is 1 byte past the end.
+    off_t searchOffset = (extendChunk) ? offset - 1 : offset;
+    Gdrive_File_Contents* pChunkContents = 
+            gdrive_fcontents_find_chunk(pNode->pContents, searchOffset);
+    
+    if (pChunkContents == NULL)
+    {
+        // Chunk doesn't exist, return error.
+        // TODO: size_t is (or should be) unsigned. Rather than returning
+        // a negative value for error, we should probably return 0 and add
+        // a parameter for a pointer to an error value.
+        return -EINVAL;
+    }
+    
+    // Actually write to the buffer and return the number of bytes read (which
+    // may be less than size if we hit the end of the chunk), or return any 
+    // error up to the caller.
+    size_t bytesWritten = gdrive_fcontents_write(pChunkContents, 
+                                                 buf, 
+                                                 offset, 
+                                                 size, 
+                                                 extendChunk
+            );
+    // Update the size of the file if applicable
+    if (offset + bytesWritten > pNode->fileinfo.size)
+    {
+        pNode->fileinfo.size = offset + bytesWritten;
+    }
+    return bytesWritten;
 }
 
 static bool 

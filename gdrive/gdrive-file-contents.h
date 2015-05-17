@@ -148,7 +148,8 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
  *              which to read.
  *      destBuf (char*):
  *              The in-memory buffer into which to read data. At least size 
- *              bytes should already be allocated at this location.
+ *              bytes should already be allocated at this location. It is safe
+ *              to pass a NULL argument.
  *      offset (off_t):
  *              The offset (zero-based, in bytes) within the entire Google Drive
  *              file from which to start reading. Note: Unless this 
@@ -158,16 +159,25 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
  *      size (size_t):
  *              The number of bytes to read.
  * Return value (size_t):
- *      On success, the number of bytes actually read. This will be less than
- *      size if either the entire file or the chunk described by pContents ends.
- *      On error, the return value is negative. The absolute value of the 
- *      returned value will correspond to the errors that can be returned by
- *      the ferror() system call.
+ *      On success with a non-NULL destBuf, the number of bytes actually read. 
+ *      If destBuf was NULL, returns the same value that would have been 
+ *      returned on success. This will be less than size if either the entire 
+ *      file or the chunk described by pContents ends. On error, the return 
+ *      value is negative. The absolute value of the returned value will 
+ *      correspond to the errors that can be returned by the ferror() system 
+ *      call.
  */
 size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents, 
                              char* destBuf, 
                              off_t offset, 
                              size_t size
+);
+
+size_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
+                              const char* buf, 
+                              off_t offset,
+                              size_t size,
+                              bool extendChunk
 );
 
 

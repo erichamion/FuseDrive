@@ -56,13 +56,15 @@ Gdrive_File* gdrive_file_open(const char* fileId, int flags, int* pError);
 void gdrive_file_close(Gdrive_File* pFile, int flags);
 
 /*
- * gdrive_file_read():  Reads the contents of an open file.
+ * gdrive_file_read():  Reads the contents of an open file and adds the contents
+ *                      of the read section to the cache.
  * Parameters:
  *      pFile (Gdrive_File*):
  *              A file handle returned by a prior call to gdrive_file_open().
  *      buf (char*):
  *              The location of a memory buffer into which to read the data. The
- *              buffer must already be allocated with at least size bytes.
+ *              buffer must already be allocated with at least size bytes. It is
+ *              safe to pass a NULL pointer.
  *      size (size_t):
  *              The number of bytes to read.
  *      offset (off_t):
@@ -77,6 +79,13 @@ void gdrive_file_close(Gdrive_File* pFile, int flags);
  *      to an error value.
  */
 int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset);
+
+int gdrive_file_write(Gdrive_File* fh, 
+                      const char* buf, 
+                      size_t size, 
+                      off_t offset
+);
+
 
 /*
  * gdrive_file_get_info():  Retrieve the file information for an open file.

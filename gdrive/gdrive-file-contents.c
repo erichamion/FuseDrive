@@ -239,6 +239,14 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
                              size_t size
 )
 {
+    // If given a NULL buffer pointer, just return the number of bytes that 
+    // would have been read upon success.
+    if (destBuf == NULL)
+    {
+        size_t maxSize = pContents->end - offset + 1;
+        return (size > maxSize) ? size : maxSize;
+    }
+    
     // Read the data into the supplied buffer.
     FILE* chunkFile = pContents->fh;
     fseek(chunkFile, offset - pContents->start, SEEK_SET);
@@ -260,6 +268,44 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
     return bytesRead;
 }
     
+size_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
+                              const char* buf, 
+                              off_t offset,
+                              size_t size,
+                              bool extendChunk
+)
+{
+    // Only write to the end of the chunk, unless extendChunk is true
+    size_t maxSize = pContents->end - offset;
+    size_t realSize = (extendChunk || size <= maxSize) ? size : maxSize;
+    
+    // Write the data from the supplied buffer.
+    FILE* chunkFile = pContents->fh;
+    fseek(chunkFile, offset - pContents->start, SEEK_SET);
+    size_t bytesWritten = fwrite(buf, 1, size, chunkFile);
+    
+    // Extend the chunk's ending offset if needed
+    if ((off_t) (offset + bytesWritten - 1) > pContents->end)
+    {
+        pContents->end = offset + bytesWritten - 1;
+    }
+    
+    // If an error occurred, return negative.
+    if (bytesWritten < realSize)
+    {
+        int err = ferror(chunkFile);
+        if (err != 0)
+        {
+            rewind(chunkFile);
+            return -err;
+        }
+    }
+    
+    // Return the number of bytes read (which may be less than size if we hit
+    // end of chunk).
+    return bytesWritten;
+}
+
 
 
 /*************************************************************************

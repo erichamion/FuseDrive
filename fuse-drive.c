@@ -553,11 +553,15 @@ static int fudr_statfs(const char* path, struct statvfs* stbuf)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_write(const char* path, const char *buf, size_t size, 
-//        off_t offset, struct fuse_file_info* fi)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_write(const char* path, const char *buf, size_t size, 
+        off_t offset, struct fuse_file_info* fi)
+{
+    // Avoid compiler warning for unused variable
+    (void) path;
+    
+    Gdrive_File* fh = (Gdrive_File*) fi->fh;
+    return gdrive_file_write(fh, buf, size, offset);
+}
 //static int fudr_write_buf(const char* path, struct fuse_bufvec* buf, 
 //        off_t off, struct fuse_file_info* fi)
 //{
@@ -607,7 +611,7 @@ static struct fuse_operations fo = {
     .unlink         = NULL, //fudr_unlink,
     .utime          = NULL, //fudr_utime,
     .utimens        = NULL, //fudr_utimens,
-    .write          = NULL, //fudr_write,
+    .write          = fudr_write,
     .write_buf      = NULL, //fudr_write_buf,
 };
 
@@ -617,7 +621,7 @@ static struct fuse_operations fo = {
  */
 int main(int argc, char** argv) 
 {
-    if ((gdrive_init(GDRIVE_ACCESS_READ, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
+    if ((gdrive_init(GDRIVE_ACCESS_WRITE, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
     {
         printf("Could not set up a Google Drive connection.");
         return 1;
