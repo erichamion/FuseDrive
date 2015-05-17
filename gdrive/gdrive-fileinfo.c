@@ -58,37 +58,52 @@ const Gdrive_Fileinfo* gdrive_finfo_get_by_id(const char* fileId)
     }
     // else it wasn't cached, need to fill in the struct
     
-    Gdrive_Query* pQuery = NULL;
-    pQuery = gdrive_query_add(pQuery, "fields", 
-            "title,id,mimeType,fileSize,createdDate,modifiedDate,"
-            "lastViewedByMeDate,parents(id),userPermission"
-    );
-    if (pQuery == NULL)
+    // Prepare the request
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
     {
-        // Error, probably memory
-        gdrive_query_free(pQuery);
+        // Memory error
         return NULL;
     }
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     
+    // Add the URL.
     // String to hold the url.  Add 2 to the end to account for the '/' before
     // the file ID, as well as the terminating null.
     char* baseUrl = malloc(strlen(GDRIVE_URL_FILES) + strlen(fileId) + 2);
     if (baseUrl == NULL)
     {
         // Memory error.
-        gdrive_query_free(pQuery);
+        gdrive_xfer_free(pTransfer);
         return NULL;
     }
     strcpy(baseUrl, GDRIVE_URL_FILES);
     strcat(baseUrl, "/");
     strcat(baseUrl, fileId);
-    
-    Gdrive_Download_Buffer* pBuf = gdrive_do_transfer(GDRIVE_REQUEST_GET, 
-                                                      true, baseUrl, pQuery, 
-                                                      NULL, NULL
-            );
-    gdrive_query_free(pQuery);
+    if (gdrive_xfer_set_url(pTransfer, baseUrl) != 0)
+    {
+        // Error
+        free(baseUrl);
+        gdrive_xfer_free(pTransfer);
+        return NULL;
+    }
     free(baseUrl);
+    
+    // Add query parameters
+    if (gdrive_xfer_add_query(pTransfer, "fields", 
+                              "title,id,mimeType,fileSize,createdDate,"
+                              "modifiedDate,lastViewedByMeDate,parents(id),"
+                              "userPermission") != 0)
+    {
+        // Error
+        gdrive_xfer_free(pTransfer);
+        return NULL;
+    }
+    
+    // Perform the request
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    
     if (pBuf == NULL)
     {
         // Download error

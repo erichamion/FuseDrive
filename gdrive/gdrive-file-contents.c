@@ -145,6 +145,14 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
                                 size_t size
 )
 {
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        // Memory error
+        return -1;
+    }
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
+    
     // Construct the base URL in the form of "<GDRIVE_URL_FILES>/<fileId>".
     char* fileUrl = malloc(strlen(GDRIVE_URL_FILES) + 
                            strlen(fileId) + 2
@@ -152,20 +160,29 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     if (fileUrl == NULL)
     {
         // Memory error
+        gdrive_xfer_free(pTransfer);
         return -1;
     }
     strcpy(fileUrl, GDRIVE_URL_FILES);
     strcat(fileUrl, "/");
     strcat(fileUrl, fileId);
+    if (gdrive_xfer_set_url(pTransfer, fileUrl) != 0)
+    {
+        // Error
+        free(fileUrl);
+        gdrive_xfer_free(pTransfer);
+        return -1;
+    }
+    free(fileUrl);
     
     // Construct query parameters
-    Gdrive_Query* pQuery = NULL;
-    pQuery = gdrive_query_add(pQuery, "updateViewedDate", "false");
-    pQuery = gdrive_query_add(pQuery, "alt", "media");
-    if (pQuery == NULL)
+    if (
+            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false") ||
+            gdrive_xfer_add_query(pTransfer, "alt", "media")
+        )
     {
-        // Memory error
-        free(fileUrl);
+        // Error
+        gdrive_xfer_free(pTransfer);
         return -1;
     }
     
@@ -179,20 +196,21 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     if (rangeHeader == NULL)
     {
         // Memory error
-        gdrive_query_free(pQuery);
-        free(fileUrl);
+        gdrive_xfer_free(pTransfer);
         return -1;
     }
     snprintf(rangeHeader, rangeSize, "Range: bytes=%ld-%ld", start, end);
-    struct curl_slist* pHeaders = curl_slist_append(NULL, rangeHeader);
-    free(rangeHeader);
-    if (pHeaders == NULL)
+    if (gdrive_xfer_add_header(pTransfer, rangeHeader) != 0)
     {
-        // An error occurred
-        gdrive_query_free(pQuery);
-        free(fileUrl);
+        // Error
+        free(rangeHeader);
+        gdrive_xfer_free(pTransfer);
         return -1;
     }
+    free(rangeHeader);
+    
+    // Set the destination file to the current chunk's handle
+    gdrive_xfer_set_destfile(pTransfer, pContents->fh);
     
     // Make sure the file position is at the start and any stream errors are
     // cleared (this should be redundant, since we should normally have a newly
@@ -200,17 +218,11 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     rewind(pContents->fh);
     
     // Perform the transfer
-    Gdrive_Download_Buffer* pBuf = gdrive_do_transfer(GDRIVE_REQUEST_GET, true,
-                                                      fileUrl, pQuery, 
-                                                      pHeaders, pContents->fh
-    );
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
-    bool success = (pBuf != NULL && 
-            gdrive_dlbuf_get_httpResp(pBuf) < 400
-            );
+    bool success = (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400);
     gdrive_dlbuf_free(pBuf);
-    gdrive_query_free(pQuery);
-    free(fileUrl);
     if (success)
     {
         pContents->start = start;

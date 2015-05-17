@@ -452,29 +452,33 @@ Gdrive_Fileinfo_Array* gdrive_folder_list(const char* folderId)
                             strlen("' in parents and trashed=false") + 2);
     if (filter == NULL)
     {
-//        return -1;
         return NULL;
     }
     strcpy(filter, "'");
     strcat(filter, folderId);
     strcat(filter, "' in parents and trashed=false");
     
-    Gdrive_Query* pQuery = NULL;
+    // Prepare the network request
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     
-    pQuery = gdrive_query_add(pQuery, "q", filter);
-    pQuery = gdrive_query_add(pQuery, "fields", "items(title,id,mimeType)");
-    free(filter);
-    if (pQuery == NULL)
+    if (
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
+            gdrive_xfer_add_query(pTransfer, "q", filter) ||
+            gdrive_xfer_add_query(pTransfer, "fields", 
+                                  "items(title,id,mimeType)")
+        )
     {
         // Error
+        free(filter);
+        gdrive_xfer_free(pTransfer);
         return NULL;
     }
+    free(filter);
     
-    Gdrive_Download_Buffer* pBuf = 
-            gdrive_do_transfer(GDRIVE_REQUEST_GET, true, 
-                               GDRIVE_URL_FILES, pQuery, NULL, NULL
-            );
-    gdrive_query_free(pQuery);
+    // Send the network request
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
     
     // TODO: Somehow unify this process with other ways to fill Gdrive_Fileinfo,
@@ -620,102 +624,6 @@ int gdrive_auth(void)
     return gdrive_prompt_for_auth();
 }
 
-Gdrive_Download_Buffer* gdrive_do_transfer(
-        enum Gdrive_Request_Type requestType, bool retryOnAuthError, 
-        const char* url,  const Gdrive_Query* pQuery, 
-        struct curl_slist* pHeaders, FILE* destFile
-)
-{
-    // Convenience assignment
-    CURL* curlHandle = gdrive_get_curlhandle();
-    
-    // Get the Authorization: Bearer header
-    struct curl_slist* pNewHeaders;
-    pNewHeaders = gdrive_get_authbearer_header(pHeaders);
-    if (pNewHeaders == NULL)
-    {
-        // Unknown error, possibly memory
-        return NULL;
-    }
-    
-    char* fullUrl = NULL;
-    char* postData = NULL;
-    
-    switch (requestType)
-    {
-    case GDRIVE_REQUEST_GET:
-        fullUrl = gdrive_query_assemble(pQuery, url);
-        if (fullUrl == NULL)
-        {
-            // Memory error or invalid URL
-            curl_slist_free_all(pNewHeaders);
-            return NULL;
-        }
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-        curl_easy_setopt(curlHandle, CURLOPT_URL, fullUrl);
-        // postData remains NULL and can be safely freed without harming 
-        // anything.
-        break;
-        
-    case GDRIVE_REQUEST_POST:
-        postData = gdrive_query_assemble(pQuery, NULL);
-        if (postData == NULL)
-        {
-            // Memory error or invalid query
-            curl_slist_free_all(pNewHeaders);
-            return NULL;
-        }
-        curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
-        curl_easy_setopt(curlHandle, CURLOPT_URL, url);
-        curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData);
-        // fullUrl remains NULL and can be safely freed without harming
-        // anything.
-        break;
-        
-    default:
-        // Unsupported request type.  PATCH should be added later.
-        curl_slist_free_all(pNewHeaders);
-        return NULL;
-    }
-    
-    // Set headers
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, pNewHeaders);
-    
-    
-    Gdrive_Download_Buffer* pBuf;
-    pBuf = gdrive_dlbuf_create((destFile == NULL) ? 512 : 0, 
-                                          destFile
-            );
-    if (pBuf == NULL)
-    {
-        // Memory error.
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-        curl_slist_free_all(pNewHeaders);
-        free(fullUrl);
-        free(postData);
-        return NULL;
-    }
-    
-    int result = gdrive_dlbuf_download_with_retry(pBuf, retryOnAuthError, 
-                                                  0, GDRIVE_RETRY_LIMIT
-    );
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
-    curl_slist_free_all(pNewHeaders);
-    free(fullUrl);
-    free(postData);
-    
-    if (result != 0)
-    {
-        // Download failure
-        gdrive_dlbuf_free(pBuf);
-        return NULL;
-    }
-    
-    // The HTTP Response may be success (i.e., 200) or failure (400 or higher),
-    // but the actual request succeeded as far as libcurl is concerned.  Return
-    // the buffer.
-    return pBuf;
-}
 
 
 
@@ -847,27 +755,36 @@ gdrive_refresh_auth_token(const char* grantType, const char* tokenString)
     }
     
     Gdrive_Info* pInfo = gdrive_get_info();
-    CURL* curlHandle = pInfo->curlHandle;
     
-    if (curlHandle == NULL)
+    // Prepare the network request
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
     {
-        if ((curlHandle = curl_easy_init()) == NULL)
-        {
-            // Couldn't get a curl easy handle, return error.
-            return -1;
-        }
+        // Memory error
+        return -1;
     }
-
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+    
+    // We're trying to get authorization, so it doesn't make sense to retry if
+    // authentication fails.
+    gdrive_xfer_set_retryonautherror(pTransfer, false);
+    
+    // Set up the post data. Some of the post fields depend on whether we have
+    // an auth code or a refresh token, and some do not.
     const char* tokenOrCodeField = NULL;
-    Gdrive_Query* pPostData = NULL;
     if (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) == 0)
     {
         // Converting an auth code into auth and refresh tokens.  Interpret
         // tokenString as the auth code.
-        pPostData = gdrive_query_add(pPostData,
-                                     GDRIVE_FIELDNAME_REDIRECTURI, 
-                                     GDRIVE_REDIRECT_URI
-                );
+        if (gdrive_xfer_add_postfield(pTransfer,
+                                  GDRIVE_FIELDNAME_REDIRECTURI, 
+                                  GDRIVE_REDIRECT_URI
+                ) != 0)
+        {
+            // Error
+            gdrive_xfer_free(pTransfer);
+            return -1;
+        }
         tokenOrCodeField = GDRIVE_FIELDNAME_CODE;
     }
     else
@@ -876,32 +793,26 @@ gdrive_refresh_auth_token(const char* grantType, const char* tokenString)
         // refresh token.
         tokenOrCodeField = GDRIVE_FIELDNAME_REFRESHTOKEN;
     }
-    pPostData = gdrive_query_add(pPostData, tokenOrCodeField, tokenString);
-    pPostData = gdrive_query_add(pPostData, 
-                                 GDRIVE_FIELDNAME_CLIENTID, 
-                                 GDRIVE_CLIENT_ID
-            );
-    pPostData = gdrive_query_add(pPostData,
-                                 GDRIVE_FIELDNAME_CLIENTSECRET, 
-                                 GDRIVE_CLIENT_SECRET
-            );
-    pPostData = gdrive_query_add(pPostData, 
-                                 GDRIVE_FIELDNAME_GRANTTYPE, 
-                                 grantType
-            );
-    if (pPostData == NULL)
+    if (
+            gdrive_xfer_add_postfield(pTransfer, tokenOrCodeField, 
+                                      tokenString) ||
+            gdrive_xfer_add_postfield(pTransfer, GDRIVE_FIELDNAME_CLIENTID, 
+                                      GDRIVE_CLIENT_ID) ||
+            gdrive_xfer_add_postfield(pTransfer, GDRIVE_FIELDNAME_CLIENTSECRET,
+                                      GDRIVE_CLIENT_SECRET) ||
+            gdrive_xfer_add_postfield(pTransfer, GDRIVE_FIELDNAME_GRANTTYPE, 
+                                      grantType) ||
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_AUTH_TOKEN)
+        )
     {
-        // Memory error
+        // Error
+        gdrive_xfer_free(pTransfer);
         return -1;
     }
         
-    // Do the transfer. We're trying to get authorization, so don't retry on
-    // auth errors.
-    Gdrive_Download_Buffer* pBuf = 
-            gdrive_do_transfer(GDRIVE_REQUEST_POST, false, 
-                               GDRIVE_URL_AUTH_TOKEN, pPostData, NULL, NULL
-            );
-    gdrive_query_free(pPostData);
+    // Do the transfer. 
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
     if (pBuf == NULL)
     {
@@ -1039,22 +950,28 @@ static int gdrive_check_scopes(void)
 {
     Gdrive_Info* pInfo = gdrive_get_info();
     
-    Gdrive_Query* pQuery = NULL;
-    pQuery = gdrive_query_add(pQuery, 
-                              GDRIVE_FIELDNAME_ACCESSTOKEN, 
-                              pInfo->accessToken
-            );
-    if (pQuery == NULL)
+    // Prepare the network request
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
     {
         // Memory error
         return -1;
     }
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
+    gdrive_xfer_set_retryonautherror(pTransfer, false);
+    if (
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_AUTH_TOKENINFO) ||
+            gdrive_xfer_add_query(pTransfer, GDRIVE_FIELDNAME_ACCESSTOKEN, 
+                                  pInfo->accessToken)
+        )
+    {
+        // Error
+        gdrive_xfer_free(pTransfer);
+        return -1;
+    }
     
-    Gdrive_Download_Buffer* pBuf = 
-            gdrive_do_transfer(GDRIVE_REQUEST_GET, false, 
-                               GDRIVE_URL_AUTH_TOKENINFO, pQuery, NULL, NULL
-            );
-    gdrive_query_free(pQuery);
+    // Send the network request
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     
     if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
     {
@@ -1157,22 +1074,29 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     strcat(filter, childName);
     strcat(filter, "'");
     
-    Gdrive_Query* pQuery = NULL;
-    pQuery = gdrive_query_add(pQuery, "q", filter);
-    pQuery = gdrive_query_add(pQuery, "fields", "items(id)");
-    free(filter);
-    if (pQuery == NULL)
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
     {
         // Memory error
+        free(filter);
         return NULL;
     }
-    
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
+    if (
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
+            gdrive_xfer_add_query(pTransfer, "q", filter) ||
+            gdrive_xfer_add_query(pTransfer, "fields", "items(id)")
+        )
+    {
+        // Error
+        free(filter);
+        gdrive_xfer_free(pTransfer);
+        return NULL;
+    }
+    free(filter);
 
-    Gdrive_Download_Buffer* pBuf = 
-            gdrive_do_transfer(GDRIVE_REQUEST_GET, true, 
-                               GDRIVE_URL_FILES, pQuery, NULL, NULL
-            );
-    gdrive_query_free(pQuery);
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
     
     if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
     {
@@ -1186,7 +1110,8 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     // response.
     
     // Convert to a JSON object.
-    Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+    Gdrive_Json_Object* pObj = 
+            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
     gdrive_dlbuf_free(pBuf);
     if (pObj == NULL)
     {

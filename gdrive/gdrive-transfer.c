@@ -223,7 +223,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
             // Memory error or invalid query
             return NULL;
         }
-        curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, -1);
+        curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, -1L);
         curl_easy_setopt(curlHandle, CURLOPT_COPYPOSTFIELDS, postData);
         free(postData);
     }

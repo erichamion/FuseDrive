@@ -78,44 +78,6 @@ CURL* gdrive_get_curlhandle(void);
 int gdrive_auth(void);
     
 /*
- * gdrive_do_transfer():    Perform a download with the given information, 
- *                          automatically retrying as needed.
- * Parameters:
- *      requestType (enum Gdrive_Request_Type):
- *              The type of HTTP request (GET, POST, etc.) to make.
- *      retryOnAuthError (bool):
- *              If true, this function will attempt to refresh credentials and
- *              retry when there is an authentication error. If false, treat
- *              auth error as a failure.
- *      url (const char*):
- *              The base URL, not including query parameters.
- *      pQuery (Gdrive_Query*):
- *              Query parameters or HTTP POST data. The parameters will be
- *              either appended to the url or included in the HTTP request as 
- *              POST data, as appropriate for the requestType.
- *      pHeaders (struct curl_slist*):
- *              Any special HTTP headers to include in the request. The normal
- *              headers needed for any Google Drive requests will automatically
- *              be included, even if they are not in pHeaders. This argument can
- *              (and usually should) be NULL. After passing in a non-NULL 
- *              pHeaders, the calling function should NOT make any further use 
- *              of the passed curl_slist struct,and should NOT call 
- *              curl_slist_free_all().
- *      destFile (FILE*):
- *              A stream handle (normally for a temporary on-disk file) to store
- *              the response. If this argument is NULL, the response will be
- *              held in an in-memory buffer.
- * Return value (Gdrive_Download_Buffer*):
- *      A pointer to a Gdrive_Download_Buffer struct holding the response data 
- *      (or the FILE* handle to the stream to which the data was saved).
- */
-Gdrive_Download_Buffer* gdrive_do_transfer(
-        enum Gdrive_Request_Type requestType, bool retryOnAuthError, 
-        const char* url,  const Gdrive_Query* pQuery, 
-        struct curl_slist* pHeaders, FILE* destFile
-);
-
-/*
  * Should probably be moved into gdrive-transfer.c and made static. Not ready
  * for that yet.
  */
