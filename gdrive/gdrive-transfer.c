@@ -192,6 +192,10 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
         break;
         
+    case GDRIVE_REQUEST_PUT:
+        curl_easy_setopt(curlHandle, CURLOPT_UPLOAD, 1);
+        break;
+        
     default:
         // Unsupported request type.  
         return NULL;
@@ -232,7 +236,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
                          CURLOPT_READFUNCTION, 
                          gdrive_xfer_upload_callback_internal
                 );
-        curl_easy_setopt(curlHandle, CURLOPT_READDATA, pTransfer->userdata);
+        curl_easy_setopt(curlHandle, CURLOPT_READDATA, pTransfer);
     }
     
 

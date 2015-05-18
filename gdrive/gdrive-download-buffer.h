@@ -35,6 +35,7 @@ enum Gdrive_Request_Type
 {
     GDRIVE_REQUEST_GET,
     GDRIVE_REQUEST_POST,
+    GDRIVE_REQUEST_PUT,
     GDRIVE_REQUEST_PATCH
 };
 

@@ -129,7 +129,7 @@ gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, off_t offset)
         return NULL;
     }
     
-    if (offset > pHead->start && offset < pHead->end)
+    if (offset >= pHead->start && offset <= pHead->end)
     {
         // Found it!
         return pHead;

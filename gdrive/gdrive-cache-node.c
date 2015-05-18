@@ -497,7 +497,7 @@ int gdrive_file_sync(Gdrive_File* fh)
         // Memory error
         return -ENOMEM;
     }
-    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_PUT);
     
     // Assemble the URL
     size_t urlSize = strlen(GDRIVE_URL_UPLOAD) + strlen(pNode->fileinfo.id) + 2;
@@ -521,7 +521,7 @@ int gdrive_file_sync(Gdrive_File* fh)
     free(url);
     
     // Add query parameter(s)
-    if (gdrive_xfer_add_postfield(pTransfer, "uploadType", "media") != 0)
+    if (gdrive_xfer_add_query(pTransfer, "uploadType", "media") != 0)
     {
         // Error, probably memory
         gdrive_xfer_free(pTransfer);
