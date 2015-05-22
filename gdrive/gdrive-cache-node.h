@@ -156,7 +156,7 @@ void gdrive_cnode_update_from_json(Gdrive_Cache_Node* pNode,
 );
 
 /*
- * gdrive_cnode_delete_file_contents(): Remove a single Gdrive_File_Contents
+ * gdrive_cnode_delete_file_contents(): Removes a single Gdrive_File_Contents
  *                                      struct (describing and holding a FILE*
  *                                      handle for a single portion of the file)
  *                                      from a cache node and safely frees its
@@ -170,6 +170,9 @@ void gdrive_cnode_update_from_json(Gdrive_Cache_Node* pNode,
 void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode, 
                                 Gdrive_File_Contents* pContents
 );
+
+bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode);
+
 
 
 

@@ -66,6 +66,30 @@ void gdrive_fcontents_delete(Gdrive_File_Contents* pContents,
 );
 
 /*
+ * gdrive_fcontents_delete_after_offset():  Safely removes and deletes select 
+ *                                          Gdrive_File_Contents structs from
+ *                                          a list of such structs. The structs
+ *                                          selected for deletion are the ones
+ *                                          whose starting offset is strictly
+ *                                          greater than the given offset.
+ * Parameters:
+ *      ppHead (Gdrive_File_Contents**):
+ *              The address of a pointer to the head struct in the list. This
+ *              pointer may be changed to point to a different memory location
+ *              after this function returns. The new pointer should be passed to
+ *              any subsequent gdrive_fcontents_delete() calls and eventually to
+ *              gdrive_fcontents_free_all(). Any copies of the old pointer, if 
+ *              different from the new one, should be discarded and should no
+ *              longer be used or freed.
+ *      offset (off_t):
+ *              Any Gdrive_File_Contents structs whose starting offset is 
+ *              strictly greater than this argument will be deleted.
+ */
+void gdrive_fcontents_delete_after_offset(Gdrive_File_Contents** ppHead, 
+                                          off_t offset
+);
+
+/*
  * gdrive_fcontents_free_all(): Safely frees the memory associated with an 
  *                              entire list of Gdrive_File_Contents structs and
  *                              closes and deletes any associated temporary 
@@ -179,6 +203,9 @@ off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents,
                              size_t size,
                              bool extendChunk
 );
+
+int gdrive_fcontents_truncate(Gdrive_File_Contents* pContents, size_t size);
+
 
 
 #ifdef	__cplusplus

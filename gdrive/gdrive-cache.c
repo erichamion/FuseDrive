@@ -237,7 +237,8 @@ int gdrive_cache_update()
                 // so remove it from the fileId cache.
                 gdrive_fidnode_remove_by_id(pCache->pFileIdCacheHead, fileId);
                 
-                // Update the file metadata cache.
+                // Update the file metadata cache, but only if the file is not
+                // opened for writing with dirty data.
                 Gdrive_Cache_Node* pCacheNode = 
                         gdrive_cnode_get(NULL,
                                                &(pCache->pCacheHead), 
@@ -245,12 +246,16 @@ int gdrive_cache_update()
                                                false, 
                                                NULL
                         );
-                
-                // If this file was in the cache, update its information
-                gdrive_cnode_update_from_json(
-                        pCacheNode, 
-                        gdrive_json_get_nested_object(pItem, "file")
-                        );
+                if (pCacheNode != NULL && !gdrive_cnode_is_dirty(pCacheNode))
+                {
+                    // If this file was in the cache, update its information
+                    gdrive_cnode_update_from_json(
+                            pCacheNode, 
+                            gdrive_json_get_nested_object(pItem, "file")
+                            );
+                }
+                // else either not in the cache, or there is dirty data we don't
+                // want to overwrite.
                 
                 
                 // The file's parents may now have a different number of 

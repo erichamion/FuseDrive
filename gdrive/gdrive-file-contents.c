@@ -2,6 +2,8 @@
 #include "gdrive-file-contents.h"
 
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
 
 
 
@@ -79,6 +81,48 @@ void gdrive_fcontents_delete(Gdrive_File_Contents* pContents,
     free(pContents);
 }
 
+void gdrive_fcontents_delete_after_offset(Gdrive_File_Contents** ppHead, 
+                                          off_t offset
+)
+{
+    if (*ppHead == NULL)
+    {
+        // Nothing to do
+        return;
+    }
+    
+    // Array to store pointers to the chunks that need deleted
+    int maxChunks = gdrive_get_maxchunks();
+    Gdrive_File_Contents* deleteArray[maxChunks];
+    
+    // Walk through the list of chunks and find the ones to delete
+    Gdrive_File_Contents* pContents = *ppHead;
+    int index = 0;
+    while (pContents != NULL)
+    {
+        if (pContents->start > offset)
+        {
+            deleteArray[index++] = pContents;
+        }
+        pContents = pContents->pNext;
+    }
+    
+    // Delete each of the chunks. This can't be the most efficient way to do
+    // this (we just walked through the whole list to find which chunks to 
+    // delete, and now each call to gdrive_fcontents_delete() will walk through
+    // the beginning of the list again). Doing it this way means we don't need
+    // to worry about how to delete multiple consecutive chunks (how to make 
+    // sure we're never stuck with just a pointer to a deleted node or without 
+    // any valid pointers, unless all the chunks are deleted). There will never
+    // be a very large number of chunks to go through (no more than 
+    // gdrive_get_maxchunks()), and network delays should dwarf any processing
+    // inefficiency.
+    for (int i = 0; i < index; i++)
+    {
+        gdrive_fcontents_delete(deleteArray[i], ppHead);
+    }
+    
+}
 
 void gdrive_fcontents_free_all(Gdrive_File_Contents** ppContents)
 {
@@ -132,6 +176,12 @@ gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, off_t offset)
     if (offset >= pHead->start && offset <= pHead->end)
     {
         // Found it!
+        return pHead;
+    }
+    
+    if (offset == pHead->start && pHead->end < pHead->start)
+    {
+        // Found it in a zero-length chunk (probably a zero-length file)
         return pHead;
     }
     
@@ -244,7 +294,7 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
     if (destBuf == NULL)
     {
         size_t maxSize = pContents->end - offset + 1;
-        return (size > maxSize) ? size : maxSize;
+        return (size > maxSize) ? maxSize : size;
     }
     
     // Read the data into the supplied buffer.
@@ -306,6 +356,26 @@ off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents,
     return bytesWritten;
 }
 
+int gdrive_fcontents_truncate(Gdrive_File_Contents* pContents, size_t size)
+{
+    size_t newSize = size - pContents->start;
+    // Truncate the underlying file
+    if (ftruncate(fileno(pContents->fh), size - pContents->start) != 0)
+    {
+        // An error occurred.
+        return -errno;
+    }
+    
+    // If the truncate call extended the file, update the chunk size  to meet
+    // the new size
+    if ((pContents->end - pContents->start) < (off_t) newSize)
+    {
+        pContents->end = pContents->start + newSize - 1;
+    }
+    
+    // Return success
+    return 0;
+}
 
 
 /*************************************************************************

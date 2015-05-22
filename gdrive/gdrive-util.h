@@ -19,10 +19,13 @@
 extern "C" {
 #endif
     
+#include <stdio.h>
 
 long _gdrive_divide_round_up(long dividend, long divisor);
 
 
+// For debugging purposes
+void dumpfile(FILE* fh, FILE* dest);
 
 
 #ifdef	__cplusplus

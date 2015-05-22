@@ -18,3 +18,16 @@ long _gdrive_divide_round_up(long dividend, long divisor)
 
 
 
+void dumpfile(FILE* fh, FILE* dest)
+{
+    long oldPos = ftell(fh);
+    if (fseek(fh, 0, SEEK_SET) != 0) return;
+    int bytesRead;
+    char buf[1024];
+    while ((bytesRead = fread(buf, 1, 1024, fh)) > 0)   // Intentional assignment
+    {
+        fwrite(buf, 1, bytesRead, dest);
+    }
+    
+    fseek(fh, oldPos, SEEK_SET);
+}

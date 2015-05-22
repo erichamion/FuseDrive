@@ -86,6 +86,8 @@ int gdrive_file_write(Gdrive_File* fh,
                       off_t offset
 );
 
+int gdrive_file_truncate(Gdrive_File* fh, off_t size);
+
 int gdrive_file_sync(Gdrive_File* fh);
 
 

@@ -282,7 +282,8 @@ static int fudr_fgetattr(const char* path, struct stat* stbuf,
         return -EBADF;
     }
     
-    return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
+    int returnVal = fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
+    return returnVal;
     
 }
 //
@@ -308,11 +309,17 @@ static int fudr_fgetattr(const char* path, struct stat* stbuf,
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_ftruncate(const char* path, off_t size, struct 
-//fuse_file_info* fi)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_ftruncate(const char* path, off_t size, struct 
+fuse_file_info* fi)
+{
+    // Suppress unused parameter compiler warnings
+    (void) path;
+    
+    Gdrive_File* fh = (Gdrive_File*) fi->fh;
+    
+    int returnVal = gdrive_file_truncate(fh, size);
+    return returnVal;
+}
 
 static int fudr_getattr(const char *path, struct stat *stbuf)
 {
@@ -335,7 +342,8 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
         return -ENOENT;
     }    
     
-    return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
+    int returnVal = fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
+    return returnVal;
 }
 
 //static int fudr_getxattr(const char* path, const char* name, char* value, size_t size)
@@ -425,7 +433,8 @@ static int fudr_read(const char *path, char *buf, size_t size, off_t offset,
     
     Gdrive_File* pFile = (Gdrive_File*) fi->fh;
     
-    return gdrive_file_read(pFile, buf, size, offset);
+    int returnVal = gdrive_file_read(pFile, buf, size, offset);
+    return returnVal;
 }
 
 //static int fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
@@ -537,10 +546,32 @@ static int fudr_statfs(const char* path, struct statvfs* stbuf)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_truncate(const char* path, off_t size)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_truncate(const char* path, off_t size)
+{
+    const char* fileId = gdrive_filepath_to_id(path);
+    if (fileId == NULL)
+    {
+        // File not found
+        return -ENOENT;
+    }
+    
+    // Open the file
+    int error = 0;
+    Gdrive_File* fh = gdrive_file_open(fileId, O_RDWR, &error);
+    if (fh == NULL)
+    {
+        // Error
+        return error;
+    }
+    
+    // Truncate
+    int result = gdrive_file_truncate(fh, size);
+    
+    // Close
+    gdrive_file_close(fh, O_RDWR);
+    
+    return result;
+}
 //static int fudr_unlink(const char* path)
 //{
 //    return -ENOSYS;
@@ -560,7 +591,8 @@ static int fudr_write(const char* path, const char *buf, size_t size,
     (void) path;
     
     Gdrive_File* fh = (Gdrive_File*) fi->fh;
-    return gdrive_file_write(fh, buf, size, offset);
+    int returnVal = gdrive_file_write(fh, buf, size, offset);
+    return returnVal;
 }
 //static int fudr_write_buf(const char* path, struct fuse_bufvec* buf, 
 //        off_t off, struct fuse_file_info* fi)
@@ -582,7 +614,7 @@ static struct fuse_operations fo = {
     .flush          = NULL, //fudr_flush,
     .fsync          = NULL, //fudr_fsync,
     .fsyncdir       = NULL, //fudr_fsyncdir,
-    .ftruncate      = NULL, //fudr_ftruncate,
+    .ftruncate      = fudr_ftruncate,
     .getattr        = fudr_getattr,
     .getxattr       = NULL, //fudr_getxattr,
     .init           = fudr_init,
@@ -607,7 +639,7 @@ static struct fuse_operations fo = {
     .setxattr       = NULL, //fudr_setxattr,
     .statfs         = fudr_statfs,
     .symlink        = NULL, //fudr_symlink,
-    .truncate       = NULL, //fudr_truncate,
+    .truncate       = fudr_truncate,
     .unlink         = NULL, //fudr_unlink,
     .utime          = NULL, //fudr_utime,
     .utimens        = NULL, //fudr_utimens,

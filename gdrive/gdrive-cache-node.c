@@ -44,7 +44,8 @@ static Gdrive_File_Contents*
 gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode);
 
 static Gdrive_File_Contents* 
-gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size);
+gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size, 
+                          bool fillChunk);
 
 static size_t 
 gdrive_file_read_next_chunk(Gdrive_File* pNode, char* destBuf, off_t offset,
@@ -310,6 +311,11 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
     gdrive_fcontents_delete(pContents, &(pNode->pContents));
 }
 
+bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode)
+{
+    return pNode->dirty;
+}
+
 
 /*************************************************************************
  * Public functions to support Gdrive_File usage
@@ -371,17 +377,19 @@ void gdrive_file_close(Gdrive_File* pFile, int flags)
     // file, whereas a cache node has internal structure to act upon.
     Gdrive_Cache_Node* pNode = pFile;
     
-    // Decrement open file counts.
-    pNode->openCount--;
-    
     if ((flags & O_WRONLY) || (flags & O_RDWR))
     {
         // Was opened for writing
-        pNode->openWrites--;
         
         // Upload any changes back to Google Drive
         gdrive_file_sync(pFile);
+        
+        // Close the file
+        pNode->openWrites--;
     }
+    
+    // Decrement open file counts.
+    pNode->openCount--;
     
     
     // Get rid of any downloaded temp files if they aren't needed.
@@ -403,8 +411,18 @@ int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
     
     off_t nextOffset = offset;
     off_t bufferOffset = 0;
-    size_t bytesRemaining = size;
     
+    // Starting offset must be within the file
+    if (offset >= (off_t) fh->fileinfo.size)
+    {
+        return 0;
+    }
+    
+    // Don't read past the current file size
+    size_t realSize = (size + offset <= fh->fileinfo.size)? 
+        size : fh->fileinfo.size - offset;
+    
+    size_t bytesRemaining = realSize;
     while (bytesRemaining > 0)
     {
         // Read into the current position if we're given a real buffer, or pass
@@ -423,14 +441,14 @@ int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
         if (bytesRead == 0)
         {
             // EOF. Return the total number of bytes actually read.
-            return size - bytesRemaining;
+            return realSize - bytesRemaining;
         }
         nextOffset += bytesRead;
         bufferOffset += bytesRead;
         bytesRemaining -= bytesRead;
     }
     
-    return size;
+    return realSize;
 }
 
 int gdrive_file_write(Gdrive_File* fh, 
@@ -447,7 +465,14 @@ int gdrive_file_write(Gdrive_File* fh,
     }
     
     // Read any needed chunks into the cache.
-    gdrive_file_read(fh, NULL, size, offset);
+    off_t readOffset = offset;
+    size_t readSize = size;
+    if (offset == (off_t) gdrive_file_get_info(fh)->size)
+    {
+        if (readOffset > 0) readOffset--;
+        readSize++;
+    }
+    gdrive_file_read(fh, NULL, readSize, readOffset);
     
     off_t nextOffset = offset;
     off_t bufferOffset = 0;
@@ -471,6 +496,104 @@ int gdrive_file_write(Gdrive_File* fh,
     }
     
     return size;
+}
+
+int gdrive_file_truncate(Gdrive_File* fh, off_t size)
+{
+    // 4 possible cases:
+    //      A. size is current size
+    //      B. size is 0
+    //      C. size is greater than current size
+    //      D. size is less than current size
+    // A and B are special cases. C and D share some similarities with each 
+    // other.
+    
+    // Case A: Do nothing, return success.
+    if (fh->fileinfo.size == (size_t) size)
+    {
+        return 0;
+    }
+    
+    // Case B: Delete all cached file contents, set the length to 0.
+    if (size == 0)
+    {
+        gdrive_fcontents_free_all(&(fh->pContents));
+        fh->fileinfo.size = 0;
+        fh->dirty = true;
+        return 0;
+    }
+    
+    // Cases C and D: Identify the final chunk (or the chunk that will become 
+    // final, make sure it is cached, and  truncate it. Afterward, set the 
+    // file's length.
+    
+    Gdrive_File_Contents* pFinalChunk = NULL;
+    if ((size_t) size > fh->fileinfo.size)
+    {
+        // File is being lengthened. The current final chunk will remain final.
+        if (fh->fileinfo.size > 0)
+        {
+            // If the file is non-zero length, read the last byte of the file to
+            // cache it.
+            if (gdrive_file_read(fh, NULL, 1, fh->fileinfo.size - 1) < 0)
+            {
+                // Read error
+                return -EIO;
+            }
+            
+            // Grab the final chunk
+            pFinalChunk = gdrive_fcontents_find_chunk(fh->pContents, 
+                                                      fh->fileinfo.size - 1
+                    );
+        }
+        else
+        {
+            // The file is zero-length to begin with. If a chunk exists, use it,
+            // but we'll probably need to create one.
+            if ((pFinalChunk = gdrive_fcontents_find_chunk(fh->pContents, 0))
+                    == NULL)
+            {
+                pFinalChunk = gdrive_cnode_create_chunk(fh, 0, size, false);
+            }
+        }
+    }
+    else
+    {
+        // File is being shortened.
+        
+        // The (new) final chunk is the one that contains what will become the
+        // last byte of the truncated file. Read this byte in order to cache the
+        // chunk.
+        if (gdrive_file_read(fh, NULL, 1, size - 1) < 0)
+        {
+            // Read error
+            return -EIO;
+        }
+        
+        // Grab the final chunk
+        pFinalChunk = gdrive_fcontents_find_chunk(fh->pContents, size - 1);
+        
+        // Delete any chunks past the new EOF
+        gdrive_fcontents_delete_after_offset(&(fh->pContents), size - 1);
+    }
+    
+    // Make sure we received the final chunk
+    if (pFinalChunk == NULL)
+    {
+        // Error
+        return -EIO;
+    }
+    
+    int returnVal = gdrive_fcontents_truncate(pFinalChunk, size);
+    
+    if (returnVal == 0)
+    {
+        // Successfully truncated the chunk. Update the file's size.
+        fh->fileinfo.size = size;
+        fh->dirty = true;
+    }
+    
+    return returnVal;
 }
 
 int gdrive_file_sync(Gdrive_File* fh)
@@ -647,11 +770,13 @@ static Gdrive_File_Contents* gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode)
 }
 
 static Gdrive_File_Contents* 
-gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size)
+gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size, 
+                          bool fillChunk)
 {
     // Get the normal chunk size for this file, the smallest multiple of
-    // minChunkSize that results in maxChunks or fewer chunks.
-    size_t fileSize = pNode->fileinfo.size;
+    // minChunkSize that results in maxChunks or fewer chunks. Avoid creating
+    // a chunk of size 0 by forcing fileSize to be at least 1.
+    size_t fileSize = (pNode->fileinfo.size > 0) ? pNode->fileinfo.size : 1;
     int maxChunks = gdrive_get_maxchunks();
     size_t minChunkSize = gdrive_get_minchunksize();
 
@@ -674,16 +799,21 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size)
         return NULL;
     }
     
-    int success = gdrive_fcontents_fill_chunk(pContents,
-                                              pNode->fileinfo.id, 
-                                              chunkStart, realChunkSize
-    );
-    if (success != 0)
+    if (fillChunk)
     {
-        // Didn't write the file.  Clean up the new Gdrive_File_Contents struct
-        gdrive_cnode_delete_file_contents(pNode, pContents);
-        return NULL;
+        int success = gdrive_fcontents_fill_chunk(pContents,
+                                                  pNode->fileinfo.id, 
+                                                  chunkStart, realChunkSize
+        );
+        if (success != 0)
+        {
+            // Didn't write the file.  Clean up the new Gdrive_File_Contents 
+            // struct
+            gdrive_cnode_delete_file_contents(pNode, pContents);
+            return NULL;
+        }
     }
+    // else we're not filling the chunk, do nothing
     
     //Success
     return pContents;
@@ -705,7 +835,7 @@ gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset,
     if (pChunkContents == NULL)
     {
         // Chunk doesn't exist, need to create and download it.
-        pChunkContents = gdrive_cnode_create_chunk(pNode, offset, size);
+        pChunkContents = gdrive_cnode_create_chunk(pNode, offset, size, true);
         
         if (pChunkContents == NULL)
         {
@@ -738,13 +868,25 @@ gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset,
     
     // Find the chunk that includes the starting point, or the last chunk if
     // the starting point is 1 byte past the end.
-    off_t searchOffset = (extendChunk) ? offset - 1 : offset;
+    off_t searchOffset = (extendChunk && offset > 0) ? offset - 1 : offset;
     Gdrive_File_Contents* pChunkContents = 
             gdrive_fcontents_find_chunk(pNode->pContents, searchOffset);
     
     if (pChunkContents == NULL)
     {
-        // Chunk doesn't exist, return error.
+        // Chunk doesn't exist. This is an error unless the file size is 0.
+        if (pNode->fileinfo.size == 0)
+        {
+            // File size is 0, and there is no existing chunk. Create one and 
+            // try again.
+            gdrive_cnode_create_chunk(pNode, 0, 1, false);
+            pChunkContents = 
+                    gdrive_fcontents_find_chunk(pNode->pContents, searchOffset);
+        }
+    }
+    if (pChunkContents == NULL)
+    {
+        // Chunk still doesn't exist, return error.
         // TODO: size_t is (or should be) unsigned. Rather than returning
         // a negative value for error, we should probably return 0 and add
         // a parameter for a pointer to an error value.

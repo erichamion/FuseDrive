@@ -3,6 +3,7 @@
 
 #include "gdrive-info.h"
 #include "gdrive-cache.h"
+#include "gdrive-file.h"
 
 #include <sys/stat.h>
 #include <string.h>
