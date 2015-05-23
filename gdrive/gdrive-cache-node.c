@@ -601,7 +601,7 @@ int gdrive_file_sync(Gdrive_File* fh)
     if (fh == NULL)
     {
         // Invalid argument
-        return -1;
+        return -EINVAL;
     }
     
     Gdrive_Cache_Node* pNode = fh;

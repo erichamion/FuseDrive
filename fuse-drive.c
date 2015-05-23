@@ -299,11 +299,17 @@ static int fudr_fgetattr(const char* path, struct stat* stbuf,
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_fsync(const char* path, int isdatasync, 
-//        struct fuse_file_info* fi)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_fsync(const char* path, int isdatasync, 
+        struct fuse_file_info* fi)
+{
+    // Distinguishing between data-only and data-and-metadata syncs doesn't
+    // really help us, so ignore isdatasync. Ignore path since we should have
+    // a Gdrive file handle.
+    (void) isdatasync;
+    (void) path;
+    
+    return gdrive_file_sync((Gdrive_File*) fi->fh);
+}
 //static int fudr_fsyncdir(const char* path, int isdatasync, struct 
 //fuse_file_info* fi)
 //{
@@ -612,7 +618,7 @@ static struct fuse_operations fo = {
     .fgetattr       = fudr_fgetattr,
     .flock          = NULL, //fudr_flock,
     .flush          = NULL, //fudr_flush,
-    .fsync          = NULL, //fudr_fsync,
+    .fsync          = fudr_fsync,
     .fsyncdir       = NULL, //fudr_fsyncdir,
     .ftruncate      = fudr_ftruncate,
     .getattr        = fudr_getattr,
