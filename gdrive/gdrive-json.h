@@ -394,14 +394,29 @@ void gdrive_json_add_existing_array(Gdrive_Json_Object* pObj,
  *              If true, adds line breaks and whitespace for presentation. If 
  *              false, the string is more compact.
  * Return value (const char*):
- *      A string representation of the JSON object.
- * NOTE:
- *      The json-c documentation for the function used here is unclear about the
- *      lifetime of the returned string. Since it's a const, I assume the caller
- *      should not free the memory, and I also assume the string should not be
- *      used after the root object is freed with gdrive_json_kill().
+ *      A string representation of the JSON object. The memory pointed to by the
+ *      return value will be freed when the root JSON object is freed with
+ *      gdrive_json_kill(). This function's return value should not be used
+ *      after the root object is freed.
  */
 const char* gdrive_json_to_string(Gdrive_Json_Object* pObj, bool pretty);
+
+/*
+ * gdrive_json_to_new_string(): Converts a JSON object to a string 
+ *                              representation. Like gdrive_json_to_string(),
+ *                              but the returned string is a copy that will
+ *                              persist after the root JSON object is destroyed.
+ * Parameters:
+ *      pObj (Gdrive_Json_Object):
+ *              The JSON object to convert.
+ *      pretty (bool):
+ *              If true, adds line breaks and whitespace for presentation. If 
+ *              false, the string is more compact.
+ * Return value (const char*):
+ *      A string representation of the JSON object. The caller is responsible 
+ *      for freeing the pointed-to memory.
+ */
+char* gdrive_json_to_new_string(Gdrive_Json_Object* pObj, bool pretty);
 
 /*
  * gdrive_json_array_length():  Returns the number of objects in a JSON array.

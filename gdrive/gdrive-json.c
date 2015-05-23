@@ -345,6 +345,19 @@ const char* gdrive_json_to_string(Gdrive_Json_Object* pObj, bool pretty)
     return json_object_to_json_string_ext(pObj, flags);
 }
 
+char* gdrive_json_to_new_string(Gdrive_Json_Object* pObj, bool pretty)
+{
+    const char* srcStr = gdrive_json_to_string(pObj, pretty);
+    
+    size_t size = strlen(srcStr) + 1;
+    char* destStr = malloc(size);
+    if (destStr != NULL)
+    {
+        memcpy(destStr, srcStr, size);
+    }
+    return destStr;
+}
+
 int gdrive_json_array_length(Gdrive_Json_Object* pObj, const char* key)
 {
     Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
