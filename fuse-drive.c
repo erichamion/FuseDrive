@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <unistd.h>
+#include <libgen.h>
 
 
 
@@ -233,10 +234,91 @@ int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
 // * FROM man PAGE FOR create(2):
 // * No manual entry for create
 // */
-//static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
+{
+    // Silence compiler warning for unused parameter. If fudr_chmod is 
+    // implemented, this line should be removed.
+    (void) mode;
+    
+    // Determine whether the file already exists, 
+    if (gdrive_filepath_to_id(path) != NULL)
+    {
+        return -EEXIST;
+    }
+    
+    // Make new copies of path because dirname() and some versions of basename()
+    // may modify the arguments
+    size_t pathSize = strlen(path) + 1;
+    char* pathDirCopy = malloc(pathSize);
+    if (pathDirCopy == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    char* pathNameCopy = malloc(pathSize);
+    if (pathNameCopy == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    memcpy(pathDirCopy, path, pathSize);
+    memcpy(pathNameCopy, path, pathSize);
+    
+    // Find the parent folder without the base filename, and check for the 
+    // folder's validity
+    const char* folderName = dirname(pathDirCopy);
+    if (folderName == NULL || folderName[0] != '/')
+    {
+        // Invalid folder
+        free(pathDirCopy);
+        free(pathNameCopy);
+        return -ENOTDIR;
+    }
+    
+    // Get the base filename and check for validity
+    const char* filename = basename(pathNameCopy);
+    if (filename == NULL || filename[0] == '/' || 
+            strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0)
+    {
+        // Invalid filename
+        free(pathDirCopy);
+        free(pathNameCopy);
+        return -EISDIR;
+    }
+    
+    const char* folderId = gdrive_filepath_to_id(folderName);
+    if (folderId == NULL)
+    {
+        // Folder doesn't exist
+        free(pathDirCopy);
+        free(pathNameCopy);
+        return -ENOTDIR;
+    }
+    
+    // Create the file
+    int error = 0;
+    const char* fileId = gdrive_file_new(folderId, path, filename, &error);
+    if (fileId == NULL)
+    {
+        // Some error occurred
+        free(pathDirCopy);
+        free(pathNameCopy);
+        return -error;
+    }
+    
+    // TODO: If fudr_chmod is ever implemented, change the file permissions 
+    // using the (currently unused) mode parameter we were given.
+    
+    // File was successfully created. Open it.
+    //int error = 0;
+    fi->fh = (uint64_t) gdrive_file_open(fileId, O_RDWR, &error);
+    
+    
+    free(pathDirCopy);
+    free(pathNameCopy);
+    
+    return -error;
+}
 
 /**
  * DOCUMENTATION FROM fuse.h:
@@ -608,49 +690,49 @@ static int fudr_write(const char* path, const char *buf, size_t size,
 
 
 static struct fuse_operations fo = {
-    .access         = NULL, //fudr_access,
-    .bmap           = NULL, //fudr_bmap,
-    .chmod          = NULL, //fudr_chmod,
-    .chown          = NULL, //fudr_chown,
-    .create         = NULL, //fudr_create,
+    .access         = NULL, //fudr_access,      // Need
+    .bmap           = NULL, //fudr_bmap,        // no
+    .chmod          = NULL, //fudr_chmod,       // Maybe
+    .chown          = NULL, //fudr_chown,       // Maybe
+    .create         = fudr_create,
     .destroy        = fudr_destroy,
-    .fallocate      = NULL, //fudr_fallocate,
+    .fallocate      = NULL, //fudr_fallocate,   // no
     .fgetattr       = fudr_fgetattr,
-    .flock          = NULL, //fudr_flock,
-    .flush          = NULL, //fudr_flush,
+    .flock          = NULL, //fudr_flock,       // no
+    .flush          = NULL, //fudr_flush,       // no
     .fsync          = fudr_fsync,
-    .fsyncdir       = NULL, //fudr_fsyncdir,
+    .fsyncdir       = NULL, //fudr_fsyncdir,    // no
     .ftruncate      = fudr_ftruncate,
     .getattr        = fudr_getattr,
-    .getxattr       = NULL, //fudr_getxattr,
+    .getxattr       = NULL, //fudr_getxattr,    // no
     .init           = fudr_init,
-    .ioctl          = NULL, //fudr_ioctl,
-    .link           = NULL, //fudr_link,
-    .listxattr      = NULL, //fudr_listxattr,
-    .lock           = NULL, //fudr_lock,
-    .mkdir          = NULL, //fudr_mkdir,
-    .mknod          = NULL, //fudr_mknod,
+    .ioctl          = NULL, //fudr_ioctl,       // no
+    .link           = NULL, //fudr_link,        // Need
+    .listxattr      = NULL, //fudr_listxattr,   // no
+    .lock           = NULL, //fudr_lock,        // no
+    .mkdir          = NULL, //fudr_mkdir,       // Need
+    .mknod          = NULL, //fudr_mknod,       // Maybe
     .open           = fudr_open,
-    .opendir        = NULL, //fudr_opendir,
-    .poll           = NULL, //fudr_poll,
+    .opendir        = NULL, //fudr_opendir,     // no
+    .poll           = NULL, //fudr_poll,        // no
     .read           = fudr_read,
-    .read_buf       = NULL, //fudr_read_buf,
+    .read_buf       = NULL, //fudr_read_buf,    // ???
     .readdir        = fudr_readdir,
-    .readlink       = NULL, //fudr_readlink,
+    .readlink       = NULL, //fudr_readlink,    // Maybe
     .release        = fudr_release,
-    .releasedir     = NULL, //fudr_releasedir,
-    .removexattr    = NULL, //fudr_removexattr,
-    .rename         = NULL, //fudr_rename,
-    .rmdir          = NULL, //fudr_rmdir,
-    .setxattr       = NULL, //fudr_setxattr,
+    .releasedir     = NULL, //fudr_releasedir,  // no
+    .removexattr    = NULL, //fudr_removexattr, // no
+    .rename         = NULL, //fudr_rename,      // Need
+    .rmdir          = NULL, //fudr_rmdir,       // Need
+    .setxattr       = NULL, //fudr_setxattr,    // no
     .statfs         = fudr_statfs,
-    .symlink        = NULL, //fudr_symlink,
+    .symlink        = NULL, //fudr_symlink,     // Maybe
     .truncate       = fudr_truncate,
-    .unlink         = NULL, //fudr_unlink,
-    .utime          = NULL, //fudr_utime,
-    .utimens        = NULL, //fudr_utimens,
+    .unlink         = NULL, //fudr_unlink,      // Need
+    .utime          = NULL, //fudr_utime,       // no
+    .utimens        = NULL, //fudr_utimens,     // Need
     .write          = fudr_write,
-    .write_buf      = NULL, //fudr_write_buf,
+    .write_buf      = NULL, //fudr_write_buf,   // ????
 };
 
 

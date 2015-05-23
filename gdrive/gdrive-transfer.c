@@ -24,6 +24,7 @@ typedef struct Gdrive_Transfer
     char* url;
     Gdrive_Query* pQuery;
     Gdrive_Query* pPostData;
+    const char* body;
     struct curl_slist* pHeaders;
     FILE* destFile;
     gdrive_xfer_upload_callback uploadCallback;
@@ -133,6 +134,11 @@ void gdrive_xfer_set_destfile(Gdrive_Transfer* pTransfer, FILE* destFile)
     pTransfer->destFile = destFile;
 }
 
+void gdrive_xfer_set_body(Gdrive_Transfer* pTransfer, const char* body)
+{
+    pTransfer->body = body;
+}
+
 void gdrive_xfer_set_uploadcallback(Gdrive_Transfer* pTransfer, 
                                     gdrive_xfer_upload_callback callback,
                                     void* userdata
@@ -215,7 +221,12 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     fullUrl = NULL;
     
     // Set simple POST fields, if applicable
-    if (pTransfer->pPostData != NULL)
+    if (pTransfer->body != NULL)
+    {
+        curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, -1L);
+        curl_easy_setopt(curlHandle, CURLOPT_COPYPOSTFIELDS, pTransfer->body);
+    }
+    else if (pTransfer->pPostData != NULL)
     {
         char* postData = gdrive_query_assemble(pTransfer->pPostData, NULL);
         if (postData == NULL)

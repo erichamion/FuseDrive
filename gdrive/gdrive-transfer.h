@@ -68,6 +68,8 @@ int gdrive_xfer_set_url(Gdrive_Transfer* pTransfer, const char* url);
 
 void gdrive_xfer_set_destfile(Gdrive_Transfer* pTransfer, FILE* destFile);
 
+void gdrive_xfer_set_body(Gdrive_Transfer* pTransfer, const char* body);
+
 void gdrive_xfer_set_uploadcallback(Gdrive_Transfer* pTransfer, 
                                     gdrive_xfer_upload_callback callback,
                                     void* userdata

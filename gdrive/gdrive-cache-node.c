@@ -667,6 +667,109 @@ int gdrive_file_sync(Gdrive_File* fh)
     return returnVal;
 }
 
+const char* gdrive_file_new(const char* parentId, const char* path, 
+                            const char* filename, int* pError
+)
+{
+    // Set up the file resource as a JSON object
+    Gdrive_Json_Object* uploadResourceJson = gdrive_json_new();
+    if (uploadResourceJson == NULL)
+    {
+        *pError = ENOMEM;
+        return NULL;
+    }
+    gdrive_json_add_string(uploadResourceJson, "title", filename);
+    Gdrive_Json_Object* parentsArray = 
+            gdrive_json_add_new_array(uploadResourceJson, "parents");
+    if (parentsArray == NULL)
+    {
+        *pError = ENOMEM;
+        gdrive_json_kill(uploadResourceJson);
+        return NULL;
+    }
+    gdrive_json_array_append_string(parentsArray, parentId);
+    
+    // Convert the JSON into a string
+    char* uploadResourceStr = 
+        gdrive_json_to_new_string(uploadResourceJson, false);
+    gdrive_json_kill(uploadResourceJson);
+    if (uploadResourceStr == NULL)
+    {
+        *pError = ENOMEM;
+        return NULL;
+    }
+    
+    // Set up the network request
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        *pError = ENOMEM;
+        gdrive_xfer_free(pTransfer);
+        free(uploadResourceStr);
+        return NULL;
+    }
+    if (gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
+            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
+        )
+    {
+        *pError = ENOMEM;
+        gdrive_xfer_free(pTransfer);
+        free(uploadResourceStr);
+        return NULL;
+    }
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+    gdrive_xfer_set_body(pTransfer, uploadResourceStr);
+    
+    // Do the transfer
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    free(uploadResourceStr);
+    
+    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    {
+        // Transfer was unsuccessful
+        *pError = EIO;
+        gdrive_dlbuf_free(pBuf);
+        return NULL;
+    }
+    
+    // Extract the file ID from the returned resource
+    Gdrive_Json_Object* pObj = 
+            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+    gdrive_dlbuf_free(pBuf);
+    if (pObj == NULL)
+    {
+        // Either memory error, or couldn't convert the response to JSON.
+        // More likely memory.
+        *pError = ENOMEM;
+        return NULL;
+    }
+    char* fileId = gdrive_json_get_new_string(pObj, "id", NULL);
+    gdrive_json_kill(pObj);
+    if (fileId == NULL)
+    {
+        // Either memory error, or couldn't extract the desired string, can't
+        // tell which.
+        *pError = EIO;
+        return NULL;
+    }
+    
+    // TODO: See if gdrive_cache_add_fileid() can be modified to return a 
+    // pointer to the cached ID (which is a new copy of the ID that was passed
+    // in). This will avoid the need to look up the ID again after adding it,
+    // and it will also help with multiple files that have identical paths.
+    int result = gdrive_cache_add_fileid(path, fileId);
+    free(fileId);
+    if (result != 0)
+    {
+        // Probably a memory error
+        *pError = ENOMEM;
+        return NULL;
+    }
+    
+    return gdrive_filepath_to_id(path);
+}
+
 const Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
 {
     if (fh == NULL)
