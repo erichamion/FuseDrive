@@ -269,47 +269,6 @@ bool gdrive_json_get_boolean(Gdrive_Json_Object* pObj,
 );
 
 /*
- * gdrive_json_array_length():  Returns the number of objects in a JSON array.
- * Parameters:
- *      pObj (Gdrive_Json_Object*):
- *              The JSON object containing (directly or indirectly) the array,
- *              or if key is NULL, the actual JSON string object.
- *      key (const char*):
- *              If NULL, then pObj should be the actual JSON array object.
- *              Otherwise, the key whose value should be retrieved as an 
- *              array. Can contain multiple nested keys, see 
- *              gdrive_json_get_nested_object().
- * Return value (int):
- *      On success, the number of objects in the array. If the key is not found
- *      or the specified object is not an array, returns -1.
- */
-int gdrive_json_array_length(Gdrive_Json_Object* pObj, const char* key);
-
-/*
- * gdrive_json_array_get():  Returns the the object at a specified index in a 
- *                          JSON array.
- * Parameters:
- *      pObj (Gdrive_Json_Object*):
- *              The JSON object containing (directly or indirectly) the array,
- *              or if key is NULL, the actual JSON string object.
- *      key (const char*):
- *              If NULL, then pObj should be the actual JSON array object.
- *              Otherwise, the key whose value should be retrieved as an 
- *              array. Can contain multiple nested keys, see 
- *              gdrive_json_get_nested_object().
- *      index (int):
- *              The index of the item to retrieve.
- * Return value (Gdrive_Json_Object*):
- *      On success, the JSON object at the specified index in the array. On
- *      failure, NULL. The returned value should NOT be freed with 
- *      gdrive_json_kill().
- */
-Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj, 
-                                          const char* key, 
-                                          int index
-);
-
-/*
  * gdrive_json_from_string():   Creates a JSON object from a string 
  *                              representation.
  * Parameters:
@@ -443,6 +402,61 @@ void gdrive_json_add_existing_array(Gdrive_Json_Object* pObj,
  *      used after the root object is freed with gdrive_json_kill().
  */
 const char* gdrive_json_to_string(Gdrive_Json_Object* pObj, bool pretty);
+
+/*
+ * gdrive_json_array_length():  Returns the number of objects in a JSON array.
+ * Parameters:
+ *      pObj (Gdrive_Json_Object*):
+ *              The JSON object containing (directly or indirectly) the array,
+ *              or if key is NULL, the actual JSON string object.
+ *      key (const char*):
+ *              If NULL, then pObj should be the actual JSON array object.
+ *              Otherwise, the key whose value should be retrieved as an 
+ *              array. Can contain multiple nested keys, see 
+ *              gdrive_json_get_nested_object().
+ * Return value (int):
+ *      On success, the number of objects in the array. If the key is not found
+ *      or the specified object is not an array, returns -1.
+ */
+int gdrive_json_array_length(Gdrive_Json_Object* pObj, const char* key);
+
+/*
+ * gdrive_json_array_get():  Returns the the object at a specified index in a 
+ *                          JSON array.
+ * Parameters:
+ *      pObj (Gdrive_Json_Object*):
+ *              The JSON object containing (directly or indirectly) the array,
+ *              or if key is NULL, the actual JSON string object.
+ *      key (const char*):
+ *              If NULL, then pObj should be the actual JSON array object.
+ *              Otherwise, the key whose value should be retrieved as an 
+ *              array. Can contain multiple nested keys, see 
+ *              gdrive_json_get_nested_object().
+ *      index (int):
+ *              The index of the item to retrieve.
+ * Return value (Gdrive_Json_Object*):
+ *      On success, the JSON object at the specified index in the array. On
+ *      failure, NULL. The returned value should NOT be freed with 
+ *      gdrive_json_kill().
+ */
+Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj, 
+                                          const char* key, 
+                                          int index
+);
+
+int gdrive_json_array_append_object(Gdrive_Json_Object* pArray, 
+                                    Gdrive_Json_Object* pNewObj
+);
+
+int gdrive_json_array_append_string(Gdrive_Json_Object* pArray, 
+                                    const char* val
+);
+
+int gdrive_json_array_append_bool(Gdrive_Json_Object* pArray, bool val);
+
+int gdrive_json_array_append_double(Gdrive_Json_Object* pArray, double val);
+
+int gdrive_json_array_append_int64(Gdrive_Json_Object* pArray, int64_t val);
 
 /*
  * gdrive_json_kill():  Release resources used by a root JSON object and all the

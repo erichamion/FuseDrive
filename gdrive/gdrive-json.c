@@ -253,34 +253,6 @@ bool gdrive_json_get_boolean(Gdrive_Json_Object* pObj,
     return json_object_get_double(pInnerObj);
 }
 
-int gdrive_json_array_length(Gdrive_Json_Object* pObj, const char* key)
-{
-    Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
-    if (pInnerObj == NULL || !json_object_is_type(pInnerObj, json_type_array))
-    {
-        // Key not found or not an array, signal failure.
-        return -1;
-    }
-    
-    return json_object_array_length(pInnerObj);
-}
-
-
-Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj, 
-                                          const char* key, 
-                                          int index
-)
-{
-    Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
-    if (pInnerObj == NULL || !json_object_is_type(pInnerObj, json_type_array))
-    {
-        // Key not found, or object is not an array.  Return NULL for error.
-        return NULL;
-    }
-    return json_object_array_get_idx(pInnerObj, index);
-}
-
-
 Gdrive_Json_Object* gdrive_json_from_string(const char* inStr)
 {
     return json_tokener_parse(inStr);
@@ -373,6 +345,72 @@ const char* gdrive_json_to_string(Gdrive_Json_Object* pObj, bool pretty)
     return json_object_to_json_string_ext(pObj, flags);
 }
 
+int gdrive_json_array_length(Gdrive_Json_Object* pObj, const char* key)
+{
+    Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
+    if (pInnerObj == NULL || !json_object_is_type(pInnerObj, json_type_array))
+    {
+        // Key not found or not an array, signal failure.
+        return -1;
+    }
+    
+    return json_object_array_length(pInnerObj);
+}
+
+
+Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj, 
+                                          const char* key, 
+                                          int index
+)
+{
+    Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
+    if (pInnerObj == NULL || !json_object_is_type(pInnerObj, json_type_array))
+    {
+        // Key not found, or object is not an array.  Return NULL for error.
+        return NULL;
+    }
+    return json_object_array_get_idx(pInnerObj, index);
+}
+
+int gdrive_json_array_append_object(Gdrive_Json_Object* pArray, 
+                                    Gdrive_Json_Object* pNewObj
+)
+{
+    return json_object_array_add(pArray, pNewObj);
+}
+
+int gdrive_json_array_append_string(Gdrive_Json_Object* pArray, 
+                                    const char* val
+)
+{
+    // TODO: Check this and/or similar functions with valgrind to make sure they
+    // don't leak memory. I'm pretty sure we don't need to do anything special 
+    // with reference counts, but need to double check.
+    
+    return gdrive_json_array_append_object(pArray, json_object_new_string(val));
+}
+
+int gdrive_json_array_append_bool(Gdrive_Json_Object* pArray, bool val
+)
+{
+    return gdrive_json_array_append_object(pArray, 
+                                           json_object_new_boolean(val)
+            );
+}
+
+int gdrive_json_array_append_double(Gdrive_Json_Object* pArray, double val
+)
+{
+    return gdrive_json_array_append_object(pArray, json_object_new_double(val));
+}
+
+int gdrive_json_array_append_int64(Gdrive_Json_Object* pArray, int64_t val
+)
+{
+    return gdrive_json_array_append_object(pArray, json_object_new_int64(val));
+}
+
+
 void gdrive_json_kill(Gdrive_Json_Object* pObj)
 {
     json_object_put(pObj);
@@ -382,3 +420,4 @@ void gdrive_json_keep(Gdrive_Json_Object* pObj)
 {
     json_object_get(pObj);
 }
+
