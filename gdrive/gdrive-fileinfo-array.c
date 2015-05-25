@@ -57,6 +57,12 @@ Gdrive_Fileinfo_Array* gdrive_finfoarray_create(int maxSize)
 
 void gdrive_finfoarray_free(Gdrive_Fileinfo_Array* pArray)
 {
+    if (pArray == NULL)
+    {
+        // Nothing to do
+        return;
+    }
+    
     for (int i = 0; i < pArray->nItems; i++)
     {
         gdrive_finfo_cleanup(pArray->pArray + i);

@@ -7,14 +7,19 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-fileinfo.c</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-transfer.h</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-fileid-cache-node.c</file>
             <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-util.c</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-download-buffer.c</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-cache-node.c</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-cache.h</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-util.h</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-cache.c</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-json.c</file>
+            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-json.h</file>
             <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-file.h</file>
             <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-transfer.c</file>
-            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-cache-node.c</file>
-            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-file-contents.c</file>
             <file>file:/home/me/NetBeansProjects/FuseDrive/fuse-drive.c</file>
-            <file>file:/home/me/NetBeansProjects/FuseDrive/gdrive/gdrive-util.h</file>
         </group>
     </open-files>
 </project-private>

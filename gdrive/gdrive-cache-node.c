@@ -667,10 +667,54 @@ int gdrive_file_sync(Gdrive_File* fh)
     return returnVal;
 }
 
-const char* gdrive_file_new(const char* parentId, const char* path, 
-                            const char* filename, int* pError
-)
+const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
 {
+    // Separate path into basename and parent folder.
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    if (pGpath == NULL)
+    {
+        // Memory error
+        *pError = ENOMEM;
+        return NULL;
+    }
+    const char* folderName = gdrive_path_get_dirname(pGpath);
+    const char* filename = gdrive_path_get_basename(pGpath);
+    
+    // Check basename for validity (non-NULL, not a directory link such as "..")
+    if (filename == NULL || filename[0] == '/' || 
+            strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0)
+    {
+        *pError = EISDIR;
+        gdrive_path_free(pGpath);
+        return NULL;
+    }
+    
+    // Check folder for validity (non-NULL, starts with '/', and is an existing
+    // folder)
+    if (folderName == NULL || folderName[0] != '/')
+    {
+        // Path wasn't in the form of an absolute path
+        *pError = ENOTDIR;
+        gdrive_path_free(pGpath);
+        return NULL;
+    }
+    const char* parentId = gdrive_filepath_to_id(folderName);
+    if (parentId == NULL)
+    {
+        // Folder doesn't exist
+        *pError = ENOTDIR;
+        gdrive_path_free(pGpath);
+        return NULL;
+    }
+    const Gdrive_Fileinfo* pFolderinfo = gdrive_finfo_get_by_id(parentId);
+    if (pFolderinfo == NULL || pFolderinfo->type != GDRIVE_FILETYPE_FOLDER)
+    {
+        // Not an actual folder
+        *pError = ENOTDIR;
+        gdrive_path_free(pGpath);
+        return NULL;
+    }
+    
     // Set up the file resource as a JSON object
     Gdrive_Json_Object* uploadResourceJson = gdrive_json_new();
     if (uploadResourceJson == NULL)
@@ -687,7 +731,15 @@ const char* gdrive_file_new(const char* parentId, const char* path,
         gdrive_json_kill(uploadResourceJson);
         return NULL;
     }
-    gdrive_json_array_append_string(parentsArray, parentId);
+    Gdrive_Json_Object* parentIdObj = gdrive_json_new();
+    gdrive_json_add_string(parentIdObj, "id", parentId);
+    gdrive_json_array_append_object(parentsArray, parentIdObj);
+    if (createFolder)
+    {
+        gdrive_json_add_string(uploadResourceJson, "mimeType", 
+                               "application/vnd.google-apps.folder"
+                );
+    }
     
     // Convert the JSON into a string
     char* uploadResourceStr = 
