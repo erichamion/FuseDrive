@@ -245,64 +245,64 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     {
         return -EEXIST;
     }
-    
-    // Make new copies of path because dirname() and some versions of basename()
-    // may modify the arguments
-    size_t pathSize = strlen(path) + 1;
-    char* pathDirCopy = malloc(pathSize);
-    if (pathDirCopy == NULL)
-    {
-        // Memory error
-        return -ENOMEM;
-    }
-    char* pathNameCopy = malloc(pathSize);
-    if (pathNameCopy == NULL)
-    {
-        // Memory error
-        return -ENOMEM;
-    }
-    memcpy(pathDirCopy, path, pathSize);
-    memcpy(pathNameCopy, path, pathSize);
-    
-    // Find the parent folder without the base filename, and check for the 
-    // folder's validity
-    const char* folderName = dirname(pathDirCopy);
-    if (folderName == NULL || folderName[0] != '/')
-    {
-        // Invalid folder
-        free(pathDirCopy);
-        free(pathNameCopy);
-        return -ENOTDIR;
-    }
-    
-    // Get the base filename and check for validity
-    const char* filename = basename(pathNameCopy);
-    if (filename == NULL || filename[0] == '/' || 
-            strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0)
-    {
-        // Invalid filename
-        free(pathDirCopy);
-        free(pathNameCopy);
-        return -EISDIR;
-    }
-    
-    const char* folderId = gdrive_filepath_to_id(folderName);
-    if (folderId == NULL)
-    {
-        // Folder doesn't exist
-        free(pathDirCopy);
-        free(pathNameCopy);
-        return -ENOTDIR;
-    }
+//    
+//    // Make new copies of path because dirname() and some versions of basename()
+//    // may modify the arguments
+//    size_t pathSize = strlen(path) + 1;
+//    char* pathDirCopy = malloc(pathSize);
+//    if (pathDirCopy == NULL)
+//    {
+//        // Memory error
+//        return -ENOMEM;
+//    }
+//    char* pathNameCopy = malloc(pathSize);
+//    if (pathNameCopy == NULL)
+//    {
+//        // Memory error
+//        return -ENOMEM;
+//    }
+//    memcpy(pathDirCopy, path, pathSize);
+//    memcpy(pathNameCopy, path, pathSize);
+//    
+//    // Find the parent folder without the base filename, and check for the 
+//    // folder's validity
+//    const char* folderName = dirname(pathDirCopy);
+//    if (folderName == NULL || folderName[0] != '/')
+//    {
+//        // Invalid folder
+//        free(pathDirCopy);
+//        free(pathNameCopy);
+//        return -ENOTDIR;
+//    }
+//    
+//    // Get the base filename and check for validity
+//    const char* filename = basename(pathNameCopy);
+//    if (filename == NULL || filename[0] == '/' || 
+//            strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0)
+//    {
+//        // Invalid filename
+//        free(pathDirCopy);
+//        free(pathNameCopy);
+//        return -EISDIR;
+//    }
+//    
+//    const char* folderId = gdrive_filepath_to_id(folderName);
+//    if (folderId == NULL)
+//    {
+//        // Folder doesn't exist
+//        free(pathDirCopy);
+//        free(pathNameCopy);
+//        return -ENOTDIR;
+//    }
     
     // Create the file
     int error = 0;
-    const char* fileId = gdrive_file_new(folderId, path, filename, &error);
+    const char* fileId = gdrive_file_new(path, false, &error);
     if (fileId == NULL)
     {
         // Some error occurred
-        free(pathDirCopy);
-        free(pathNameCopy);
+//        free(pathDirCopy);
+//        free(pathNameCopy);
         return -error;
     }
     
@@ -314,8 +314,8 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     fi->fh = (uint64_t) gdrive_file_open(fileId, O_RDWR, &error);
     
     
-    free(pathDirCopy);
-    free(pathNameCopy);
+//    free(pathDirCopy);
+//    free(pathNameCopy);
     
     return -error;
 }
@@ -467,10 +467,27 @@ static void* fudr_init(struct fuse_conn_info *conn)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_mkdir(const char* path, mode_t mode)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_mkdir(const char* path, mode_t mode)
+{
+    // Silence compiler warning for unused variable. If and when chmod is 
+    // implemented, this should be removed.
+    (void) mode;
+    
+    // Determine whether the folder already exists, 
+    if (gdrive_filepath_to_id(path) != NULL)
+    {
+        return -EEXIST;
+    }
+    
+    // Create the file
+    int error = 0;
+    gdrive_file_new(path, true, &error);
+    
+    // TODO: If fudr_chmod is ever implemented, change the file permissions 
+    // using the (currently unused) mode parameter we were given.
+    
+    return -error;
+}
 //static int fudr_mknod(const char* path, mode_t mode, dev_t rdev)
 //{
 //    return -ENOSYS;
@@ -710,7 +727,7 @@ static struct fuse_operations fo = {
     .link           = NULL, //fudr_link,        // Need
     .listxattr      = NULL, //fudr_listxattr,   // no
     .lock           = NULL, //fudr_lock,        // no
-    .mkdir          = NULL, //fudr_mkdir,       // Need
+    .mkdir          = fudr_mkdir,
     .mknod          = NULL, //fudr_mknod,       // Maybe
     .open           = fudr_open,
     .opendir        = NULL, //fudr_opendir,     // no

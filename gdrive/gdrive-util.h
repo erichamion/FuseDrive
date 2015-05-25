@@ -20,6 +20,15 @@ extern "C" {
 #endif
     
 #include <stdio.h>
+    
+    
+typedef struct Gdrive_Path Gdrive_Path;
+
+Gdrive_Path* gdrive_path_create(const char* path);
+const char* gdrive_path_get_dirname(const Gdrive_Path* gpath);
+const char* gdrive_path_get_basename(const Gdrive_Path* gpath);
+void gdrive_path_free(Gdrive_Path* gpath);
+    
 
 long _gdrive_divide_round_up(long dividend, long divisor);
 
