@@ -1010,9 +1010,10 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
 {
     // Construct a filter in the form of 
     // "'<parentId>' in parents and title = '<childName>'"
-    char* filter = malloc(strlen("'' in parents and title = ''") + 
-                          strlen(parentId) + strlen(childName) + 1
-    );
+    char* filter = 
+        malloc(strlen("'' in parents and title = '' and trashed = false") + 
+            strlen(parentId) + strlen(childName) + 1
+        );
     if (filter == NULL)
     {
         // Memory error
@@ -1022,7 +1023,7 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     strcat(filter, parentId);
     strcat(filter, "' in parents and title = '");
     strcat(filter, childName);
-    strcat(filter, "'");
+    strcat(filter, "' and trashed = false");
     
     Gdrive_Transfer* pTransfer = gdrive_xfer_create();
     if (pTransfer == NULL)
