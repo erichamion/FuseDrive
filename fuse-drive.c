@@ -24,6 +24,7 @@
 
 // Project header(s)
 #include "fuse-drive.h"
+#include "gdrive/gdrive-util.h"
 #include "gdrive/gdrive.h"
 
 
@@ -680,39 +681,40 @@ static int fudr_truncate(const char* path, off_t size)
     
     return result;
 }
-//static int fudr_unlink(const char* path)
-//{
-//    const char* fileId = gdrive_filepath_to_id(path);
-//    if (fileId == NULL)
-//    {
-//        // No such file
-//        return -ENOENT;
-//    }
-//    
-//    // Find the number of parents, which is the number of "hard" links.
-//    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
-//    if (pFileinfo == NULL)
-//    {
-//        // Error
-//        return -ENOENT;
-//    }
-//    if (pFileinfo->nParents > 1)
-//    {
-//        // Multiple "hard" links, just remove the parent
-//        Gdrive_Path* pGpath = gdrive_path_create(path);
-//        const char* parentId = gdrive_filepath_to_id(pGpath->dirnamePart);
-//        gdrive_path_free(pGpath);
-//        if (parentId == NULL)
-//        {
-//            // Couldn't get the parent folder's ID.
-//            return -ENOENT;
-//        }
-//        return gdrive_remove_parent(fileId, parentId);
-//    }
-//    // else this is the only hard link. Delete or trash the file.
-//    
-//    return gdrive_delete(fileId);
-//}
+static int fudr_unlink(const char* path)
+{
+    const char* fileId = gdrive_filepath_to_id(path);
+    if (fileId == NULL)
+    {
+        // No such file
+        return -ENOENT;
+    }
+    
+    // Find the number of parents, which is the number of "hard" links.
+    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
+    if (pFileinfo == NULL)
+    {
+        // Error
+        return -ENOENT;
+    }
+    if (pFileinfo->nParents > 1)
+    {
+        // Multiple "hard" links, just remove the parent
+        Gdrive_Path* pGpath = gdrive_path_create(path);
+        const char* parentId = 
+            gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
+        gdrive_path_free(pGpath);
+        if (parentId == NULL)
+        {
+            // Couldn't get the parent folder's ID.
+            return -ENOENT;
+        }
+        return gdrive_remove_parent(fileId, parentId);
+    }
+    // else this is the only hard link. Delete or trash the file.
+    
+    return gdrive_delete(fileId);
+}
 //static int fudr_utime()
 //{
 //    return -ENOSYS;
@@ -808,7 +810,7 @@ static struct fuse_operations fo = {
     .statfs         = fudr_statfs,
     .symlink        = NULL, //fudr_symlink,     // Maybe
     .truncate       = fudr_truncate,
-    .unlink         = NULL, //fudr_unlink,
+    .unlink         = fudr_unlink,
     .utime          = NULL, //fudr_utime,       // no
     .utimens        = fudr_utimens,
     .write          = fudr_write,

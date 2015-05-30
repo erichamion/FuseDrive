@@ -231,7 +231,9 @@ Gdrive_Fileinfo_Array*  gdrive_folder_list(const char* folderId);
  */
 const char* gdrive_filepath_to_id(const char* path);
 
+int gdrive_remove_parent(const char* fileId, const char* parentId);
 
+int gdrive_delete(const char* fileId);
 
 
 

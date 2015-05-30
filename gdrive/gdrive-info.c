@@ -5,6 +5,8 @@
 
 #include <string.h>
 #include <sys/stat.h>
+#include <assert.h>
+#include <errno.h>
 
 #include "gdrive-client-secret.h"
 
@@ -485,6 +487,93 @@ Gdrive_Fileinfo_Array* gdrive_folder_list(const char* folderId)
     return pArray;
 }
 
+int gdrive_remove_parent(const char* fileId, const char* parentId)
+{
+    assert(fileId != NULL && fileId[0] != '\0' && 
+            parentId != NULL && parentId[0] != '\0'
+            );
+    
+    // URL will look like 
+    // "<standard Drive Files url>/<fileId>/parents/<parentId>"
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 
+        strlen("/parents/") + strlen(parentId) + 1);
+    if (url == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    strcpy(url, GDRIVE_URL_FILES);
+    strcat(url, "/");
+    strcat(url, fileId);
+    strcat(url, "/parents/");
+    strcat(url, parentId);
+    
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        free(url);
+        return -ENOMEM;
+    }
+    if (gdrive_xfer_set_url(pTransfer, url) != 0)
+    {
+        // Error, probably memory
+        gdrive_xfer_free(pTransfer);
+        free(url);
+        return -ENOMEM;
+    }
+    free(url);
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_DELETE);
+    
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    
+    return (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? -EIO : 0;
+}
+
+int gdrive_delete(const char* fileId)
+{
+    // TODO: If support for manipulating trashed files is added, we'll need to
+    // check whether the specified file is already trashed, and permanently 
+    // delete if it is.
+    // TODO: May want to add an option for whether to trash or really delete.
+    
+    assert(fileId != NULL && fileId[0] != '\0');
+    
+    // URL will look like 
+    // "<standard Drive Files url>/<fileId>/trash"
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 
+        strlen("/trash") + 1);
+    if (url == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    strcpy(url, GDRIVE_URL_FILES);
+    strcat(url, "/");
+    strcat(url, fileId);
+    strcat(url, "/trash");
+    
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        free(url);
+        return -ENOMEM;
+    }
+    if (gdrive_xfer_set_url(pTransfer, url) != 0)
+    {
+        // Error, probably memory
+        gdrive_xfer_free(pTransfer);
+        free(url);
+        return -ENOMEM;
+    }
+    free(url);
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+    
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    
+    return (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? -EIO : 0;
+}
 
 
 

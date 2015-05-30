@@ -187,6 +187,8 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     
     CURL* curlHandle = gdrive_get_curlhandle();
     
+    bool needsBody = false;
+    
     // Set the request type
     switch (pTransfer->requestType)
     {
@@ -196,15 +198,18 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         
     case GDRIVE_REQUEST_POST:
         curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
+        needsBody = true;
         break;
         
     case GDRIVE_REQUEST_PUT:
         curl_easy_setopt(curlHandle, CURLOPT_UPLOAD, 1);
+        needsBody = true;
         break;
         
     case GDRIVE_REQUEST_PATCH:
         curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
         curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "PATCH");
+        needsBody = true;
         break;
         
     case GDRIVE_REQUEST_DELETE:
@@ -232,6 +237,15 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     fullUrl = NULL;
     
     // Set simple POST fields, if applicable
+    if (needsBody && pTransfer->body == NULL && pTransfer->pPostData == NULL && 
+            pTransfer->uploadCallback == NULL
+            )
+    {
+        // A request type that normally has a body, but no body given. Need to
+        // explicitly set the body length to 0, according to 
+        // http://curl.haxx.se/libcurl/c/CURLOPT_POSTFIELDS.html
+        curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, 0L);
+    }
     if (pTransfer->body != NULL)
     {
         curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, -1L);
