@@ -54,10 +54,18 @@ Gdrive_Info* gdrive_get_info(void);
  ******************/
     
 /*
- * gdrive_get_curlhandle(): Retrieve the curl easy handle currently stored in 
- *                          the Gdrive_Info struct.
+ * gdrive_get_curlhandle(): Retrieves a duplicate of the curl easy handle 
+ *                          currently stored in the Gdrive_Info struct.
  * Return value (CURL*):
- *      A curl easy handle.
+ *      A curl easy handle. The caller is responsible for calling 
+ *      curl_easy_cleanup() on this handle.
+ * NOTES:
+ *      The Gdrive_Info struct stores a curl easy handle with several options
+ *      pre-set. In order to maintain consistency and avoid corrupting the
+ *      handle's options (as could happen if an option intended for one specific
+ *      operation is not reset to the default after the operation finishes),
+ *      this function returns a new copy of the handle, not a reference to the
+ *      existing handle.
  */
 CURL* gdrive_get_curlhandle(void);
 

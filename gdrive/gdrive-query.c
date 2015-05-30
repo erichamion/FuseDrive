@@ -81,8 +81,13 @@ Gdrive_Query* gdrive_query_add(Gdrive_Query* pQuery,
                                const char* value
 )
 {
-    CURL* curlHandle = gdrive_get_curlhandle();
+    // TODO: Don't kill the entire list of queries if something goes wrong. Just
+    // free any newly-created query from the end of the list, restoring things
+    // to the same state as before this function was called. Doing this will
+    // require a different mechanism to report errors, can't just return NULL
+    // (and have the caller lose the pointer to the original Gdrive_Query list).
     
+    // If there is no existing Gdrive_Query, create an empty one.
     if (pQuery == NULL)
     {
         pQuery = gdrive_query_create();
@@ -93,7 +98,8 @@ Gdrive_Query* gdrive_query_add(Gdrive_Query* pQuery,
         }
     }
     
-    
+    // Add a new empty Gdrive_Query to the end of the list (unless the first
+    // one is already empty, as it will be if we just created it).
     Gdrive_Query* pLast = pQuery;
     if (pLast->field != NULL || pLast->value != NULL)
     {
@@ -111,15 +117,19 @@ Gdrive_Query* gdrive_query_add(Gdrive_Query* pQuery,
         pLast = pLast->pNext;
     }
     
-    pLast->field = curl_easy_escape(curlHandle, field, 0);
-    if (pLast->field == NULL)
+    // Populate the newly-created Gdrive_Query with URL-escaped strings
+    CURL* curlHandle = gdrive_get_curlhandle();
+    if (curlHandle == NULL)
     {
         // Error
         gdrive_query_free(pQuery);
         return NULL;
     }
+    pLast->field = curl_easy_escape(curlHandle, field, 0);
     pLast->value = curl_easy_escape(curlHandle, value, 0);
-    if (pLast->value == NULL)
+    curl_easy_cleanup(curlHandle);
+    
+    if (pLast->field == NULL || pLast->value == NULL)
     {
         // Error
         gdrive_query_free(pQuery);

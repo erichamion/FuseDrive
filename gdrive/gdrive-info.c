@@ -80,55 +80,7 @@ typedef struct Gdrive_Info
     CURL* curlHandle;
 } Gdrive_Info;
 
-//typedef struct Gdrive_Settings
-//{
-//    // mode: Access level, consisting of one or more
-//    // GDRIVE_ACCESS_* values combined with bitwise OR.
-//    int mode;
-//    
-//    // userInteractionAllowed: Indicates whether we can prompt the user for
-//    // authorization.  If there is no existing authentication information 
-//    // (access token and refresh token), if the user has revoked access, or if
-//    // the user has not previously given all the required permissions (for 
-//    // example, running in read/write mode but user has only given read-only
-//    // access), then authentication will automatically fail if this is false.
-//    // Note: Unless the interaction mode is GDRIVE_INTERACTION_ALWAYS, this
-//    // will be set to false after the initial authentication completes.
-//    bool userInteractionAllowed;
-//    
-//    // File path/name in which to store Google Drive authorization and refresh
-//    // tokens.  This file should be readable and writable only by the owner.
-//    char* authFilename;
-//    
-//    // Files may be downloaded in chunks to reduce the amount of data downloaded
-//    // when only part of a file is read, as well as to hopefully improve 
-//    // perceived responsiveness. All chunks (except the one that contains EOF) 
-//    // will be a multiple of this size in bytes. Must be a multiple of 262144
-//    // (256 KiB).
-//    size_t minChunkSize;
-//    
-//    // Limit the number of chunks used for any one file. Chunks will generally
-//    // be the smallest multiple of minChunkSize that results in maxChunks or
-//    // fewer chunks (although in some cases they may be larger). Should be a
-//    // fairly small number because each chunk keeps an open FILE*.
-//    int maxChunks;
-//    
-//} Gdrive_Settings;
 
-//typedef struct Gdrive_Info_Internal
-//{
-//    char* accessToken;
-//    char* refreshToken;
-//    long accessTokenLength;  // Number of bytes allocated for accessToken
-//    long refreshTokenLength; // Number of bytes allocated for refreshToken
-//    const char* clientId;
-//    const char* clientSecret;
-//    const char* redirectUri;
-//    bool isCurlInitialized;
-//    CURL* curlHandle;
-//    //Gdrive_Sysinfo* pSysinfo;
-//    //Gdrive_Cache* pCache;
-//} Gdrive_Info_Internal;
 
 
 static int gdrive_read_auth_file(const char* filename);
@@ -147,10 +99,9 @@ static const char* gdrive_get_root_folder_id(void);
 static char* 
 gdrive_get_child_id_by_name(const char* parentId, const char* childName);
 
-//static struct curl_slist* 
-//gdrive_get_authbearer_header(struct curl_slist* pHeaders);
-
 static int gdrive_save_auth(void);
+
+void gdrive_curlhandle_setup(CURL* curlHandle);
 
 
 
@@ -178,15 +129,6 @@ int gdrive_init(int access,
                 int maxChunksPerFile
 )
 {
-//    // Allocate memory first.  Otherwise, if memory allocation fails, we won't
-//    // be able to tell that curl_global_init() was already called.
-//    int condition;
-//    if ((condition = gdrive_info_create(ppGdriveInfo)) != 0)
-//    {
-//        return condition;
-//    }
-//    
-//    Gdrive_Info* pInfo = *ppGdriveInfo;
     Gdrive_Info* pInfo = gdrive_get_info();
     
     // If necessary, initialize curl.
@@ -230,14 +172,6 @@ int gdrive_init_nocurl(int access,
 {
     // Seed the RNG.
     srand(time(NULL));
-    
-//    // Allocate any necessary struct memory.
-//    int condition;
-//    if ((condition = gdrive_info_create(ppGdriveInfo)) != 0)
-//    {
-//        return condition;
-//    }
-//    Gdrive_Info* pInfo = *ppGdriveInfo;
     
     Gdrive_Info* pInfo = gdrive_get_info();
     // Assume curl_global_init() has already been called somewhere.
@@ -384,12 +318,6 @@ const char* gdrive_filepath_to_id(const char* path)
     const char* cachedId = gdrive_cache_get_fileid(path);
     if (cachedId != NULL)
     {
-//        result = malloc(strlen(cachedId) + 1);
-//        if (result != NULL)
-//        {
-//            strcpy(result, cachedId);
-//        }
-//        return result;
         return cachedId;
     }
     // else ID isn't in the cache yet
@@ -554,9 +482,6 @@ Gdrive_Fileinfo_Array* gdrive_folder_list(const char* folderId)
     
     gdrive_dlbuf_free(pBuf);
 
-    
-//    pArray->nItems = fileCount;
-//    return fileCount;
     return pArray;
 }
 
@@ -586,7 +511,18 @@ Gdrive_Info* gdrive_get_info(void)
 
 CURL* gdrive_get_curlhandle(void)
 {
-    return gdrive_get_info()->curlHandle;
+    Gdrive_Info* pInfo = gdrive_get_info();
+    if (pInfo->curlHandle == NULL)
+    {
+        pInfo->curlHandle = curl_easy_init();
+        if (pInfo->curlHandle == NULL)
+        {
+            // Error
+            return NULL;
+        }
+        gdrive_curlhandle_setup(pInfo->curlHandle);
+    }
+    return curl_easy_duphandle(pInfo->curlHandle);
 }
 
 
@@ -598,17 +534,6 @@ CURL* gdrive_get_curlhandle(void)
 int gdrive_auth(void)
 {
     Gdrive_Info* pInfo = gdrive_get_info();
-    
-    if (pInfo->curlHandle == NULL)
-    {
-        // Create a new curl easy handle
-        pInfo->curlHandle = curl_easy_init();
-        if (pInfo->curlHandle == NULL)
-        {
-            // Error creating curl easy handle, return error.
-            return -1;
-        }
-    }
     
     // Try to refresh existing tokens first.
     if (pInfo->refreshToken != NULL && pInfo->refreshToken[0] != '\0')
@@ -1213,3 +1138,11 @@ static int gdrive_save_auth(void)
     return (success >= 0) ? 0 : -1;
 }
 
+void gdrive_curlhandle_setup(CURL* curlHandle)
+{
+    // Accept compressed responses and let libcurl automatically uncompress
+    curl_easy_setopt(curlHandle, CURLOPT_ACCEPT_ENCODING, "");
+    
+    // Automatically follow redirects
+    curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
+}

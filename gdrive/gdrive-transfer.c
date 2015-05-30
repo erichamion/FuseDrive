@@ -185,8 +185,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         return NULL;
     }
     
-    //CURL* curlHandle = gdrive_get_curlhandle();
-    CURL* curlHandle = curl_easy_init();
+    CURL* curlHandle = gdrive_get_curlhandle();
     
     // Set the request type
     switch (pTransfer->requestType)
@@ -210,6 +209,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         
     default:
         // Unsupported request type.  
+        curl_easy_cleanup(curlHandle);
         return NULL;
     }
     
@@ -220,6 +220,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     if (fullUrl == NULL)
     {
         // Memory error or invalid URL
+        curl_easy_cleanup(curlHandle);
         return NULL;
     }
     curl_easy_setopt(curlHandle, CURLOPT_URL, fullUrl);
@@ -238,6 +239,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         if (postData == NULL)
         {
             // Memory error or invalid query
+            curl_easy_cleanup(curlHandle);
             return NULL;
         }
         curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, -1L);
@@ -269,7 +271,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     if (pBuf == NULL)
     {
         // Memory error.
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+        curl_easy_cleanup(curlHandle);
         return NULL;
     }
     
@@ -277,7 +279,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
                                                   pTransfer->retryOnAuthError, 
                                                   0, GDRIVE_RETRY_LIMIT
     );
-    curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, NULL);
+    curl_easy_cleanup(curlHandle);
     
     if (result != 0)
     {

@@ -137,15 +137,6 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle)
     // Make sure data gets written at the start of the buffer.
     pBuf->usedSize = 0;
     
-    //CURL* curlHandle = gdrive_get_curlhandle();
-    
-    // Accept compressed responses.
-    curl_easy_setopt(curlHandle, CURLOPT_ACCEPT_ENCODING, "");
-    
-    // Automatically follow redirects
-    curl_easy_setopt(curlHandle, CURLOPT_FOLLOWLOCATION, 1);
-
-    
     // Set the destination - either our own callback function to fill the
     // in-memory buffer, or the default libcurl function to write to a FILE*.
     if (pBuf->fh == NULL)
