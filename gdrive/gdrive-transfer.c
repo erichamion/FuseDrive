@@ -207,6 +207,10 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "PATCH");
         break;
         
+    case GDRIVE_REQUEST_DELETE:
+        curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+        curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "DELETE");
+        
     default:
         // Unsupported request type.  
         curl_easy_cleanup(curlHandle);
