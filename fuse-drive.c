@@ -7,7 +7,6 @@
 
 #ifndef __GDRIVE_TEST__
 
-#define _XOPEN_SOURCE 500
 
 
 // Library and standard headers
@@ -19,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <libgen.h>
+#include <sys/stat.h>
 
 
 
@@ -63,8 +63,11 @@ int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
     stbuf->st_gid = getegid();
     stbuf->st_size = pFileinfo->size;
     stbuf->st_atime = pFileinfo->accessTime.tv_sec;
+    stbuf->st_atim.tv_nsec = pFileinfo->accessTime.tv_nsec;
     stbuf->st_mtime = pFileinfo->modificationTime.tv_sec;
+    stbuf->st_mtim.tv_nsec = pFileinfo->modificationTime.tv_nsec;
     stbuf->st_ctime = pFileinfo->creationTime.tv_sec;
+    stbuf->st_ctim.tv_nsec = pFileinfo->creationTime.tv_nsec;
     
     return 0;
 }
@@ -685,10 +688,41 @@ static int fudr_truncate(const char* path, off_t size)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_utimens(const char* path, const struct timespec ts[2])
-//{
-//    return -ENOSYS;
-//}
+static int fudr_utimens(const char* path, const struct timespec ts[2])
+{
+    const char* fileId = gdrive_filepath_to_id(path);
+    if (fileId == NULL)
+    {
+        return -ENOENT;
+    }
+    
+    int error = 0;
+    Gdrive_File* fh = gdrive_file_open(fileId, O_RDWR, &error);
+    if (fh == NULL)
+    {
+        return -error;
+    }
+    
+    if (ts[0].tv_nsec == UTIME_NOW)
+    {
+        gdrive_file_set_atime(fh, NULL);
+    }
+    else if (ts[0].tv_nsec != UTIME_OMIT)
+    {
+        gdrive_file_set_atime(fh, &(ts[0]));
+    }
+    if (ts[1].tv_nsec == UTIME_NOW)
+    {
+        gdrive_file_set_mtime(fh, NULL);
+    }
+    else if (ts[1].tv_nsec != UTIME_OMIT)
+    {
+        gdrive_file_set_mtime(fh, &(ts[1]));
+    }
+    
+    gdrive_file_close(fh, O_RDWR);
+    return 0;
+}
 static int fudr_write(const char* path, const char *buf, size_t size, 
         off_t offset, struct fuse_file_info* fi)
 {
@@ -747,7 +781,7 @@ static struct fuse_operations fo = {
     .truncate       = fudr_truncate,
     .unlink         = NULL, //fudr_unlink,      // Need
     .utime          = NULL, //fudr_utime,       // no
-    .utimens        = NULL, //fudr_utimens,     // Need
+    .utimens        = fudr_utimens,
     .write          = fudr_write,
     .write_buf      = NULL, //fudr_write_buf,   // ????
 };

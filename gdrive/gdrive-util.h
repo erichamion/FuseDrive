@@ -20,6 +20,9 @@ extern "C" {
 #endif
     
 #include <stdio.h>
+#include <time.h>
+#include <string.h>
+#include <stdlib.h>
     
     
 typedef struct Gdrive_Path Gdrive_Path;
@@ -35,6 +38,13 @@ long _gdrive_divide_round_up(long dividend, long divisor);
 
 // For debugging purposes
 void dumpfile(FILE* fh, FILE* dest);
+
+// For temporary debugging only. This will have memory leaks
+char* display_epochtime(time_t epochTime);
+char* display_timespec(const struct timespec* tm);
+char* display_epochtime_local(time_t epochTime);
+char* display_timespec_local(const struct timespec* tm);
+
 
 
 #ifdef	__cplusplus

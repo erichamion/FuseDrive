@@ -185,7 +185,8 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         return NULL;
     }
     
-    CURL* curlHandle = gdrive_get_curlhandle();
+    //CURL* curlHandle = gdrive_get_curlhandle();
+    CURL* curlHandle = curl_easy_init();
     
     // Set the request type
     switch (pTransfer->requestType)
@@ -203,7 +204,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         break;
         
     case GDRIVE_REQUEST_PATCH:
-        curl_easy_setopt(curlHandle, CURLOPT_UPLOAD, 1);
+        curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
         curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "PATCH");
         break;
         
@@ -272,7 +273,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         return NULL;
     }
     
-    int result = gdrive_dlbuf_download_with_retry(pBuf, 
+    int result = gdrive_dlbuf_download_with_retry(pBuf, curlHandle, 
                                                   pTransfer->retryOnAuthError, 
                                                   0, GDRIVE_RETRY_LIMIT
     );

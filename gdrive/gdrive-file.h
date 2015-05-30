@@ -94,16 +94,24 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError);
 
 int gdrive_file_sync(Gdrive_File* fh);
 
+int gdrive_file_sync_metadata(Gdrive_File* fh);
+
+void gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts);
+
+void gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts);
+
+
 
 /*
  * gdrive_file_get_info():  Retrieve the file information for an open file.
  * Parameters:
  *      fh (Gdrive_File*):
  *              A file handle returned by a prior call to gdrive_file_open().
- * Return value (const Gdrive_Fileinfo*):
+ * Return value (Gdrive_Fileinfo*):
  *      The pointer to a Gdrive_Fileinfo struct holding information on the file.
+ *      The pointed-to location should not be freed by the caller.
  */
-const Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh);
+Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh);
 
 /*
  * gdrive_file_get_perms(): Retrieve the effective file permissions of an open

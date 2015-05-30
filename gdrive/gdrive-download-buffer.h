@@ -130,7 +130,8 @@ const char* gdrive_dlbuf_get_data(Gdrive_Download_Buffer* pBuf);
  *      Success is indicated by CURLE_OK. See libcurl documentation for possible
  *      error values.
  */
-CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf);
+//CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf);
+CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle);
 
 /*
  * gdrive_dlbuf_download_with_retry():  Perform a download, retrying on any 
@@ -152,12 +153,17 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf);
  * Return value (int):
  *      0 on success, other on failure.
  */
+//int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
+//                                     bool retryOnAuthError,
+//                                     int tryNum,
+//                                     int maxTries
+//);
 int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
+                                     CURL* curlHandle,
                                      bool retryOnAuthError,
                                      int tryNum,
                                      int maxTries
 );
-
 
 
 

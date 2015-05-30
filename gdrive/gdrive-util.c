@@ -103,3 +103,47 @@ void dumpfile(FILE* fh, FILE* dest)
     
     fseek(fh, oldPos, SEEK_SET);
 }
+
+// For temporary debugging only. This will have memory leaks
+char* display_epochtime(time_t epochTime)
+{
+    struct tm* pTime = gmtime(&epochTime);
+    size_t size = 50;
+    char* result = malloc(50);
+    while (!strftime(result, size, "%Y-%m-%dT%H:%M:%S", pTime))
+    {
+        size *= 2;
+        result = realloc(result, size);
+    }
+    return result;
+}
+char* display_timespec(const struct timespec* tm)
+{
+    char* baseTime = display_epochtime(tm->tv_sec);
+    size_t newSize = strlen(baseTime) + 11;
+    char* result = malloc(newSize);
+    snprintf(result, newSize, "%s.%09li", baseTime, tm->tv_nsec);
+    free(baseTime);
+    return result;
+}
+char* display_epochtime_local(time_t epochTime)
+{
+    struct tm* pTime = localtime(&epochTime);
+    size_t size = 50;
+    char* result = malloc(50);
+    while (!strftime(result, size, "%Y-%m-%dT%H:%M:%S", pTime))
+    {
+        size *= 2;
+        result = realloc(result, size);
+    }
+    return result;
+}
+char* display_timespec_local(const struct timespec* tm)
+{
+    char* baseTime = display_epochtime_local(tm->tv_sec);
+    size_t newSize = strlen(baseTime) + 11;
+    char* result = malloc(newSize);
+    snprintf(result, newSize, "%s.%09li", baseTime, tm->tv_nsec);
+    free(baseTime);
+    return result;
+}

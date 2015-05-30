@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
+#include <assert.h>
 
 
 /*************************************************************************
@@ -61,6 +62,11 @@ gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags);
 static size_t 
 gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size, 
                            void* userdata);
+
+static char* 
+gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo, 
+                                    const char* parentId, const char* filename,
+                                    bool isFolder, int* pError);
 
 
 
@@ -383,6 +389,7 @@ void gdrive_file_close(Gdrive_File* pFile, int flags)
         
         // Upload any changes back to Google Drive
         gdrive_file_sync(pFile);
+        gdrive_file_sync_metadata(pFile);
         
         // Close the file
         pNode->openWrites--;
@@ -667,6 +674,37 @@ int gdrive_file_sync(Gdrive_File* fh)
     return returnVal;
 }
 
+int gdrive_file_sync_metadata(Gdrive_File* fh)
+{
+    Gdrive_Cache_Node* pNode = fh;
+    Gdrive_Fileinfo* pFileinfo = &(pNode->fileinfo);
+    if (!pFileinfo->dirtyMetainfo)
+    {
+        // Nothing to sync, do nothing
+        return 0;
+    }
+    
+    int error = 0;
+    gdrive_file_sync_metadata_or_create(pFileinfo, NULL, NULL, 
+                                        (pFileinfo->type == 
+                                        GDRIVE_FILETYPE_FOLDER), 
+                                        &error
+    );
+    return error;
+}
+
+void gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts)
+{
+    Gdrive_Cache_Node* pNode = fh;
+    gdrive_finfo_set_atime(&(pNode->fileinfo), ts);
+}
+
+void gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts)
+{
+    Gdrive_Cache_Node* pNode = fh;
+    gdrive_finfo_set_mtime(&(pNode->fileinfo), ts);
+}
+
 const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
 {
     // Separate path into basename and parent folder.
@@ -715,96 +753,100 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         return NULL;
     }
     
-    // Set up the file resource as a JSON object
-    Gdrive_Json_Object* uploadResourceJson = gdrive_json_new();
-    if (uploadResourceJson == NULL)
-    {
-        *pError = ENOMEM;
-        return NULL;
-    }
-    gdrive_json_add_string(uploadResourceJson, "title", filename);
-    Gdrive_Json_Object* parentsArray = 
-            gdrive_json_add_new_array(uploadResourceJson, "parents");
-    if (parentsArray == NULL)
-    {
-        *pError = ENOMEM;
-        gdrive_json_kill(uploadResourceJson);
-        return NULL;
-    }
-    Gdrive_Json_Object* parentIdObj = gdrive_json_new();
-    gdrive_json_add_string(parentIdObj, "id", parentId);
-    gdrive_json_array_append_object(parentsArray, parentIdObj);
-    if (createFolder)
-    {
-        gdrive_json_add_string(uploadResourceJson, "mimeType", 
-                               "application/vnd.google-apps.folder"
-                );
-    }
+//    // Set up the file resource as a JSON object
+//    Gdrive_Json_Object* uploadResourceJson = gdrive_json_new();
+//    if (uploadResourceJson == NULL)
+//    {
+//        *pError = ENOMEM;
+//        return NULL;
+//    }
+//    gdrive_json_add_string(uploadResourceJson, "title", filename);
+//    Gdrive_Json_Object* parentsArray = 
+//            gdrive_json_add_new_array(uploadResourceJson, "parents");
+//    if (parentsArray == NULL)
+//    {
+//        *pError = ENOMEM;
+//        gdrive_json_kill(uploadResourceJson);
+//        return NULL;
+//    }
+//    Gdrive_Json_Object* parentIdObj = gdrive_json_new();
+//    gdrive_json_add_string(parentIdObj, "id", parentId);
+//    gdrive_json_array_append_object(parentsArray, parentIdObj);
+//    if (createFolder)
+//    {
+//        gdrive_json_add_string(uploadResourceJson, "mimeType", 
+//                               "application/vnd.google-apps.folder"
+//                );
+//    }
+//    
+//    // Convert the JSON into a string
+//    char* uploadResourceStr = 
+//        gdrive_json_to_new_string(uploadResourceJson, false);
+//    gdrive_json_kill(uploadResourceJson);
+//    if (uploadResourceStr == NULL)
+//    {
+//        *pError = ENOMEM;
+//        return NULL;
+//    }
+//    
+//    // Set up the network request
+//    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+//    if (pTransfer == NULL)
+//    {
+//        *pError = ENOMEM;
+//        gdrive_xfer_free(pTransfer);
+//        free(uploadResourceStr);
+//        return NULL;
+//    }
+//    if (gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
+//            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
+//        )
+//    {
+//        *pError = ENOMEM;
+//        gdrive_xfer_free(pTransfer);
+//        free(uploadResourceStr);
+//        return NULL;
+//    }
+//    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+//    gdrive_xfer_set_body(pTransfer, uploadResourceStr);
+//    
+//    // Do the transfer
+//    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+//    gdrive_xfer_free(pTransfer);
+//    free(uploadResourceStr);
+//    
+//    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+//    {
+//        // Transfer was unsuccessful
+//        *pError = EIO;
+//        gdrive_dlbuf_free(pBuf);
+//        return NULL;
+//    }
+//    
+//    // Extract the file ID from the returned resource
+//    Gdrive_Json_Object* pObj = 
+//            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+//    gdrive_dlbuf_free(pBuf);
+//    if (pObj == NULL)
+//    {
+//        // Either memory error, or couldn't convert the response to JSON.
+//        // More likely memory.
+//        *pError = ENOMEM;
+//        return NULL;
+//    }
+//    char* fileId = gdrive_json_get_new_string(pObj, "id", NULL);
+//    gdrive_json_kill(pObj);
+//    if (fileId == NULL)
+//    {
+//        // Either memory error, or couldn't extract the desired string, can't
+//        // tell which.
+//        *pError = EIO;
+//        return NULL;
+//    }
+//    
     
-    // Convert the JSON into a string
-    char* uploadResourceStr = 
-        gdrive_json_to_new_string(uploadResourceJson, false);
-    gdrive_json_kill(uploadResourceJson);
-    if (uploadResourceStr == NULL)
-    {
-        *pError = ENOMEM;
-        return NULL;
-    }
-    
-    // Set up the network request
-    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
-    if (pTransfer == NULL)
-    {
-        *pError = ENOMEM;
-        gdrive_xfer_free(pTransfer);
-        free(uploadResourceStr);
-        return NULL;
-    }
-    if (gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
-            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
-        )
-    {
-        *pError = ENOMEM;
-        gdrive_xfer_free(pTransfer);
-        free(uploadResourceStr);
-        return NULL;
-    }
-    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
-    gdrive_xfer_set_body(pTransfer, uploadResourceStr);
-    
-    // Do the transfer
-    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
-    gdrive_xfer_free(pTransfer);
-    free(uploadResourceStr);
-    
-    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
-    {
-        // Transfer was unsuccessful
-        *pError = EIO;
-        gdrive_dlbuf_free(pBuf);
-        return NULL;
-    }
-    
-    // Extract the file ID from the returned resource
-    Gdrive_Json_Object* pObj = 
-            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
-    gdrive_dlbuf_free(pBuf);
-    if (pObj == NULL)
-    {
-        // Either memory error, or couldn't convert the response to JSON.
-        // More likely memory.
-        *pError = ENOMEM;
-        return NULL;
-    }
-    char* fileId = gdrive_json_get_new_string(pObj, "id", NULL);
-    gdrive_json_kill(pObj);
-    if (fileId == NULL)
-    {
-        // Either memory error, or couldn't extract the desired string, can't
-        // tell which.
-        *pError = EIO;
-        return NULL;
-    }
+    char* fileId = gdrive_file_sync_metadata_or_create(NULL, parentId, filename,
+                                                       createFolder, pError);
     
     // TODO: See if gdrive_cache_add_fileid() can be modified to return a 
     // pointer to the cached ID (which is a new copy of the ID that was passed
@@ -822,7 +864,7 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
     return gdrive_filepath_to_id(path);
 }
 
-const Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
+Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
 {
     if (fh == NULL)
     {
@@ -1111,4 +1153,205 @@ gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size,
                                      offset
     );
     return (returnVal >= 0) ? (size_t) returnVal : (size_t)(-1);
+}
+
+static char* 
+gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo, 
+                                    const char* parentId, const char* filename,
+                                    bool isFolder, int* pError)
+{
+    // For existing file, pFileinfo must be non-NULL. For creating new file,
+    // both parentId and filename must be non-NULL.
+    assert(pFileinfo || (parentId && filename));
+    
+    Gdrive_Fileinfo myFileinfo = {0};
+    Gdrive_Fileinfo* pMyFileinfo;
+    if (pFileinfo != NULL)
+    {
+        pMyFileinfo = pFileinfo;
+        isFolder = (pMyFileinfo->type == GDRIVE_FILETYPE_FOLDER);
+    }
+    else
+    {
+        // We won't change anything, but need to cast away the const to make
+        // this assignment.
+        myFileinfo.filename = (char*) filename;
+        myFileinfo.type = isFolder ? 
+            GDRIVE_FILETYPE_FOLDER : GDRIVE_FILETYPE_FILE;
+        struct timespec ts;
+        if (clock_gettime(CLOCK_REALTIME, &ts) == 0)
+        {
+        myFileinfo.creationTime = ts;
+        myFileinfo.accessTime = ts;
+        myFileinfo.modificationTime = ts;
+        }
+        // else leave the times at 0 on failure
+        
+        pMyFileinfo = &myFileinfo;
+    }
+    
+    
+    // Set up the file resource as a JSON object
+    Gdrive_Json_Object* uploadResourceJson = gdrive_json_new();
+    if (uploadResourceJson == NULL)
+    {
+        *pError = ENOMEM;
+        return NULL;
+    }
+    gdrive_json_add_string(uploadResourceJson, "title", pMyFileinfo->filename);
+    if (pFileinfo == NULL)
+    {
+        // Only set parents when creating a new file
+        Gdrive_Json_Object* parentsArray = 
+                gdrive_json_add_new_array(uploadResourceJson, "parents");
+        if (parentsArray == NULL)
+        {
+            *pError = ENOMEM;
+            gdrive_json_kill(uploadResourceJson);
+            return NULL;
+        }
+        Gdrive_Json_Object* parentIdObj = gdrive_json_new();
+        gdrive_json_add_string(parentIdObj, "id", parentId);
+        gdrive_json_array_append_object(parentsArray, parentIdObj);
+    }
+    if (isFolder)
+    {
+        gdrive_json_add_string(uploadResourceJson, "mimeType", 
+                               "application/vnd.google-apps.folder"
+                );
+    }
+    char* timeString = malloc(GDRIVE_TIMESTRING_LENGTH);
+    if (timeString == NULL)
+    {
+        // Memory error
+        gdrive_json_kill(uploadResourceJson);
+        *pError = ENOMEM;
+        return NULL;
+    }
+    // Reuse the same timeString for atime and mtime. Can't change ctime.
+    if (gdrive_finfo_get_atime_string(pMyFileinfo, timeString, 
+                                      GDRIVE_TIMESTRING_LENGTH) 
+            != 0)
+    {
+        gdrive_json_add_string(uploadResourceJson, 
+                               "lastViewedByMeDate", 
+                               timeString
+                );
+    }
+    bool hasMtime = false;
+    if (gdrive_finfo_get_mtime_string(pMyFileinfo, timeString, 
+                                      GDRIVE_TIMESTRING_LENGTH) 
+            != 0)
+    {
+        gdrive_json_add_string(uploadResourceJson, "modifiedDate", timeString);
+        hasMtime = true;
+    }
+    
+    // Convert the JSON into a string
+    char* uploadResourceStr = 
+        gdrive_json_to_new_string(uploadResourceJson, false);
+    gdrive_json_kill(uploadResourceJson);
+    if (uploadResourceStr == NULL)
+    {
+        *pError = ENOMEM;
+        return NULL;
+    }
+    
+    
+    // Full URL has '/' and the file ID appended for an existing file, or just
+    // the base URL for a new one.
+    char* url;
+    if (pFileinfo == NULL)
+    {
+        // New file
+        size_t urlSize = strlen(GDRIVE_URL_FILES) + 1;
+        url = malloc(urlSize);
+        if (url == NULL)
+        {
+            *pError = ENOMEM;
+            return NULL;
+        }
+        strncpy(url, GDRIVE_URL_FILES, urlSize);
+    }
+    else
+    {
+        // Existing file
+        size_t baseUrlLength = strlen(GDRIVE_URL_FILES);
+        size_t fileIdLength = strlen(pMyFileinfo->id);
+        url = malloc(baseUrlLength + fileIdLength + 2);
+        if (url == NULL)
+        {
+            *pError = ENOMEM;
+            return NULL;
+        }
+        strncpy(url, GDRIVE_URL_FILES, baseUrlLength);
+        url[baseUrlLength] = '/';
+        strncpy(url + baseUrlLength + 1, pMyFileinfo->id, fileIdLength + 1);
+    }
+    
+    // Set up the network request
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        *pError = ENOMEM;
+        gdrive_xfer_free(pTransfer);
+        free(uploadResourceStr);
+        return NULL;
+    }
+    // URL, header, and updateViewedDate query parameter always get added. The 
+    // setModifiedDate query parameter only gets set when hasMtime is true. Any 
+    // of these can fail with an out of memory error (returning non-zero).
+    if ((gdrive_xfer_set_url(pTransfer, url) ||
+            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json"))
+            ||
+            (hasMtime && 
+            gdrive_xfer_add_query(pTransfer, "setModifiedDate", "true")) ||
+            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false")
+        )
+    {
+        *pError = ENOMEM;
+        gdrive_xfer_free(pTransfer);
+        free(uploadResourceStr);
+        return NULL;
+    }
+    gdrive_xfer_set_requesttype(pTransfer, (pFileinfo != NULL) ? 
+        GDRIVE_REQUEST_PATCH : GDRIVE_REQUEST_POST);
+    gdrive_xfer_set_body(pTransfer, uploadResourceStr);
+    
+    // Do the transfer
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    free(uploadResourceStr);
+    
+    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    {
+        // Transfer was unsuccessful
+        *pError = EIO;
+        gdrive_dlbuf_free(pBuf);
+        return NULL;
+    }
+    
+    // Extract the file ID from the returned resource
+    Gdrive_Json_Object* pObj = 
+            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+    gdrive_dlbuf_free(pBuf);
+    if (pObj == NULL)
+    {
+        // Either memory error, or couldn't convert the response to JSON.
+        // More likely memory.
+        *pError = ENOMEM;
+        return NULL;
+    }
+    char* fileId = gdrive_json_get_new_string(pObj, "id", NULL);
+    gdrive_json_kill(pObj);
+    if (fileId == NULL)
+    {
+        // Either memory error, or couldn't extract the desired string, can't
+        // tell which.
+        *pError = EIO;
+        return NULL;
+    }
+    
+    pMyFileinfo->dirtyMetainfo = false;
+    return fileId;
 }

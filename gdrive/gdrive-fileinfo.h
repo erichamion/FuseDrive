@@ -21,6 +21,9 @@ typedef struct Gdrive_Fileinfo Gdrive_Fileinfo;
 #include "gdrive.h"
 #include "gdrive-json.h"
 
+
+#define GDRIVE_TIMESTRING_LENGTH 31
+
     
 typedef struct Gdrive_Fileinfo
 {
@@ -34,6 +37,7 @@ typedef struct Gdrive_Fileinfo
     struct timespec accessTime;
     int nParents;   // Number of parent directories
     int nChildren;  // Number of children if type is GDRIVE_FILETYPE_FOLDER
+    bool dirtyMetainfo; // Currently only tracks accessTime and modificationTime
 } Gdrive_Fileinfo;
 
 
@@ -75,8 +79,29 @@ void gdrive_finfo_cleanup(Gdrive_Fileinfo* pFileinfo);
  * Getter and setter functions
  *************************************************************************/
 
-// No getter or setter functions. Members can be read directly, and there's no
-// need to directly set individual members
+int gdrive_finfo_get_atime_string(Gdrive_Fileinfo* pFileinfo, 
+                                  char* dest, 
+                                  size_t max
+);
+
+int gdrive_finfo_set_atime(Gdrive_Fileinfo* pFileinfo, 
+                           const struct timespec* ts
+);
+
+int gdrive_finfo_get_ctime_string(Gdrive_Fileinfo* pFileinfo, 
+                                  char* dest, 
+                                  size_t max
+);
+
+int gdrive_finfo_get_mtime_string(Gdrive_Fileinfo* pFileinfo, 
+                                  char* dest, 
+                                  size_t max
+);
+
+int gdrive_finfo_set_mtime(Gdrive_Fileinfo* pFileinfo, 
+                           const struct timespec* ts
+);
+
 
 
 /*************************************************************************

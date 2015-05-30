@@ -132,12 +132,12 @@ const char* gdrive_dlbuf_get_data(Gdrive_Download_Buffer* pBuf)
  * Other accessible functions
  ******************/
 
-CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf)
+CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle)
 {
     // Make sure data gets written at the start of the buffer.
     pBuf->usedSize = 0;
     
-    CURL* curlHandle = gdrive_get_curlhandle();
+    //CURL* curlHandle = gdrive_get_curlhandle();
     
     // Accept compressed responses.
     curl_easy_setopt(curlHandle, CURLOPT_ACCEPT_ENCODING, "");
@@ -179,12 +179,13 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf)
 }
 
 int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
+                                     CURL* curlHandle,
                                      bool retryOnAuthError,
                                      int tryNum,
                                      int maxTries
 )
 {
-    CURLcode curlResult = gdrive_dlbuf_download(pBuf);
+    CURLcode curlResult = gdrive_dlbuf_download(pBuf, curlHandle);
 
     
     if (curlResult != CURLE_OK)
@@ -234,6 +235,7 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
         if (retry)
         {
             return gdrive_dlbuf_download_with_retry(pBuf, 
+                                                    curlHandle,
                                                     retryOnAuthError,
                                                     tryNum + 1,
                                                     maxTries

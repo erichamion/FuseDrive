@@ -76,7 +76,7 @@
           <commandLine>-Wextra</commandLine>
           <preprocessorList>
             <Elem>FUSE_USE_VERSION=26</Elem>
-            <Elem>_XOPEN_SOURCE=500</Elem>
+            <Elem>_XOPEN_SOURCE=700</Elem>
           </preprocessorList>
           <warningLevel>2</warningLevel>
         </cTool>
