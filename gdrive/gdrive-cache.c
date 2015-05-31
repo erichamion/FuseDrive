@@ -190,9 +190,9 @@ int gdrive_cache_update()
     if (
             gdrive_xfer_set_url(pTransfer, GDRIVE_URL_CHANGES) ||
             gdrive_xfer_add_query(pTransfer, "startChangeId", changeIdString) ||
-            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") ||
+            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") /* ||
             gdrive_xfer_add_query(pTransfer, "fields", 
-                                  "largestChangeId,items(fileId,deleted,file)")
+                                  "largestChangeId,items(fileId,deleted,file)")       */
         )
     {
         // Error
@@ -260,13 +260,13 @@ int gdrive_cache_update()
                 
                 // The file's parents may now have a different number of 
                 // children.  Remove the parents from the cache.
-                int numParents = gdrive_json_array_length(pItem, "parents");
+                int numParents = gdrive_json_array_length(pItem, "file/parents");
                 for (int nParent = 0; nParent < numParents; nParent++)
                 {
                     // Get the fileId of the current parent in the array.
                     char* parentId = NULL;
                     Gdrive_Json_Object* pParentObj = 
-                            gdrive_json_array_get(pItem, "parents", nParent);
+                            gdrive_json_array_get(pItem, "file/parents", nParent);
                     if (pParentObj != NULL)
                     {
                         parentId = gdrive_json_get_new_string(pParentObj, 
@@ -285,10 +285,14 @@ int gdrive_cache_update()
             }
             
             bool success = false;
-            pCache->nextChangeId = gdrive_json_get_int64(pObj, 
+            int64_t nextChangeId = gdrive_json_get_int64(pObj, 
                                                          "largestChangeId", 
                                                          true, &success
                     ) + 1;
+            if (success)
+            {
+                pCache->nextChangeId = nextChangeId;
+            }
             returnVal = success ? 0 : -1;
             gdrive_json_kill(pObj);
         }

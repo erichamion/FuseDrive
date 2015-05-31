@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <sys/stat.h>
+#include <assert.h>
 
 
 
@@ -71,6 +72,34 @@ int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
     stbuf->st_ctim.tv_nsec = pFileinfo->creationTime.tv_nsec;
     
     return 0;
+}
+
+int fudr_rm_file_or_dir_by_id(const char* fileId, const char* parentId)
+{
+    // The fileId should never be NULL. A NULL parentId is a runtime error, but
+    // it shouldn't stop execution. Just check the fileId here.
+    assert(fileId != NULL);
+    
+    // Find the number of parents, which is the number of "hard" links.
+    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
+    if (pFileinfo == NULL)
+    {
+        // Error
+        return -ENOENT;
+    }
+    if (pFileinfo->nParents > 1)
+    {
+        // Multiple "hard" links, just remove the parent
+        if (parentId == NULL)
+        {
+            // Invalid ID for parent folder
+            return -ENOENT;
+        }
+        return gdrive_remove_parent(fileId, parentId);
+    }
+    // else this is the only hard link. Delete or trash the file.
+    
+    return gdrive_delete(fileId);
 }
 
 
@@ -625,10 +654,52 @@ static int fudr_release(const char* path, struct fuse_file_info *fi)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_rmdir(const char* path)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_rmdir(const char* path)
+{
+    // Can't delete the root directory
+    if (strcmp(path, "/") == 0)
+    {
+        return -EBUSY;
+    }
+    
+    const char* fileId = gdrive_filepath_to_id(path);
+    if (fileId == NULL)
+    {
+        // No such file
+        return -ENOENT;
+    }
+    
+    // Make sure path refers to an empty directory
+    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
+    if (pFileinfo == NULL)
+    {
+        // Couldn't retrieve file info
+        return -ENOENT;
+    }
+    if (pFileinfo->type != GDRIVE_FILETYPE_FOLDER)
+    {
+        // Not a directory
+        return -ENOTDIR;
+    }
+    if (pFileinfo->nChildren > 0)
+    {
+        // Not empty
+        return -ENOTEMPTY;
+    }
+    
+    // Get the parent ID
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    if (pGpath == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    const char* parentId = 
+        gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
+    gdrive_path_free(pGpath);
+    
+    return fudr_rm_file_or_dir_by_id(fileId, parentId);
+}
 //static int fudr_setxattr(const char* path, const char* name, 
 //        const char* value, size_t size, int flags)
 //{
@@ -690,30 +761,17 @@ static int fudr_unlink(const char* path)
         return -ENOENT;
     }
     
-    // Find the number of parents, which is the number of "hard" links.
-    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
-    if (pFileinfo == NULL)
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    if (pGpath == NULL)
     {
-        // Error
-        return -ENOENT;
+        // Memory error
+        return -ENOMEM;
     }
-    if (pFileinfo->nParents > 1)
-    {
-        // Multiple "hard" links, just remove the parent
-        Gdrive_Path* pGpath = gdrive_path_create(path);
-        const char* parentId = 
-            gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
-        gdrive_path_free(pGpath);
-        if (parentId == NULL)
-        {
-            // Couldn't get the parent folder's ID.
-            return -ENOENT;
-        }
-        return gdrive_remove_parent(fileId, parentId);
-    }
-    // else this is the only hard link. Delete or trash the file.
+    const char* parentId = 
+        gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
+    gdrive_path_free(pGpath);
     
-    return gdrive_delete(fileId);
+    return fudr_rm_file_or_dir_by_id(fileId, parentId);
 }
 //static int fudr_utime()
 //{
@@ -805,7 +863,7 @@ static struct fuse_operations fo = {
     .releasedir     = NULL, //fudr_releasedir,  // no
     .removexattr    = NULL, //fudr_removexattr, // no
     .rename         = NULL, //fudr_rename,      // Need
-    .rmdir          = NULL, //fudr_rmdir,       // Need
+    .rmdir          = fudr_rmdir,
     .setxattr       = NULL, //fudr_setxattr,    // no
     .statfs         = fudr_statfs,
     .symlink        = NULL, //fudr_symlink,     // Maybe
