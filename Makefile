@@ -57,7 +57,10 @@ build: .build-post
 # Add your pre 'build' code here...
 
 .build-post: .build-impl
-# Add your post 'build' code here...
+	@if [ "${CONF}" != "Release" ]; then \
+	    ${CP} "${CND_BASEDIR}/fusedrive-test.bash" "${CND_DISTDIR}/${CONF}/${CND_PLATFORM_${CONF}}/fusedrive-test"; \
+	    chmod +x "${CND_DISTDIR}/${CONF}/${CND_PLATFORM_${CONF}}/fusedrive-test"; \
+	fi
 
 
 # clean

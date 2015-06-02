@@ -28,6 +28,7 @@
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
                    projectFiles="true">
+      <itemPath>fusedrive-test.bash</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
@@ -97,6 +98,8 @@
       <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="fusedrive-test.bash" ex="false" tool="3" flavor2="0">
       </item>
       <item path="gdrive/gdrive-cache-node.c" ex="false" tool="0" flavor2="0">
       </item>
@@ -201,6 +204,8 @@
       </item>
       <item path="fuse-drive.h" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="fusedrive-test.bash" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="gdrive/gdrive-cache-node.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="gdrive/gdrive-cache-node.h" ex="false" tool="3" flavor2="0">
@@ -295,6 +300,8 @@
       <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="fusedrive-test.bash" ex="false" tool="3" flavor2="0">
       </item>
       <item path="gdrive/gdrive-cache-node.c" ex="false" tool="0" flavor2="0">
       </item>
