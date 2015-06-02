@@ -79,6 +79,10 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
                          Gdrive_Cache_Node** ppToRoot
 );
 
+void gdrive_cnode_mark_deleted(Gdrive_Cache_Node* pNode, 
+                               Gdrive_Cache_Node** ppToRoot
+);
+
 /*
  * gdrive_cnode_free_all(): Safely frees the memory associated with all cache
  *                          nodes in the tree.

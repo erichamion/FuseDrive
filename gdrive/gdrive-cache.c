@@ -2,6 +2,7 @@
 #include "gdrive-cache.h"
 
 #include <string.h>
+#include <assert.h>
 
 
 
@@ -409,6 +410,35 @@ const char* gdrive_cache_get_fileid(const char* path)
     return gdrive_fidnode_get_fileid(pNode);
 }
 
+void gdrive_cache_delete_id(const char* fileId)
+{
+    assert(fileId != NULL);
+    
+    Gdrive_Cache* pCache = gdrive_cache_get_internal();
+
+    // Remove the ID from the file Id cache
+    gdrive_fidnode_remove_by_id(pCache->pFileIdCacheHead, fileId);
+    
+    // If the file isn't opened by anybody, delete it from the cache 
+    // immediately. Otherwise, mark it for delete on close.
+            
+    // Find the node we want to remove.
+    Gdrive_Cache_Node* pNode = 
+            gdrive_cnode_get(NULL, &(pCache->pCacheHead), fileId, 
+                                   false, NULL);
+    if (pNode == NULL)
+    {
+        // Didn't find it.  Do nothing.
+        return;
+    }
+    gdrive_cnode_mark_deleted(pNode, &pCache->pCacheHead);
+}
+
+void gdrive_cache_delete_node(Gdrive_Cache_Node* pNode)
+{
+    Gdrive_Cache* pCache = gdrive_cache_get_internal();
+    gdrive_cnode_delete(pNode, &pCache->pCacheHead);
+}
 
 
 /*************************************************************************

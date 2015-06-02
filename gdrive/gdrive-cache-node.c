@@ -22,6 +22,7 @@ typedef struct Gdrive_Cache_Node
     int openCount;
     int openWrites;
     bool dirty;
+    bool deleted;
     Gdrive_Fileinfo fileinfo;
     Gdrive_File_Contents* pContents;
     struct Gdrive_Cache_Node* pParent;
@@ -251,6 +252,17 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
     gdrive_cnode_delete(pNode, ppToRoot);
 }
 
+void gdrive_cnode_mark_deleted(Gdrive_Cache_Node* pNode, 
+                               Gdrive_Cache_Node** ppToRoot
+)
+{
+    pNode->deleted = true;
+    if (pNode->openCount == 0)
+    {
+        gdrive_cnode_delete(pNode, ppToRoot);
+    }
+}
+
 void gdrive_cnode_free_all(Gdrive_Cache_Node* pRoot)
 {
     if (pRoot == NULL)
@@ -322,6 +334,12 @@ bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode)
     return pNode->dirty;
 }
 
+bool gdrive_cnode_isdeleted(const Gdrive_Cache_Node* pNode)
+{
+    assert(pNode != NULL);
+    return pNode->deleted;
+}
+
 
 /*************************************************************************
  * Public functions to support Gdrive_File usage
@@ -342,6 +360,14 @@ Gdrive_File* gdrive_file_open(const char* fileId, int flags, int* pError)
             *pError = ENOENT;
             return NULL;
         }
+    }
+    
+    // If the file is deleted, existing filehandles will still work, but nobody
+    // new can open it.
+    if (gdrive_cnode_isdeleted(pNode))
+    {
+        *pError = ENOENT;
+        return NULL;
     }
     
     // Don't open directories, only regular files.
@@ -404,6 +430,10 @@ void gdrive_file_close(Gdrive_File* pFile, int flags)
     if (pNode->openCount == 0)
     {
         gdrive_fcontents_free_all(&(pNode->pContents));
+        if (gdrive_cnode_isdeleted(pNode))
+        {
+            gdrive_cache_delete_node(pNode);
+        }
     }
 }
 

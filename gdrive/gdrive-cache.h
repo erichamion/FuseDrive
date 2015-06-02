@@ -205,6 +205,12 @@ Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId,
  */
 const char* gdrive_cache_get_fileid(const char* path);
 
+void gdrive_cache_delete_id(const char* fileId);
+
+void gdrive_cache_delete_node(Gdrive_Cache_Node* pNode);
+
+
+
 
 
     
