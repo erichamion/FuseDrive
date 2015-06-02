@@ -278,55 +278,6 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     {
         return -EEXIST;
     }
-//    
-//    // Make new copies of path because dirname() and some versions of basename()
-//    // may modify the arguments
-//    size_t pathSize = strlen(path) + 1;
-//    char* pathDirCopy = malloc(pathSize);
-//    if (pathDirCopy == NULL)
-//    {
-//        // Memory error
-//        return -ENOMEM;
-//    }
-//    char* pathNameCopy = malloc(pathSize);
-//    if (pathNameCopy == NULL)
-//    {
-//        // Memory error
-//        return -ENOMEM;
-//    }
-//    memcpy(pathDirCopy, path, pathSize);
-//    memcpy(pathNameCopy, path, pathSize);
-//    
-//    // Find the parent folder without the base filename, and check for the 
-//    // folder's validity
-//    const char* folderName = dirname(pathDirCopy);
-//    if (folderName == NULL || folderName[0] != '/')
-//    {
-//        // Invalid folder
-//        free(pathDirCopy);
-//        free(pathNameCopy);
-//        return -ENOTDIR;
-//    }
-//    
-//    // Get the base filename and check for validity
-//    const char* filename = basename(pathNameCopy);
-//    if (filename == NULL || filename[0] == '/' || 
-//            strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0)
-//    {
-//        // Invalid filename
-//        free(pathDirCopy);
-//        free(pathNameCopy);
-//        return -EISDIR;
-//    }
-//    
-//    const char* folderId = gdrive_filepath_to_id(folderName);
-//    if (folderId == NULL)
-//    {
-//        // Folder doesn't exist
-//        free(pathDirCopy);
-//        free(pathNameCopy);
-//        return -ENOTDIR;
-//    }
     
     // Create the file
     int error = 0;
@@ -334,8 +285,6 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     if (fileId == NULL)
     {
         // Some error occurred
-//        free(pathDirCopy);
-//        free(pathNameCopy);
         return -error;
     }
     
@@ -343,12 +292,7 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     // using the (currently unused) mode parameter we were given.
     
     // File was successfully created. Open it.
-    //int error = 0;
     fi->fh = (uint64_t) gdrive_file_open(fileId, O_RDWR, &error);
-    
-    
-//    free(pathDirCopy);
-//    free(pathNameCopy);
     
     return -error;
 }
