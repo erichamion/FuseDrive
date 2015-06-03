@@ -18,7 +18,7 @@ fuse_unmount() {
     fuselog -n "Unmounting '$MOUNTPATH'... "
     cd $ORIGINAL_WORKING_DIR
     fusermount -u $MOUNTPATH 2> /dev/null
-    while [ $? -eq 0 ]; do
+    while [ $? -ne 0 ]; do
         sleep 1
         fuselog -n .
         fusermount -u $MOUNTPATH 2> /dev/null
@@ -694,7 +694,7 @@ fuselog ok
 
 fuselog Removing directory:
 fuselog -n "rmdir \"$NEWDIRNAME\" (should succeed this time)... "
-if ! rmdir "$NEWDIRNAME" 2> /dev/null; then
+if ! rmdir "$NEWDIRNAME"; then
     fuselog "rmdir command indicated error."
     clean_exit 1
 fi
@@ -706,7 +706,7 @@ fuselog ok
 
 
 
-
+fuselog
 fuselog 'DONE!'
 fuselog All tests successful
 clean_exit 0

@@ -96,9 +96,9 @@ int gdrive_file_sync(Gdrive_File* fh);
 
 int gdrive_file_sync_metadata(Gdrive_File* fh);
 
-void gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts);
+int gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts);
 
-void gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts);
+int gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts);
 
 
 

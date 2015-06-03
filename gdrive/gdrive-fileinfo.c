@@ -202,6 +202,7 @@ int gdrive_finfo_set_atime(Gdrive_Fileinfo* pFileinfo,
                            const struct timespec* ts
 )
 {
+    assert(pFileinfo != NULL);
     return gdrive_finfo_set_time(pFileinfo, GDRIVE_FINFO_ATIME, ts);
 }
 
@@ -228,6 +229,7 @@ int gdrive_finfo_set_mtime(Gdrive_Fileinfo* pFileinfo,
                            const struct timespec* ts
 )
 {
+    assert(pFileinfo != NULL);
     return gdrive_finfo_set_time(pFileinfo, GDRIVE_FINFO_MTIME, ts);
 }
 

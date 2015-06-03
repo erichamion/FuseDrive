@@ -333,7 +333,8 @@ static int fudr_fgetattr(const char* path, struct stat* stbuf,
         struct fuse_file_info* fi)
 {
     Gdrive_File* fh = (Gdrive_File*) fi->fh;
-    const Gdrive_Fileinfo* pFileinfo = gdrive_file_get_info(fh);
+    const Gdrive_Fileinfo* pFileinfo = (fi->fh == (uint64_t) NULL) ? 
+        NULL : gdrive_file_get_info(fh);
     
     if (pFileinfo == NULL)
     {
@@ -367,6 +368,12 @@ static int fudr_fsync(const char* path, int isdatasync,
     (void) isdatasync;
     (void) path;
     
+    if (fi->fh == (uint64_t) NULL)
+    {
+        // Bad file handle
+        return -EBADF;
+    }
+    
     return gdrive_file_sync((Gdrive_File*) fi->fh);
 }
 //static int fudr_fsyncdir(const char* path, int isdatasync, struct 
@@ -381,6 +388,11 @@ fuse_file_info* fi)
     (void) path;
     
     Gdrive_File* fh = (Gdrive_File*) fi->fh;
+    if (fh == NULL)
+    {
+        // Invalid file handle
+        return -EBADF;
+    }
     
     int returnVal = gdrive_file_truncate(fh, size);
     return returnVal;
@@ -583,6 +595,12 @@ static int fudr_release(const char* path, struct fuse_file_info *fi)
     // Suppress unused parameter warning
     (void) path;
     
+    if (fi->fh == (uint64_t) NULL)
+    {
+        // Bad file handle
+        return -EBADF;
+    }
+    
     gdrive_file_close((Gdrive_File*)fi->fh, fi->flags);
     return 0;
 }
@@ -738,12 +756,19 @@ static int fudr_utimens(const char* path, const struct timespec ts[2])
     
     if (ts[0].tv_nsec == UTIME_NOW)
     {
-        gdrive_file_set_atime(fh, NULL);
+        error = gdrive_file_set_atime(fh, NULL);
     }
     else if (ts[0].tv_nsec != UTIME_OMIT)
     {
-        gdrive_file_set_atime(fh, &(ts[0]));
+        error = gdrive_file_set_atime(fh, &(ts[0]));
     }
+    
+    if (error != 0)
+    {
+        gdrive_file_close(fh, O_RDWR);
+        return error;
+    }
+    
     if (ts[1].tv_nsec == UTIME_NOW)
     {
         gdrive_file_set_mtime(fh, NULL);
@@ -754,7 +779,7 @@ static int fudr_utimens(const char* path, const struct timespec ts[2])
     }
     
     gdrive_file_close(fh, O_RDWR);
-    return 0;
+    return error;
 }
 static int fudr_write(const char* path, const char *buf, size_t size, 
         off_t offset, struct fuse_file_info* fi)
@@ -763,6 +788,12 @@ static int fudr_write(const char* path, const char *buf, size_t size,
     (void) path;
     
     Gdrive_File* fh = (Gdrive_File*) fi->fh;
+    if (fh == NULL)
+    {
+        // Bad file handle
+        return -EBADFD;
+    }
+    
     int returnVal = gdrive_file_write(fh, buf, size, offset);
     return returnVal;
 }

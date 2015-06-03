@@ -347,6 +347,8 @@ bool gdrive_cnode_isdeleted(const Gdrive_Cache_Node* pNode)
 
 Gdrive_File* gdrive_file_open(const char* fileId, int flags, int* pError)
 {
+    assert(fileId != NULL && pError != NULL);
+    
     // Get the cache node from the cache if it exists.  If it doesn't exist,
     // don't make a node with an empty Gdrive_Fileinfo.  Instead, use 
     // gdrive_file_info_from_id() to create the node and fill out the struct, 
@@ -382,7 +384,7 @@ Gdrive_File* gdrive_file_open(const char* fileId, int flags, int* pError)
     if (!gdrive_file_check_perm(pNode, flags))
     {
         // Access error
-        *pError = EPERM;
+        *pError = EACCES;
         return NULL;
     }
     
@@ -404,6 +406,8 @@ Gdrive_File* gdrive_file_open(const char* fileId, int flags, int* pError)
 
 void gdrive_file_close(Gdrive_File* pFile, int flags)
 {
+    assert(pFile != NULL);
+    
     // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
     // easier to think of the filehandle as just a token used to refer to a 
     // file, whereas a cache node has internal structure to act upon.
@@ -439,6 +443,8 @@ void gdrive_file_close(Gdrive_File* pFile, int flags)
 
 int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
 {
+    assert(fh != NULL && offset >= (off_t) 0);
+    
     // Make sure we have at least read access for the file.
     if (!gdrive_file_check_perm(fh, O_RDONLY))
     {
@@ -494,6 +500,8 @@ int gdrive_file_write(Gdrive_File* fh,
                       off_t offset
 )
 {
+    assert(fh != NULL);
+    
     // Make sure we have read and write access for the file.
     if (!gdrive_file_check_perm(fh, O_RDWR))
     {
@@ -537,6 +545,8 @@ int gdrive_file_write(Gdrive_File* fh,
 
 int gdrive_file_truncate(Gdrive_File* fh, off_t size)
 {
+    assert(fh != NULL);
+    
     // 4 possible cases:
     //      A. size is current size
     //      B. size is 0
@@ -544,6 +554,12 @@ int gdrive_file_truncate(Gdrive_File* fh, off_t size)
     //      D. size is less than current size
     // A and B are special cases. C and D share some similarities with each 
     // other.
+    
+    // Check for write permissions
+    if (!gdrive_file_check_perm(fh, O_RDWR))
+    {
+        return -EACCES;
+    }
     
     // Case A: Do nothing, return success.
     if (fh->fileinfo.size == (size_t) size)
@@ -706,6 +722,8 @@ int gdrive_file_sync(Gdrive_File* fh)
 
 int gdrive_file_sync_metadata(Gdrive_File* fh)
 {
+    assert(fh != NULL);
+    
     Gdrive_Cache_Node* pNode = fh;
     Gdrive_Fileinfo* pFileinfo = &(pNode->fileinfo);
     if (!pFileinfo->dirtyMetainfo)
@@ -723,20 +741,42 @@ int gdrive_file_sync_metadata(Gdrive_File* fh)
     return error;
 }
 
-void gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts)
+int gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts)
 {
+    assert(fh != NULL);
+    
     Gdrive_Cache_Node* pNode = fh;
+
+    // Make sure we have write permission
+    if (!gdrive_file_check_perm(pNode, O_RDWR))
+    {
+        return -EACCES;
+    }
+
     gdrive_finfo_set_atime(&(pNode->fileinfo), ts);
+    return 0;
 }
 
-void gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts)
+int gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts)
 {
+    assert(fh != NULL);
+    
     Gdrive_Cache_Node* pNode = fh;
+    
+    // Make sure we have write permission
+    if (!gdrive_file_check_perm(pNode, O_RDWR))
+    {
+        return -EACCES;
+    }
+
     gdrive_finfo_set_mtime(&(pNode->fileinfo), ts);
+    return 0;
 }
 
 const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
 {
+    assert(path != NULL && path[0] == '/' && pError != NULL);
+            
     // Separate path into basename and parent folder.
     Gdrive_Path* pGpath = gdrive_path_create(path);
     if (pGpath == NULL)
@@ -774,7 +814,16 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         gdrive_path_free(pGpath);
         return NULL;
     }
-    const Gdrive_Fileinfo* pFolderinfo = gdrive_finfo_get_by_id(parentId);
+    Gdrive_Cache_Node* pFolderNode = 
+            gdrive_cache_get_node(parentId, true, NULL);
+    if (pFolderNode == NULL)
+    {
+        // Couldn't get a node for the parent folder
+        *pError = EIO;
+        gdrive_path_free(pGpath);
+        return NULL;
+    }
+    const Gdrive_Fileinfo* pFolderinfo = gdrive_cnode_get_fileinfo(pFolderNode);
     if (pFolderinfo == NULL || pFolderinfo->type != GDRIVE_FILETYPE_FOLDER)
     {
         // Not an actual folder
@@ -783,100 +832,19 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         return NULL;
     }
     
-//    // Set up the file resource as a JSON object
-//    Gdrive_Json_Object* uploadResourceJson = gdrive_json_new();
-//    if (uploadResourceJson == NULL)
-//    {
-//        *pError = ENOMEM;
-//        return NULL;
-//    }
-//    gdrive_json_add_string(uploadResourceJson, "title", filename);
-//    Gdrive_Json_Object* parentsArray = 
-//            gdrive_json_add_new_array(uploadResourceJson, "parents");
-//    if (parentsArray == NULL)
-//    {
-//        *pError = ENOMEM;
-//        gdrive_json_kill(uploadResourceJson);
-//        return NULL;
-//    }
-//    Gdrive_Json_Object* parentIdObj = gdrive_json_new();
-//    gdrive_json_add_string(parentIdObj, "id", parentId);
-//    gdrive_json_array_append_object(parentsArray, parentIdObj);
-//    if (createFolder)
-//    {
-//        gdrive_json_add_string(uploadResourceJson, "mimeType", 
-//                               "application/vnd.google-apps.folder"
-//                );
-//    }
-//    
-//    // Convert the JSON into a string
-//    char* uploadResourceStr = 
-//        gdrive_json_to_new_string(uploadResourceJson, false);
-//    gdrive_json_kill(uploadResourceJson);
-//    if (uploadResourceStr == NULL)
-//    {
-//        *pError = ENOMEM;
-//        return NULL;
-//    }
-//    
-//    // Set up the network request
-//    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
-//    if (pTransfer == NULL)
-//    {
-//        *pError = ENOMEM;
-//        gdrive_xfer_free(pTransfer);
-//        free(uploadResourceStr);
-//        return NULL;
-//    }
-//    if (gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
-//            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
-//        )
-//    {
-//        *pError = ENOMEM;
-//        gdrive_xfer_free(pTransfer);
-//        free(uploadResourceStr);
-//        return NULL;
-//    }
-//    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
-//    gdrive_xfer_set_body(pTransfer, uploadResourceStr);
-//    
-//    // Do the transfer
-//    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
-//    gdrive_xfer_free(pTransfer);
-//    free(uploadResourceStr);
-//    
-//    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
-//    {
-//        // Transfer was unsuccessful
-//        *pError = EIO;
-//        gdrive_dlbuf_free(pBuf);
-//        return NULL;
-//    }
-//    
-//    // Extract the file ID from the returned resource
-//    Gdrive_Json_Object* pObj = 
-//            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
-//    gdrive_dlbuf_free(pBuf);
-//    if (pObj == NULL)
-//    {
-//        // Either memory error, or couldn't convert the response to JSON.
-//        // More likely memory.
-//        *pError = ENOMEM;
-//        return NULL;
-//    }
-//    char* fileId = gdrive_json_get_new_string(pObj, "id", NULL);
-//    gdrive_json_kill(pObj);
-//    if (fileId == NULL)
-//    {
-//        // Either memory error, or couldn't extract the desired string, can't
-//        // tell which.
-//        *pError = EIO;
-//        return NULL;
-//    }
-//    
+    // Make sure we have write access to the folder
+    if (!gdrive_file_check_perm(pFolderNode, O_WRONLY))
+    {
+        // Don't have the needed permission
+        *pError = EACCES;
+        gdrive_path_free(pGpath);
+        return NULL;
+    }
+    
     
     char* fileId = gdrive_file_sync_metadata_or_create(NULL, parentId, filename,
                                                        createFolder, pError);
+    gdrive_path_free(pGpath);
     
     // TODO: See if gdrive_cache_add_fileid() can be modified to return a 
     // pointer to the cached ID (which is a new copy of the ID that was passed
@@ -896,11 +864,16 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
 
 Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
 {
-    if (fh == NULL)
-    {
-        // Invalid argument
-        return NULL;
-    }
+//    if (fh == NULL)
+//    {
+//        // Invalid argument
+//        return NULL;
+//    }
+    assert(fh != NULL);
+    
+    // No need to check permissions. This is just metadata, and metadata 
+    // permissions were already needed just to access the filesystem and get a
+    // filehandle in the first place.
     
     // Gdrive_Filehandle and Gdrive_Cache_Node are typedefs of the same struct,
     // but it's easier to think about them differently. A filehandle is a token,
