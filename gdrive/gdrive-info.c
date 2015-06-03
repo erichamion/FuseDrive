@@ -530,7 +530,7 @@ int gdrive_remove_parent(const char* fileId, const char* parentId)
     return (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? -EIO : 0;
 }
 
-int gdrive_delete(const char* fileId)
+int gdrive_delete(const char* fileId, const char* parentId)
 {
     // TODO: If support for manipulating trashed files is added, we'll need to
     // check whether the specified file is already trashed, and permanently 
@@ -577,6 +577,12 @@ int gdrive_delete(const char* fileId)
     if (returnVal == 0)
     {
         gdrive_cache_delete_id(fileId);
+        if (parentId != NULL && strcmp(parentId, "/") != 0)
+        {
+            // Remove the parent from the cache because the child count will be
+            // wrong.
+            gdrive_cache_delete_id(parentId);
+        }
     }
     return returnVal;
 }

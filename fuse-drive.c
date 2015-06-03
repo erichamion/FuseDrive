@@ -99,7 +99,7 @@ int fudr_rm_file_or_dir_by_id(const char* fileId, const char* parentId)
     }
     // else this is the only hard link. Delete or trash the file.
     
-    return gdrive_delete(fileId);
+    return gdrive_delete(fileId, parentId);
 }
 
 

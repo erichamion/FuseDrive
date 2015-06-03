@@ -9,41 +9,55 @@
 set -u
 
 print_usage () {
-    fuselog 'Usage:'
+    fuselog "Usage:"
     fuselog "    $0 logfile executable mountpoint"
+    fuselog "    $0 --no-mount logfile executable mountpoint"
+    fuselog "    $0 --valgrind <outfile> [valgrind-options] -- logfile executable mountpoint"
+
     fuselog "    Example: $0 fuselog ./fuse-drive ~/mytemp"
+    fuselog
+    fuselog "Options include:"
+    fuselog "    --no-mount             Skip any mounting and unmounting steps."
+    fuselog "    --valgrind <outfile>   Run valgrind, send output to the"
+    fuselog "                           specified file. (Does not work with"
+    fuselog "                           --no-mount)"
 }
 
 fuse_unmount() {
-    fuselog -n "Unmounting '$MOUNTPATH'... "
-    cd $ORIGINAL_WORKING_DIR
-    fusermount -u $MOUNTPATH 2> /dev/null
-    while [ $? -ne 0 ]; do
-        sleep 1
-        fuselog -n .
+    if [ "$NOMOUNT" -eq 0 ]; then
+        fuselog -n "Unmounting '$MOUNTPATH'... "
+        cd $ORIGINAL_WORKING_DIR
         fusermount -u $MOUNTPATH 2> /dev/null
-    done
-    fuselog Ok
+        while [ $? -ne 0 ]; do
+            sleep 1
+            fuselog -n .
+            fusermount -u $MOUNTPATH 2> /dev/null
+        done
+        fuselog Ok
+    else
+        fuselog Skipping unmount step
+    fi
 }
 
 fuse_mount() {
-    # $1 is the path to the fusedrive executable
-    # $2 is the realpath to the mountpoint
-    # $3 is the set of mount options
-    fuselog Starting fusedrive
-    $1 "$2" $3 > /dev/stderr &
-    FDPID=$!
+    if [ "$NOMOUNT" -eq 0 ]; then
+        fuselog Starting fusedrive
+        $VALGRIND $EXE "$MOUNTPATH" $MOUNTOPTIONS > /dev/stderr 2>> "$VALGRIND_REDIR" &
+        FDPID=$!
 
-    fuselog -n "Waiting for mount..."
-    until mount | grep -qF "on $2"; do
-        sleep 1
-        fuselog -n .
-        if ! kill -0 $FDPID > /dev/null 2>&1; then
-            fuselog " Failed."
-            exit 1
-        fi
-    done
-    fuselog " Ok"
+        fuselog -n "Waiting for mount..."
+        until mount | grep -qF "on $MOUNTPATH"; do
+            sleep 1
+            fuselog -n .
+            if ! kill -0 $FDPID > /dev/null 2>&1; then
+                fuselog " Failed."
+                exit 1
+            fi
+        done
+        fuselog " Ok"
+    else
+        fuselog Skipping mount step
+    fi
 
     fuselog checking statfs
     fuselog -n "Looking for '$MOUNTPATH' in output of 'df'... "
@@ -208,21 +222,48 @@ test_append() {
 MOUNTOPTIONS='-f -s'
 TIMESTAMP_FMT='+%Y%m%d%H%M.%S'
 LOGFILE=/dev/null
-LOGFILEOPTION="$1"
-EXE="$2"
-MOUNTPATHGIVEN="$3"
 ORIGINAL_WORKING_DIR=$(pwd)
+VALGRIND=""
+VALGRIND_REDIR="/dev/stderr"
+VALGRIND_OPTS=""
+NOMOUNT=0
 
 # Seed RNG
 RANDOM=$(($(date +%N) % $$ + $BASHPID))
 
 # Test number of parameters
-if [ $# -ne 3 ]; then
+if [ $# -lt 3 ]; then
     fuselog Invalid arguments
     fuselog
     print_usage
     exit 1
 fi
+
+while [ "$1" = --valgrind ] || [ "$1" = --no-mount ]; do
+    if [ "$1" = --valgrind ]; then
+        VALGRIND=valgrind
+        VALGRIND_REDIR="$2"
+        shift 2
+        while [ "$1" != "--" ]; do
+            VALGRIND_OPTS="$VALGRIND_OPTS \"$1\""
+            shift
+        done
+        shift
+    elif [ "$1" = --no-mount ]; then
+        NOMOUNT=1
+        shift
+    fi
+    if [ $# -lt 3 ]; then
+        fuselog Invalid arguments
+        fuselog
+        print_usage
+        exit 1
+    fi
+done
+    
+LOGFILEOPTION="$1"
+EXE="$2"
+MOUNTPATHGIVEN="$3"
 
 
 # $LOGFILE should not exist or should be a writable file
@@ -245,8 +286,9 @@ if ! [ -x "$EXE" ]; then
     exit 1
 fi
 
-# $MOUNTPOINT should be an empty directory
-if ! [ -d "$MOUNTPATHGIVEN" ] || [ $(ls -A1 "$MOUNTPATHGIVEN" | wc -l) -ne 0 ]; then
+# $MOUNTPOINT should be an empty directory, unless the --no-mount option was
+# specified
+if ! [ -d "$MOUNTPATHGIVEN" ] || ([ "$NOMOUNT" -eq 0 ] && [ $(ls -A1 "$MOUNTPATHGIVEN" | wc -l) -ne 0 ]); then
     fuselog "'$MOUNTPATHGIVEN'" is not a valid empty directory
     fuselog
     print_usage
@@ -265,18 +307,20 @@ fi
 fuselog $0 run $(date -u "+%F %T") UTC
 fuselog
 
-fuselog -n "Checking mountpoint... "
-if mount | grep -qF "on $MOUNTPATH"; then
-    fuselog "Mountpoint in use."
-    exit 1
-else
-    fuselog Ok
+if [ "$NOMOUNT" -eq 0 ]; then
+    fuselog -n "Checking mountpoint... "
+    if mount | grep -qF "on $MOUNTPATH"; then
+        fuselog "Mountpoint in use."
+        exit 1
+    else
+        fuselog Ok
+    fi
 fi
 
 # Startup
 
 fuselog
-fuse_mount "$EXE" "$MOUNTPATH" "$MOUNTOPTIONS"
+fuse_mount
 
 
 # Check statfs (using df)
@@ -625,7 +669,7 @@ if ! FILE_CONTENTS=$(< "${NEWDIRNAME}/${SUBFILENAME}"); then
 fi
 fuselog "Done."
 fuse_unmount
-fuse_mount "$EXE" "$MOUNTPATH" "$MOUNTOPTIONS"
+fuse_mount
 fuselog -n "Changing working directory back to '$MOUNTPATH'... "
 if ! cd "$MOUNTPATH"; then
     fuselog Failed.

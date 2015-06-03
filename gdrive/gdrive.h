@@ -233,8 +233,7 @@ const char* gdrive_filepath_to_id(const char* path);
 
 int gdrive_remove_parent(const char* fileId, const char* parentId);
 
-int gdrive_delete(const char* fileId);
-
+int gdrive_delete(const char* fileId, const char* parentId);
 
 
 
