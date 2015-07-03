@@ -25,7 +25,7 @@ print_usage () {
 
 fuse_unmount() {
     if [ "$NOMOUNT" -eq 0 ]; then
-        fuselog -n "Unmounting '$MOUNTPATH'... "
+        fuselog -n "Unmounting '$MOUNTPATH'..."
         cd $ORIGINAL_WORKING_DIR
         fusermount -u $MOUNTPATH 2> /dev/null
         while [ $? -ne 0 ]; do
@@ -33,7 +33,7 @@ fuse_unmount() {
             fuselog -n .
             fusermount -u $MOUNTPATH 2> /dev/null
         done
-        fuselog Ok
+        fuselog " Ok"
     else
         fuselog Skipping unmount step
     fi
@@ -243,6 +243,7 @@ while [ "$1" = --valgrind ] || [ "$1" = --no-mount ]; do
     if [ "$1" = --valgrind ]; then
         VALGRIND=valgrind
         VALGRIND_REDIR="$2"
+        truncate -s 0 "$VALGRIND_REDIR"
         shift 2
         while [ "$1" != "--" ]; do
             VALGRIND_OPTS="$VALGRIND_OPTS \"$1\""

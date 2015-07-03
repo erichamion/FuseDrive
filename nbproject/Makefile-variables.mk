@@ -30,6 +30,14 @@ CND_ARTIFACT_PATH_GDrive-test=dist/GDrive-test/GNU-Linux-x86/fusedrive
 CND_PACKAGE_DIR_GDrive-test=dist/GDrive-test/GNU-Linux-x86/package
 CND_PACKAGE_NAME_GDrive-test=fusedrive.tar
 CND_PACKAGE_PATH_GDrive-test=dist/GDrive-test/GNU-Linux-x86/package/fusedrive.tar
+# CacheTest configuration
+CND_PLATFORM_CacheTest=GNU-Linux-x86
+CND_ARTIFACT_DIR_CacheTest=dist/CacheTest/GNU-Linux-x86
+CND_ARTIFACT_NAME_CacheTest=fusedrive
+CND_ARTIFACT_PATH_CacheTest=dist/CacheTest/GNU-Linux-x86/fusedrive
+CND_PACKAGE_DIR_CacheTest=dist/CacheTest/GNU-Linux-x86/package
+CND_PACKAGE_NAME_CacheTest=fusedrive.tar
+CND_PACKAGE_PATH_CacheTest=dist/CacheTest/GNU-Linux-x86/package/fusedrive.tar
 #
 # include compiler specific variables
 #

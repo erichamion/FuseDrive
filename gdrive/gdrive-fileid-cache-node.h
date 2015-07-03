@@ -54,8 +54,8 @@ int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** pHead,
  *      fileId (const char*):
  *              The Google Drive file ID to search for and remove.
  */
-void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node* pHead, 
-                                    const char* fileId
+void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node** ppHead, 
+                                 const char* fileId
 );
 
 /*
@@ -120,6 +120,15 @@ Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
         const char* path
 );
 
+
+/*************************************************************************
+ * Testing purposes only
+ *************************************************************************/
+#ifdef CACHE_TEST
+#include <stdio.h>
+void cachetest_print_fidnode(const Gdrive_Fileid_Cache_Node* pNode, FILE* outfile);
+
+#endif /* CACHE_TEST */
 
 
 #ifdef	__cplusplus

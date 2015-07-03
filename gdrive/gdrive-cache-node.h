@@ -178,6 +178,14 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
 bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode);
 
 
+/*************************************************************************
+ * Testing purposes only
+ *************************************************************************/
+#ifdef CACHE_TEST
+
+void cachetest_print_cachenode(const Gdrive_Cache_Node* pNode, int offset, const char* prefix, bool isFirst, FILE* outfile);
+
+#endif /* CACHE_TEST */
 
 
 #ifdef	__cplusplus

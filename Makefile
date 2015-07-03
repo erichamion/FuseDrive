@@ -60,6 +60,10 @@ build: .build-post
 	@if [ "${CONF}" != "Release" ]; then \
 	    ${CP} "${CND_BASEDIR}/fusedrive-test.bash" "${CND_DISTDIR}/${CONF}/${CND_PLATFORM_${CONF}}/fusedrive-test"; \
 	    chmod +x "${CND_DISTDIR}/${CONF}/${CND_PLATFORM_${CONF}}/fusedrive-test"; \
+	    if [ "${CONF}" = "CacheTest" ]; then \
+	        ${CP} "${CND_BASEDIR}/cache-test.bash" "${CND_DISTDIR}/${CONF}/${CND_PLATFORM_${CONF}}/cache-test"; \
+	        chmod +x "${CND_DISTDIR}/${CONF}/${CND_PLATFORM_${CONF}}/cache-test"; \
+	    fi \
 	fi
 
 

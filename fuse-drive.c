@@ -854,7 +854,11 @@ static struct fuse_operations fo = {
 /*
  * 
  */
+#ifndef CACHE_TEST
 int main(int argc, char** argv) 
+#else
+int fudr_main(int argc, char** argv) 
+#endif
 {
     if ((gdrive_init(GDRIVE_ACCESS_WRITE, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
     {

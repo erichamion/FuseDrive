@@ -236,7 +236,7 @@ int gdrive_cache_update()
                 
                 // We don't know whether the file has been renamed or moved,
                 // so remove it from the fileId cache.
-                gdrive_fidnode_remove_by_id(pCache->pFileIdCacheHead, fileId);
+                gdrive_fidnode_remove_by_id(&pCache->pFileIdCacheHead, fileId);
                 
                 // Update the file metadata cache, but only if the file is not
                 // opened for writing with dirty data.
@@ -417,7 +417,7 @@ void gdrive_cache_delete_id(const char* fileId)
     Gdrive_Cache* pCache = gdrive_cache_get_internal();
 
     // Remove the ID from the file Id cache
-    gdrive_fidnode_remove_by_id(pCache->pFileIdCacheHead, fileId);
+    gdrive_fidnode_remove_by_id(&pCache->pFileIdCacheHead, fileId);
     
     // If the file isn't opened by anybody, delete it from the cache 
     // immediately. Otherwise, mark it for delete on close.
@@ -467,3 +467,54 @@ static void gdrive_cache_remove_id(const char* fileId)
 
     gdrive_cnode_delete(pNode, &(pCache->pCacheHead));
 }
+
+
+/*************************************************************************
+ * Testing purposes only
+ *************************************************************************/
+#ifdef CACHE_TEST
+
+void cachetest_print_fullcache(FILE* fout)
+{
+    fputs("==================================================\n", fout);
+    fputs("Printing File ID cache and main cache contents\n\n", fout);
+    fputs("File ID cache:\n", fout);
+    cachetest_print_fileidcache(fout);
+    fputs("Main cache:\n", fout);
+    cachetest_print_maincache(fout);
+    fputs("==================================================\n", fout);
+    fflush(fout);
+}
+
+void cachetest_print_fileidcache(FILE* fout)
+{
+    const Gdrive_Fileid_Cache_Node* pFidCacheHead = 
+        gdrive_cache_get_internal()->pFileIdCacheHead;
+    if (pFidCacheHead)
+    {
+        cachetest_print_fidnode(pFidCacheHead, fout);
+    }
+    else
+    {
+        fputs("File ID Cache Empty\n", fout);
+    }
+    fputs("----------\n", fout);
+    fflush(fout);
+}
+
+void cachetest_print_maincache(FILE* fout)
+{
+    Gdrive_Cache_Node* pCacheHead = gdrive_cache_get_internal()->pCacheHead;
+    if (pCacheHead)
+    {
+        cachetest_print_cachenode(pCacheHead, 0, "->", true, fout);
+    }
+    else
+    {
+        fputs("Cache Empty\n", fout);
+    }
+    fputs("----------\n", fout);
+    fflush(fout);
+}
+
+#endif /* CACHE_TEST */

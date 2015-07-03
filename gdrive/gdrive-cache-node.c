@@ -101,27 +101,29 @@ Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
         }
         // else create a new item.
         *ppNode = gdrive_cnode_create(pParent);
-        if (*ppNode != NULL)
+        if (*ppNode == NULL)
         {
-            // Convenience to avoid things like "return &((*ppNode)->fileinfo);"
-            Gdrive_Cache_Node* pNode = *ppNode;
-            
-            // Copy the fileId into the fileinfo. Everything else is left null.
-            pNode->fileinfo.id = malloc(strlen(fileId) + 1);
-            if (pNode->fileinfo.id == NULL)
-            {
-                // Memory error.
-                gdrive_cnode_free(pNode);
-                *ppNode = NULL;
-                return NULL;
-            }
-            strcpy(pNode->fileinfo.id, fileId);
-            
-            // Since this is a new entry, set the node's updated time.
-            pNode->lastUpdateTime = time(NULL);
-            
-            return pNode;
+            // Memory error
+            return NULL;
         }
+        // Convenience to avoid things like "return &((*ppNode)->fileinfo);"
+        Gdrive_Cache_Node* pNode = *ppNode;
+
+        // Copy the fileId into the fileinfo. Everything else is left null.
+        pNode->fileinfo.id = malloc(strlen(fileId) + 1);
+        if (pNode->fileinfo.id == NULL)
+        {
+            // Memory error.
+            gdrive_cnode_free(pNode);
+            *ppNode = NULL;
+            return NULL;
+        }
+        strcpy(pNode->fileinfo.id, fileId);
+
+        // Since this is a new entry, set the node's updated time.
+        pNode->lastUpdateTime = time(NULL);
+
+        return pNode;
     }
     
     // Convenience to avoid things like "&((*ppNode)->pRight)"
@@ -173,6 +175,7 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
     {
         // Not the root. Find whether the node hangs from the left or right side
         // of its parent.
+        assert(pNode->pParent->pLeft == pNode || pNode->pParent->pRight == pNode);
         ppFromParent = (pNode->pParent->pLeft == pNode) ?
             &(pNode->pParent->pLeft) : &(pNode->pParent->pRight);
         
@@ -239,14 +242,6 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
     
     // Swap the nodes
     gdrive_cnode_swap(ppFromParent, pNode, ppToSwap, pSwap);
-    
-//    // Find the pointer from pNode's new parent.  We don't need to worry about
-//    // a NULL pParent, since pNode can't be at the root of the tree after
-//    // swapping.
-//    Gdrive_Cache_Node** ppFromNewParent = (pNode->pParent->pLeft == pNode ?
-//        &(pNode->pParent->pLeft) :
-//        &(pNode->pParent->pRight)
-//            );
     
     // Now delete the node from its new position.
     gdrive_cnode_delete(pNode, ppToRoot);
@@ -909,6 +904,10 @@ static Gdrive_Cache_Node* gdrive_cnode_create(Gdrive_Cache_Node* pParent)
     return result;
 }
 
+/*
+ * pNodeTwo must be a descendent of pNodeOne, or neither node is descended from
+ * the other.
+ */
 static void
 gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
                         Gdrive_Cache_Node* pNodeOne,
@@ -916,21 +915,69 @@ gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
                         Gdrive_Cache_Node* pNodeTwo
 )
 {
-    // Swap the pointers from the parents
-    *ppFromParentOne = pNodeTwo;
-    *ppFromParentTwo = pNodeOne;
+    // Make sure pNodeOne is not a descendent of pNodeTwo
+    Gdrive_Cache_Node* pParent = pNodeOne->pParent;
+    while (pParent != NULL)
+    {
+        assert(pParent != pNodeTwo && 
+                "gdrive_cnode_swap(): pNodeOne is a descendent of pNodeTwo"
+            );
+        pParent = pParent->pParent;
+    }
     
     Gdrive_Cache_Node* pTempParent = pNodeOne->pParent;
     Gdrive_Cache_Node* pTempLeft = pNodeOne->pLeft;
     Gdrive_Cache_Node* pTempRight = pNodeOne->pRight;
     
-    pNodeOne->pParent = pNodeTwo->pParent;
-    pNodeOne->pLeft = pNodeTwo->pLeft;
-    pNodeOne->pRight = pNodeTwo->pRight;
+    if (pNodeOne->pLeft== pNodeTwo || pNodeOne->pRight == pNodeTwo)
+    {
+        // Node Two is a direct child of Node One
+        
+        pNodeOne->pLeft = pNodeTwo->pLeft;
+        pNodeOne->pRight = pNodeTwo->pRight;
+        
+        if (pTempLeft == pNodeTwo)
+        {
+            pNodeTwo->pLeft = pNodeOne;
+            pNodeTwo->pRight = pTempRight;
+        }
+        else
+        {
+            pNodeTwo->pLeft = pTempLeft;
+            pNodeTwo->pRight = pNodeOne;
+        }
+        
+        // Don't touch *ppFromParentTwo - it's either pNodeOne->pLeft 
+        // or pNodeOne->pRight.
+    }
+    else
+    {
+        // Not direct parent/child
+        
+        pNodeOne->pParent = pNodeTwo->pParent;
+        pNodeOne->pLeft = pNodeTwo->pLeft;
+        pNodeOne->pRight = pNodeTwo->pRight;
+        
+        pNodeTwo->pLeft = pTempLeft;
+        pNodeTwo->pRight = pTempRight;
+        
+        *ppFromParentTwo = pNodeOne;
+    }
     
     pNodeTwo->pParent = pTempParent;
-    pNodeTwo->pLeft = pTempLeft;
-    pNodeTwo->pRight = pTempRight;
+    *ppFromParentOne = pNodeTwo;
+    
+    // Fix the pParent pointers in each of the descendents. If pNodeTwo was
+    // originally a direct child of pNodeOne, this also updates pNodeOne's
+    // pParent.
+    if (pNodeOne->pLeft)
+        pNodeOne->pLeft->pParent = pNodeOne;
+    if (pNodeOne->pRight)
+        pNodeOne->pRight->pParent = pNodeOne;
+    if (pNodeTwo->pLeft)
+        pNodeTwo->pLeft->pParent = pNodeTwo;
+    if (pNodeTwo->pRight)
+        pNodeTwo->pRight->pParent = pNodeTwo; 
 }
 
 /*
@@ -1358,3 +1405,39 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
     pMyFileinfo->dirtyMetainfo = false;
     return fileId;
 }
+
+
+/*************************************************************************
+ * Testing purposes only
+ *************************************************************************/
+#ifdef CACHE_TEST
+
+void cachetest_print_cachenode(const Gdrive_Cache_Node* pNode, int offset, const char* prefix, bool isFirst, FILE* outfile)
+{
+    if (pNode == NULL)
+    {
+        if (offset > 0)
+        {
+            fprintf(outfile, "%*s", offset, " ");
+        }
+        fprintf(outfile, "%s%s\n", prefix, "<>");
+        return;
+    }
+    
+    const char* parentId = pNode->pParent ? pNode->pParent->fileinfo.id : "<None>";
+    
+    int newOffset = offset + strlen(pNode->fileinfo.id) + strlen(parentId) + strlen(prefix) + 1;
+    if (isFirst)
+    {
+        newOffset += 4;
+    }
+    cachetest_print_cachenode(pNode->pRight, newOffset, "\u250C\u2500", false, outfile);
+    if (offset > 0)
+    {
+        fprintf(outfile, "%*s", offset, " ");
+    }
+    fprintf(outfile, "%s%s (%s)%s\n", prefix, pNode->fileinfo.id, parentId, " \u2500\u2524");
+    cachetest_print_cachenode(pNode->pLeft, newOffset, "\u2514\u2500", false, outfile);
+}
+
+#endif /* CACHE_TEST */

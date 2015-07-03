@@ -95,13 +95,13 @@ int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead,
     }
 }
 
-void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node* pHead, 
-                                    const char* fileId
+void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node** ppHead, 
+                                 const char* fileId
 )
 {
     // Need to walk through the whole list, since it's not keyed by fileId.
-    Gdrive_Fileid_Cache_Node* pPrev = pHead;
-    Gdrive_Fileid_Cache_Node* pNext = pPrev->pNext;
+    Gdrive_Fileid_Cache_Node** ppFromPrev = ppHead;
+    Gdrive_Fileid_Cache_Node* pNext = *ppHead;
     
     while (pNext != NULL)
     {
@@ -112,15 +112,18 @@ void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node* pHead,
         if (cmp == 0)
         {
             // Found it!
-            pPrev->pNext = pNext->pNext;
+            *ppFromPrev = pNext->pNext;
             gdrive_fidnode_free(pNext);
             
-            // Still need to keep searching, since one file ID can correspond
-            // to many paths.
+            // Don't exit here. Still need to keep searching, since one file ID 
+            // can correspond to many paths.
         }
-        // else keep searching
-        pPrev = pNext;
-        pNext = pPrev->pNext;
+        else
+        {
+            // Move on to the next one
+            ppFromPrev = &(*ppFromPrev)->pNext;
+        }
+        pNext = *ppFromPrev;
     }
 }
 
@@ -277,3 +280,20 @@ gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode)
     free(pNode);
 }
 
+
+/*************************************************************************
+ * Testing purposes only
+ *************************************************************************/
+#ifdef CACHE_TEST
+
+void cachetest_print_fidnode(const Gdrive_Fileid_Cache_Node* pNode, FILE* outfile)
+{
+    fprintf(outfile, "Node:\n\tFile ID:\t%s\n\tPath:\t%s\nUpdated:\t%ld\nNext:\t%lx", pNode->fileId, pNode->path, pNode->lastUpdateTime, (unsigned long) pNode->pNext);
+    fputs("---", outfile);
+    if (pNode->pNext)
+    {
+        cachetest_print_fidnode(pNode->pNext, outfile);
+    }
+}
+
+#endif /* CACHE_TEST */

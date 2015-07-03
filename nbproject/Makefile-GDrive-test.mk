@@ -35,6 +35,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
 OBJECTFILES= \
+	${OBJECTDIR}/cache-test.o \
 	${OBJECTDIR}/code-template.o \
 	${OBJECTDIR}/fuse-drive.o \
 	${OBJECTDIR}/gdrive/gdrive-cache-node.o \
@@ -75,6 +76,11 @@ LDLIBSOPTIONS=`pkg-config --libs fuse` `pkg-config --libs libcurl` `pkg-config -
 ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/fusedrive: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
 	${LINK.c} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/fusedrive ${OBJECTFILES} ${LDLIBSOPTIONS}
+
+${OBJECTDIR}/cache-test.o: cache-test.c 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} "$@.d"
+	$(COMPILE.c) -g -Wall -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 -D__GDRIVE_TEST__ `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/cache-test.o cache-test.c
 
 ${OBJECTDIR}/code-template.o: code-template.c 
 	${MKDIR} -p ${OBJECTDIR}
