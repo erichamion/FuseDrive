@@ -42,7 +42,7 @@ fuse_unmount() {
 fuse_mount() {
     if [ "$NOMOUNT" -eq 0 ]; then
         fuselog Starting fusedrive
-        $VALGRIND $EXE "$MOUNTPATH" $MOUNTOPTIONS > /dev/stderr 2>> "$VALGRIND_REDIR" &
+        $VALGRIND $VALGRIND_OPTS $EXE "$MOUNTPATH" $MOUNTOPTIONS > /dev/stderr 2>> "$VALGRIND_REDIR" &
         FDPID=$!
 
         fuselog -n "Waiting for mount..."
@@ -246,7 +246,7 @@ while [ "$1" = --valgrind ] || [ "$1" = --no-mount ]; do
         truncate -s 0 "$VALGRIND_REDIR"
         shift 2
         while [ "$1" != "--" ]; do
-            VALGRIND_OPTS="$VALGRIND_OPTS \"$1\""
+            VALGRIND_OPTS="$VALGRIND_OPTS $1"
             shift
         done
         shift
@@ -739,10 +739,22 @@ fuselog ok
 
 fuselog Removing directory:
 fuselog -n "rmdir \"$NEWDIRNAME\" (should succeed this time)... "
-if ! rmdir "$NEWDIRNAME"; then
+rmdir "$NEWDIRNAME" 2> /dev/null
+RMSUCCESS=$?
+RMTRIES=1
+while [ "$RMSUCCESS" -ne 0 ]; do
     fuselog "rmdir command indicated error."
-    clean_exit 1
-fi
+    if [ "$RMTRIES" -ge 5 ]; then
+        fuselog "Too many attempts. Giving up"
+        clean_exit 1
+    else
+        fuselog -n "Waiting and retrying... "
+        sleep 3
+        rmdir "$NEWDIRNAME" 2> /dev/null
+        RMSUCCESS=$?
+        ((RMTRIES++))
+    fi
+done
 if [ -d "$NEWDIRNAME" ]; then
     fuselog "Failed. rmdir command indicated success, but file still exists."
     clean_exit 1

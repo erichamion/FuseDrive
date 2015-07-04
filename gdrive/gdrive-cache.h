@@ -200,10 +200,10 @@ Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId,
  *              directory structure (the Google Drive root folder is "/").
  * Return value:
  *      On success, a char* null-terminated string holding the Google Drive file
- *      ID of the specified file. On failure, NULL. The memory location returned
- *      should not be altered or freed.
+ *      ID of the specified file. On failure, NULL. The caller is responsible
+ *      for freeing the pointed-to memory.
  */
-const char* gdrive_cache_get_fileid(const char* path);
+char* gdrive_cache_get_fileid(const char* path);
 
 void gdrive_cache_delete_id(const char* fileId);
 

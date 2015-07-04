@@ -96,7 +96,7 @@ static int gdrive_prompt_for_auth(void);
 
 static int gdrive_check_scopes(void);
 
-static const char* gdrive_get_root_folder_id(void);
+static char* gdrive_get_root_folder_id(void);
 
 static char* 
 gdrive_get_child_id_by_name(const char* parentId, const char* childName);
@@ -307,7 +307,7 @@ int gdrive_get_filesystem_perms(enum Gdrive_Filetype type)
  * The path argument should be an absolute path, starting with '/'. Can be 
  * either a file or a directory (folder).
  */
-const char* gdrive_filepath_to_id(const char* path)
+char* gdrive_filepath_to_id(const char* path)
 {
     //char* result = NULL;
     if (path == NULL || (path[0] != '/'))
@@ -317,7 +317,7 @@ const char* gdrive_filepath_to_id(const char* path)
     }
     
     // Try to get the ID from the cache.
-    const char* cachedId = gdrive_cache_get_fileid(path);
+    char* cachedId = gdrive_cache_get_fileid(path);
     if (cachedId != NULL)
     {
         return cachedId;
@@ -325,7 +325,7 @@ const char* gdrive_filepath_to_id(const char* path)
     // else ID isn't in the cache yet
     
     // Is this the root folder?
-    const char* result = NULL;
+    char* result = NULL;
     if (strcmp(path, "/") == 0)
     {
         result = gdrive_get_root_folder_id();
@@ -366,7 +366,7 @@ const char* gdrive_filepath_to_id(const char* path)
     }
     strncpy(parentPath, path, parentLength);
     parentPath[parentLength] = '\0';
-    const char* parentId = gdrive_filepath_to_id(parentPath);
+    char* parentId = gdrive_filepath_to_id(parentPath);
     free(parentPath);
     if (parentId == NULL)
     {
@@ -375,7 +375,7 @@ const char* gdrive_filepath_to_id(const char* path)
     }
     // Use the parent's ID to find the child's ID.
     char* id = gdrive_get_child_id_by_name(parentId, path + index + 1);
-    //free(parentId);
+    free(parentId);
     
     // Add the ID to the fileId cache.
     if (id != NULL)
@@ -574,6 +574,7 @@ int gdrive_delete(const char* fileId, const char* parentId)
     
     int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
         -EIO : 0;
+    gdrive_dlbuf_free(pBuf);
     if (returnVal == 0)
     {
         gdrive_cache_delete_id(fileId);
@@ -1101,9 +1102,13 @@ static int gdrive_check_scopes(void)
     return 0;
 }
 
-static const char* gdrive_get_root_folder_id(void)
+static char* gdrive_get_root_folder_id(void)
 {
-    return gdrive_sysinfo_get_rootid();
+    const char* mainCopy = gdrive_sysinfo_get_rootid();
+    char* newCopy = malloc(strlen(mainCopy) + 1);
+    if (newCopy)
+        strcpy(newCopy, mainCopy);
+    return newCopy;
 }
 
 static char* 

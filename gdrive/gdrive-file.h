@@ -90,7 +90,7 @@ int gdrive_file_write(Gdrive_File* fh,
 
 int gdrive_file_truncate(Gdrive_File* fh, off_t size);
 
-const char* gdrive_file_new(const char* path, bool createFolder, int* pError);
+char* gdrive_file_new(const char* path, bool createFolder, int* pError);
 
 int gdrive_file_sync(Gdrive_File* fh);
 

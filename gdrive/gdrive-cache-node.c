@@ -130,6 +130,10 @@ Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
     Gdrive_Cache_Node* pNode = *ppNode;
     
     // Root node exists, try to find the fileId in the tree.
+    if (!pNode->fileinfo.id)
+    {
+        puts("NULL File ID");
+    }
     int cmp = strcmp(fileId, pNode->fileinfo.id);
     if (cmp == 0)
     {
@@ -728,11 +732,13 @@ int gdrive_file_sync_metadata(Gdrive_File* fh)
     }
     
     int error = 0;
-    gdrive_file_sync_metadata_or_create(pFileinfo, NULL, NULL, 
-                                        (pFileinfo->type == 
-                                        GDRIVE_FILETYPE_FOLDER), 
-                                        &error
+    char* dummy = 
+        gdrive_file_sync_metadata_or_create(pFileinfo, NULL, NULL, 
+                                            (pFileinfo->type == 
+                                            GDRIVE_FILETYPE_FOLDER), 
+                                            &error
     );
+    free(dummy);
     return error;
 }
 
@@ -768,7 +774,7 @@ int gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts)
     return 0;
 }
 
-const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
+char* gdrive_file_new(const char* path, bool createFolder, int* pError)
 {
     assert(path != NULL && path[0] == '/' && pError != NULL);
             
@@ -801,7 +807,7 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         gdrive_path_free(pGpath);
         return NULL;
     }
-    const char* parentId = gdrive_filepath_to_id(folderName);
+    char* parentId = gdrive_filepath_to_id(folderName);
     if (parentId == NULL)
     {
         // Folder doesn't exist
@@ -816,6 +822,7 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         // Couldn't get a node for the parent folder
         *pError = EIO;
         gdrive_path_free(pGpath);
+        free(parentId);
         return NULL;
     }
     const Gdrive_Fileinfo* pFolderinfo = gdrive_cnode_get_fileinfo(pFolderNode);
@@ -824,6 +831,7 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         // Not an actual folder
         *pError = ENOTDIR;
         gdrive_path_free(pGpath);
+        free(parentId);
         return NULL;
     }
     
@@ -833,6 +841,7 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
         // Don't have the needed permission
         *pError = EACCES;
         gdrive_path_free(pGpath);
+        free(parentId);
         return NULL;
     }
     
@@ -840,6 +849,7 @@ const char* gdrive_file_new(const char* path, bool createFolder, int* pError)
     char* fileId = gdrive_file_sync_metadata_or_create(NULL, parentId, filename,
                                                        createFolder, pError);
     gdrive_path_free(pGpath);
+    free(parentId);
     
     // TODO: See if gdrive_cache_add_fileid() can be modified to return a 
     // pointer to the cached ID (which is a new copy of the ID that was passed
@@ -1296,6 +1306,8 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
         gdrive_json_add_string(uploadResourceJson, "modifiedDate", timeString);
         hasMtime = true;
     }
+    free(timeString);
+    timeString = NULL;
     
     // Convert the JSON into a string
     char* uploadResourceStr = 
@@ -1313,7 +1325,7 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
     char* url;
     if (pFileinfo == NULL)
     {
-        // New file
+        // New file, just need the base URL
         size_t urlSize = strlen(GDRIVE_URL_FILES) + 1;
         url = malloc(urlSize);
         if (url == NULL)
@@ -1325,7 +1337,7 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
     }
     else
     {
-        // Existing file
+        // Existing file, need base URL + '/' + file ID
         size_t baseUrlLength = strlen(GDRIVE_URL_FILES);
         size_t fileIdLength = strlen(pMyFileinfo->id);
         url = malloc(baseUrlLength + fileIdLength + 2);
@@ -1362,8 +1374,10 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
         *pError = ENOMEM;
         gdrive_xfer_free(pTransfer);
         free(uploadResourceStr);
+        free(url);
         return NULL;
     }
+    free(url);
     gdrive_xfer_set_requesttype(pTransfer, (pFileinfo != NULL) ? 
         GDRIVE_REQUEST_PATCH : GDRIVE_REQUEST_POST);
     gdrive_xfer_set_body(pTransfer, uploadResourceStr);

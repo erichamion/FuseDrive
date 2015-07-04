@@ -151,9 +151,12 @@ time_t gdrive_fidnode_get_lastupdatetime(Gdrive_Fileid_Cache_Node* pNode)
     return pNode->lastUpdateTime;
 }
 
-const char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode)
+char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode)
 {
-    return pNode->fileId;
+    char* result = malloc(strlen(pNode->fileId) + 1);
+    if (result)
+        strcpy(result, pNode->fileId);
+    return result;
 }
 
 
@@ -277,6 +280,7 @@ gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode)
     free(pNode->path);
     pNode->path = NULL;
     pNode->pNext = NULL;
+    memset(pNode, 0xFF, sizeof(Gdrive_Fileid_Cache_Node));
     free(pNode);
 }
 

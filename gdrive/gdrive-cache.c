@@ -371,7 +371,7 @@ Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId,
             );
 }
 
-const char* gdrive_cache_get_fileid(const char* path)
+char* gdrive_cache_get_fileid(const char* path)
 {
     Gdrive_Cache* pCache = gdrive_cache_get_internal();
     
@@ -399,14 +399,6 @@ const char* gdrive_cache_get_fileid(const char* path)
         return gdrive_cache_get_fileid(path);
     }
     
-//    // Item exists and is not expired. Copy the file ID into a new string and
-//    // return the new string.
-//    const char* internalId = gdrive_fidnode_get_fileid(pNode);
-//    size_t idLength = strlen(internalId);
-//    char* returnVal = malloc(idLength + 1);
-//    strncpy(returnVal, internalId, idLength);
-//    returnVal[idLength] = '\0';
-//    return returnVal;
     return gdrive_fidnode_get_fileid(pNode);
 }
 

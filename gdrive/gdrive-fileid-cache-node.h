@@ -87,16 +87,16 @@ void gdrive_fidnode_clear_all(Gdrive_Fileid_Cache_Node* pHead);
 time_t gdrive_fidnode_get_lastupdatetime(Gdrive_Fileid_Cache_Node* pNode);
 
 /*
- * gdrive_fidnode_get_fileid(): Retrieves the Google Drive file ID stored in a
- *                              specified file ID cache node.
+ * gdrive_fidnode_get_fileid(): Retrieves a new copy of the Google Drive file ID
+ *                              stored in a specified file ID cache node.
  * Parameters:
  *      pNode (Gdrive_Fileid_Cache_Node*):
  *              A pointer to the node.
  * Return value (const char*):
- *      The stored Google Drive file ID as a null-terminated string. The memory
- *      at the pointed-to location should not be freed or altered.
+ *      The stored Google Drive file ID as a null-terminated string. The caller
+ *      is responsible for freeing the memory at the pointed-to location.
  */
-const char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode);
+char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode);
 
 
 /*************************************************************************

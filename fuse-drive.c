@@ -273,15 +273,17 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     // implemented, this line should be removed.
     (void) mode;
     
-    // Determine whether the file already exists, 
-    if (gdrive_filepath_to_id(path) != NULL)
+    // Determine whether the file already exists
+    char* dummyFileId = gdrive_filepath_to_id(path);
+    free(dummyFileId);
+    if (dummyFileId != NULL)
     {
         return -EEXIST;
     }
     
     // Create the file
     int error = 0;
-    const char* fileId = gdrive_file_new(path, false, &error);
+    char* fileId = gdrive_file_new(path, false, &error);
     if (fileId == NULL)
     {
         // Some error occurred
@@ -293,6 +295,7 @@ static int fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     
     // File was successfully created. Open it.
     fi->fh = (uint64_t) gdrive_file_open(fileId, O_RDWR, &error);
+    free(fileId);
     
     return -error;
 }
@@ -342,9 +345,7 @@ static int fudr_fgetattr(const char* path, struct stat* stbuf,
         return -EBADF;
     }
     
-    int returnVal = fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
-    return returnVal;
-    
+    return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
 }
 //
 ////According to fuse.h, the kernel handles local file locking if flock is
@@ -394,15 +395,14 @@ fuse_file_info* fi)
         return -EBADF;
     }
     
-    int returnVal = gdrive_file_truncate(fh, size);
-    return returnVal;
+    return gdrive_file_truncate(fh, size);
 }
 
 static int fudr_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
     
-    const char* fileId = gdrive_filepath_to_id(path);
+    char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // File not found
@@ -412,6 +412,7 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
     //Gdrive_Fileinfo* pFileinfo;
     //if (gdrive_file_info_from_id(pGdriveInfo, fileId, &pFileinfo) != 0)
     const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
+    free(fileId);
     if (pFileinfo == NULL)
     {
         // An error occurred.
@@ -419,8 +420,7 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
         return -ENOENT;
     }    
     
-    int returnVal = fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
-    return returnVal;
+    return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
 }
 
 //static int fudr_getxattr(const char* path, const char* name, char* value, size_t size)
@@ -463,14 +463,17 @@ static int fudr_mkdir(const char* path, mode_t mode)
     (void) mode;
     
     // Determine whether the folder already exists, 
-    if (gdrive_filepath_to_id(path) != NULL)
+    char* dummyFileId = gdrive_filepath_to_id(path);
+    free(dummyFileId);
+    if (dummyFileId != NULL)
     {
         return -EEXIST;
     }
     
     // Create the folder
     int error = 0;
-    gdrive_file_new(path, true, &error);
+    dummyFileId = gdrive_file_new(path, true, &error);
+    free(dummyFileId);
     
     // TODO: If fudr_chmod is ever implemented, change the folder permissions 
     // using the (currently unused) mode parameter we were given.
@@ -486,7 +489,7 @@ static int fudr_mkdir(const char* path, mode_t mode)
 static int fudr_open(const char *path, struct fuse_file_info *fi)
 {
     // Get the file ID
-    const char* fileId = gdrive_filepath_to_id(path);
+    char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // File not found
@@ -496,7 +499,7 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
     // Open the file
     int error = 0;
     Gdrive_File* pFile = gdrive_file_open(fileId, fi->flags, &error);
-    //free(fileId);
+    free(fileId);
     
     if (pFile == NULL)
     {
@@ -527,8 +530,7 @@ static int fudr_read(const char *path, char *buf, size_t size, off_t offset,
     
     Gdrive_File* pFile = (Gdrive_File*) fi->fh;
     
-    int returnVal = gdrive_file_read(pFile, buf, size, offset);
-    return returnVal;
+    return gdrive_file_read(pFile, buf, size, offset);
 }
 
 //static int fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
@@ -544,7 +546,7 @@ static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     (void) offset;
     (void) fi;
     
-    const char* folderId = gdrive_filepath_to_id(path);
+    char* folderId = gdrive_filepath_to_id(path);
     if (folderId == NULL)
     {
         return -ENOENT;
@@ -552,6 +554,7 @@ static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     
     Gdrive_Fileinfo_Array* pFileArray = 
             gdrive_folder_list(folderId);
+    free(folderId);
     if (pFileArray == NULL)
     {
         // An error occurred.
@@ -624,7 +627,7 @@ static int fudr_rmdir(const char* path)
         return -EBUSY;
     }
     
-    const char* fileId = gdrive_filepath_to_id(path);
+    char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // No such file
@@ -636,16 +639,19 @@ static int fudr_rmdir(const char* path)
     if (pFileinfo == NULL)
     {
         // Couldn't retrieve file info
+        free(fileId);
         return -ENOENT;
     }
     if (pFileinfo->type != GDRIVE_FILETYPE_FOLDER)
     {
         // Not a directory
+        free(fileId);
         return -ENOTDIR;
     }
     if (pFileinfo->nChildren > 0)
     {
         // Not empty
+        free(fileId);
         return -ENOTEMPTY;
     }
     
@@ -654,13 +660,17 @@ static int fudr_rmdir(const char* path)
     if (pGpath == NULL)
     {
         // Memory error
+        free(fileId);
         return -ENOMEM;
     }
-    const char* parentId = 
+    char* parentId = 
         gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
     gdrive_path_free(pGpath);
     
-    return fudr_rm_file_or_dir_by_id(fileId, parentId);
+    int returnVal = fudr_rm_file_or_dir_by_id(fileId, parentId);
+    free(parentId);
+    free(fileId);
+    return returnVal;
 }
 //static int fudr_setxattr(const char* path, const char* name, 
 //        const char* value, size_t size, int flags)
@@ -690,7 +700,7 @@ static int fudr_statfs(const char* path, struct statvfs* stbuf)
 //}
 static int fudr_truncate(const char* path, off_t size)
 {
-    const char* fileId = gdrive_filepath_to_id(path);
+    char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // File not found
@@ -700,6 +710,7 @@ static int fudr_truncate(const char* path, off_t size)
     // Open the file
     int error = 0;
     Gdrive_File* fh = gdrive_file_open(fileId, O_RDWR, &error);
+    free(fileId);
     if (fh == NULL)
     {
         // Error
@@ -716,7 +727,7 @@ static int fudr_truncate(const char* path, off_t size)
 }
 static int fudr_unlink(const char* path)
 {
-    const char* fileId = gdrive_filepath_to_id(path);
+    char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         // No such file
@@ -727,13 +738,16 @@ static int fudr_unlink(const char* path)
     if (pGpath == NULL)
     {
         // Memory error
+        free(fileId);
         return -ENOMEM;
     }
-    const char* parentId = 
-        gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
+    char* parentId = gdrive_filepath_to_id(gdrive_path_get_dirname(pGpath));
     gdrive_path_free(pGpath);
     
-    return fudr_rm_file_or_dir_by_id(fileId, parentId);
+    int returnVal = fudr_rm_file_or_dir_by_id(fileId, parentId);
+    free(parentId);
+    free(fileId);
+    return returnVal;
 }
 //static int fudr_utime()
 //{
@@ -741,7 +755,7 @@ static int fudr_unlink(const char* path)
 //}
 static int fudr_utimens(const char* path, const struct timespec ts[2])
 {
-    const char* fileId = gdrive_filepath_to_id(path);
+    char* fileId = gdrive_filepath_to_id(path);
     if (fileId == NULL)
     {
         return -ENOENT;
@@ -749,6 +763,7 @@ static int fudr_utimens(const char* path, const struct timespec ts[2])
     
     int error = 0;
     Gdrive_File* fh = gdrive_file_open(fileId, O_RDWR, &error);
+    free(fileId);
     if (fh == NULL)
     {
         return -error;
@@ -794,8 +809,7 @@ static int fudr_write(const char* path, const char *buf, size_t size,
         return -EBADFD;
     }
     
-    int returnVal = gdrive_file_write(fh, buf, size, offset);
-    return returnVal;
+    return gdrive_file_write(fh, buf, size, offset);
 }
 //static int fudr_write_buf(const char* path, struct fuse_bufvec* buf, 
 //        off_t off, struct fuse_file_info* fi)

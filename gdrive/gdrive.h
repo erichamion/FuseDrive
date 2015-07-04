@@ -225,11 +225,11 @@ Gdrive_Fileinfo_Array*  gdrive_folder_list(const char* folderId);
  *      path (const char*):
  *              The file path within the Google Drive system, starting with "/"
  *              for the Google Drive root folder.
- * Return value (const char*):
+ * Return value (char*):
  *      A null-terminated string containing the file ID for the given path. The
- *      memory at the returned location should not be altered or freed.
+ *      caller is responsible for freeing the memory at the returned location.
  */
-const char* gdrive_filepath_to_id(const char* path);
+char* gdrive_filepath_to_id(const char* path);
 
 int gdrive_remove_parent(const char* fileId, const char* parentId);
 
