@@ -77,7 +77,7 @@ clean_exit() {
 
 
 
-fuselog () {
+fuselog() {
     # Don't just use tee because the trailing newline isn't optional. Whether or
     # not we can suppress the newline in the logfile, we sometimes want to 
     # suppress it on stdout.
@@ -85,7 +85,7 @@ fuselog () {
     echo "$@" >> $LOGFILE
 }
 
-make_name () {
+make_name() {
     # Generates a random-looking (not actually random, or even pseudo-random) 
     # name from the current time
     declare EXT
@@ -761,6 +761,73 @@ if [ -d "$NEWDIRNAME" ]; then
 fi
 fuselog ok
 
+fuselog
+fuselog Hard links and symbolic links
+fuselog Creating hard link:
+make_name
+while [ -e "$GENERATED_NAME" ]; do
+    make_name
+done
+DIRONE="$GENERATED_NAME"
+make_name; DIRONE="$GENERATED_NAME"
+make_name
+while [ -e "$GENERATED_NAME" ]; do
+    make_name
+done
+DIRTWO="$GENERATED_NAME"
+make_name
+while [ -e "$GENERATED_NAME" ]; do
+    make_name
+done
+FILENAME="$GENERATED_NAME"
+unset GENERATED_NAME
+fuselog -n "Creating directory '$DIRONE'... "
+if ! mkdir "$DIRONE"; then
+    fuselog "mkdir command returned nonzero error status'"
+    clean_exit 1
+fi
+fuselog Ok
+fuselog -n "Creating directory '$DIRTWO'... "
+if ! mkdir "$DIRTWO"; then
+    fuselog "mkdir command returned nonzero error status'"
+    clean_exit 1
+fi
+fuselog Ok
+fuselog -n "Creating file '$DIRONE/$FILENAME'... "
+if ! touch "$DIRONE/$FILENAME"; then
+    fuselog "touch command returned nonzero error status'"
+    clean_exit 1
+fi
+fuselog Ok
+fuselog -n "Setting hard link from '$DIRTWO/$FILENAME' to '$DIRONE/$FILENAME'... "
+if ! ln "$DIRONE/$FILENAME" "$DIRTWO/$FILENAME" 2> /dev/null; then
+    fuselog "ln command returned nonzero error status"
+    clean_exit 1
+fi
+fuselog -n "Verifying '$DIRONE/$FILENAME' still exists... "
+if ! [ -e "$DIRONE/$FILENAME" ]; then
+    fuselog "Failed. Does not exist."
+    clean_exit 1
+fi
+fuselog Ok
+fuselog -n "Verifying '$DIRTWO/$FILENAME' also exists... "
+if ! [ -e "$DIRTWO/$FILENAME" ]; then
+    fuselog "Failed. Does not exist."
+    clean_exit 1
+fi
+fuselog Ok
+fuselog -n "Setting hard link from '$FILENAME' to '$DIRONE/$FILENAME'... "
+if ! ln "$DIRONE/$FILENAME" "$FILENAME" 2> /dev/null; then
+    fuselog "ln command returned nonzero error status"
+    clean_exit 1
+fi
+fuselog Ok
+fuselog -n "Verifying '$FILENAME' exists... "
+if ! [ -e "$FILENAME" ]; then
+    fuselog "Failed. Does not exist."
+    clean_exit 1
+fi
+fuselog Ok
 
 
 fuselog

@@ -444,10 +444,52 @@ static void* fudr_init(struct fuse_conn_info *conn)
 //{
 //    return -ENOSYS;
 //}
-//static int fudr_link(const char* from, const char* to)
-//{
-//    return -ENOSYS;
-//}
+static int fudr_link(const char* from, const char* to)
+{
+    Gdrive_Path* pOldPath = gdrive_path_create(from);
+    Gdrive_Path* pNewPath = gdrive_path_create(to);
+    
+    // Determine whether the file already exists
+    char* dummyFileId = gdrive_filepath_to_id(to);
+    free(dummyFileId);
+    if (dummyFileId != NULL)
+    {
+        return -EEXIST;
+    }
+    
+    // Google Drive supports a file with multiple parents - that is, a file with
+    // multiple hard links that all have the same base name.
+    if (strcmp(gdrive_path_get_basename(pOldPath), 
+               gdrive_path_get_basename(pNewPath))
+            )
+    {
+        // Basenames differ, not supported
+        return -ENOENT;
+    }
+    
+    char* fileId = gdrive_filepath_to_id(from);
+    if (!fileId)
+    {
+        // Original file does not exist
+        return -ENOENT;
+    }
+    char* newParentId = 
+        gdrive_filepath_to_id(gdrive_path_get_dirname(pNewPath));
+    gdrive_path_free(pOldPath);
+    gdrive_path_free(pNewPath);
+    if (!newParentId)
+    {
+        // New directory doesn't exist
+        free(fileId);
+        return -ENOENT;
+    }
+    
+    int returnVal = gdrive_add_parent(fileId, newParentId);
+    
+    free(fileId);
+    free(newParentId);
+    return returnVal;
+}
 //static int fudr_listxattr(const char* path, char* list, size_t size)
 //{
 //    return -ENOSYS;
@@ -836,7 +878,7 @@ static struct fuse_operations fo = {
     .getxattr       = NULL, //fudr_getxattr,    // no
     .init           = fudr_init,
     .ioctl          = NULL, //fudr_ioctl,       // no
-    .link           = NULL, //fudr_link,        // Need
+    .link           = fudr_link,
     .listxattr      = NULL, //fudr_listxattr,   // no
     .lock           = NULL, //fudr_lock,        // no
     .mkdir          = fudr_mkdir,

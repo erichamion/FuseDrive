@@ -215,6 +215,7 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     case GDRIVE_REQUEST_DELETE:
         curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
         curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "DELETE");
+        break;
         
     default:
         // Unsupported request type.  
@@ -293,13 +294,13 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
         return NULL;
     }
     
-    int result = gdrive_dlbuf_download_with_retry(pBuf, curlHandle, 
-                                                  pTransfer->retryOnAuthError, 
-                                                  0, GDRIVE_RETRY_LIMIT
-    );
+    gdrive_dlbuf_download_with_retry(pBuf, curlHandle, 
+                                     pTransfer->retryOnAuthError, 
+                                     0, GDRIVE_RETRY_LIMIT
+            );
     curl_easy_cleanup(curlHandle);
     
-    if (result != 0)
+    if (!gdrive_dlbuf_get_success(pBuf))
     {
         // Download failure
         gdrive_dlbuf_free(pBuf);

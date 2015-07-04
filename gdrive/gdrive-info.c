@@ -588,6 +588,71 @@ int gdrive_delete(const char* fileId, const char* parentId)
     return returnVal;
 }
 
+int gdrive_add_parent(const char* fileId, const char* parentId)
+{
+    assert(fileId != NULL && fileId[0] != '\0' && 
+            parentId != NULL && parentId[0] != '\0'
+            );
+    
+    // URL will look like 
+    // "<standard Drive Files url>/<fileId>/parents"
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 1 +
+        strlen("/parents") + 1);
+    if (url == NULL)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    strcpy(url, GDRIVE_URL_FILES);
+    strcat(url, "/");
+    strcat(url, fileId);
+    strcat(url, "/parents");
+    
+    // Create the Parent resource for the request body
+    Gdrive_Json_Object* pObj = gdrive_json_new();
+    if (!pObj)
+    {
+        // Memory error
+        free(url);
+        return -ENOMEM;
+    }
+    gdrive_json_add_string(pObj, "id", parentId);
+    char* body = gdrive_json_to_new_string(pObj, false);
+    gdrive_json_kill(pObj);
+    if (!body)
+    {
+        // Memory error
+        free(url);
+        return -ENOMEM;
+    }
+    
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (pTransfer == NULL)
+    {
+        free(url);
+        free(body);
+        return -ENOMEM;
+    }
+    if (gdrive_xfer_set_url(pTransfer, url) || 
+            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
+            )
+    {
+        // Error, probably memory
+        gdrive_xfer_free(pTransfer);
+        free(url);
+        free(body);
+        return -ENOMEM;
+    }
+    free(url);
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_POST);
+    gdrive_xfer_set_body(pTransfer, body);
+    
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    free(body);
+    
+    return (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? -EIO : 0;
+}
 
 
 /*************************************************************************

@@ -111,6 +111,23 @@ long gdrive_dlbuf_get_httpResp(Gdrive_Download_Buffer* pBuf);
  */
 const char* gdrive_dlbuf_get_data(Gdrive_Download_Buffer* pBuf);
 
+/*
+ * gdrive_dlbuf_get_success():  Returns true if the transfer successfully 
+ *                              received a response from the server, false
+ *                              otherwise. This does not indicate whether the
+ *                              server's response indicates a successful
+ *                              transaction (use gdrive_dlbuf_get_httpResp()
+ *                              for that), just whether we were able to connect
+ *                              and get a response at all.
+ * Parameters:
+ *      pBuf (Gdrive_Download_Buffer*):
+ *              A pointer to the download buffer that performed the transfer.
+ * Return value (bool):
+ *      True if we successfully connected to the server and received a response,
+ *      false if a connection error occurred.
+ */
+bool gdrive_dlbuf_get_success(Gdrive_Download_Buffer* pBuf);
+
 
 /*************************************************************************
  * Other accessible functions

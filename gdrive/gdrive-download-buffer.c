@@ -127,6 +127,11 @@ const char* gdrive_dlbuf_get_data(Gdrive_Download_Buffer* pBuf)
     return pBuf->data;
 }
 
+bool gdrive_dlbuf_get_success(Gdrive_Download_Buffer* pBuf)
+{
+    return (pBuf->resultCode == CURLE_OK);
+}
+
 
 /******************
  * Other accessible functions
