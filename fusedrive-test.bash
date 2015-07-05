@@ -692,10 +692,6 @@ test_rename() {
     fuselog Ok
     fuselog -n "Comparing contents of '$tofile' to original... "
     if [ "$filecontents" != "$(< $tofile)" ]; then
-        fuselog "Original contents:"
-        fuselog "$filecontents"
-        fuselog "New contents:"
-        fuselog "$(< $tofile)"
         TEST_RESULT="Contents don't match original file."
         return 1
     fi
@@ -705,7 +701,7 @@ test_rename() {
 }
 
 test_rename_clobber() {
-    fuselog -n "Creating original file to rename... "
+    fuselog "Creating original file to rename"
     if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
         TEST_RESULT="Could not create original file, can't test renaming."
         return 1
@@ -713,11 +709,11 @@ test_rename_clobber() {
     fuselog Ok
     local oldfilename="$TEST_RESULT"
     
-    fuselog -n "Creating contents for '$oldfilename' (will say Ok regardless of results)... "
+    fuselog "Creating contents for '$oldfilename' (will say Ok regardless of results)"
     run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_clobber "$oldfilename" 42 A
     fuselog Ok
     
-    fuselog -n "Creating file to be clobbered... "
+    fuselog "Creating file to be clobbered"
     if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
         TEST_RESULT="Could not create second file, can't test renaming while clobbering."
         return 1
@@ -725,11 +721,11 @@ test_rename_clobber() {
     fuselog Ok
     local newfilename="$TEST_RESULT"
     
-    fuselog -n "Creating contents for '$newfilename' (will say Ok regardless of results)... "
+    fuselog "Creating contents for '$newfilename' (will say Ok regardless of results)"
     run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_clobber "$newfilename" 27 Y
     fuselog Ok
     
-    fuselog -n "Renaming '$oldfilename' to '$newfilename'... "
+    fuselog "Renaming '$oldfilename' to '$newfilename'"
     if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$oldfilename" "$newfilename"; then
         # TEST_RESULT is already set
         return 0
@@ -1175,7 +1171,7 @@ fuselog Symbolic links not currently supported, and support may not be added.
 fuselog
 fuselog Renaming
 fuselog Renaming basename within root directory:
-fuselog -n "Creating original file to rename... "
+fuselog "Creating original file to rename"
 if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
     fuselog "Could not create file, can't test renaming."
 else
@@ -1187,7 +1183,7 @@ else
     done
     NEWFILENAME="$GENERATED_NAME"
     unset GENERATED_NAME
-    fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'... "
+    fuselog "Renaming '$OLDFILENAME' to '$NEWFILENAME'"
     if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
         fuselog Ok
         fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
@@ -1202,13 +1198,13 @@ else
 fi
 
 fuselog Renaming basename within subdirectory:
-fuselog -n "Creating directory to work with... "
+fuselog "Creating directory to work with"
 if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_mkdir; then
     fuselog "Could not create directory, can't test renaming."
 else
     fuselog Ok
     DIRNAME="$TEST_RESULT"
-    fuselog -n "Creating file to rename... "
+    fuselog "Creating file to rename"
     if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file "$DIRNAME"; then
         fuselog "Could not create file, can't test renaming."
     else
@@ -1220,7 +1216,7 @@ else
         done
         NEWFILENAME="${DIRNAME}/$GENERATED_NAME"
         unset GENERATED_NAME
-        fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'... "
+        fuselog "Renaming '$OLDFILENAME' to '$NEWFILENAME'"
         if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
             fuselog Ok
             fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
@@ -1240,20 +1236,20 @@ else
 fi
 
 fuselog Renaming to same basename in different directory:
-fuselog -n "Creating file to rename... "
+fuselog "Creating file to rename"
 if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
     fuselog "Could not create file, can't test renaming."
 else
     fuselog Ok
     OLDFILENAME="$TEST_RESULT"
-    fuselog -n "Creating directory to which to move '$OLDFILENAME'... "
+    fuselog "Creating directory to which to move '$OLDFILENAME'"
     if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_mkdir; then
         fuselog "Could not create directory, can't test renaming."
     else
         fuselog Ok
         DIRNAME="$TEST_RESULT"
         NEWFILENAME="${DIRNAME}/$OLDFILENAME"
-        fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'"
+        fuselog "Renaming '$OLDFILENAME' to '$NEWFILENAME'"
         if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
             fuselog Ok
             fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
@@ -1272,13 +1268,13 @@ else
 fi
 
 fuselog Renaming to different basename in different directory:
-fuselog -n "Creating file to rename... "
+fuselog "Creating file to rename"
 if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
     fuselog "Could not create file, can't test renaming."
 else
     fuselog Ok
     OLDFILENAME="$TEST_RESULT"
-    fuselog "Creating directory into which to move '$OLDFILENAME'... "
+    fuselog "Creating directory into which to move '$OLDFILENAME'"
     if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_mkdir; then
         fuselog "Could not create directory, can't test renaming."
     else
@@ -1290,7 +1286,7 @@ else
         done
         NEWFILENAME="${DIRNAME}/$GENERATED_NAME"
         unset GENERATED_NAME
-        fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'... "
+        fuselog "Renaming '$OLDFILENAME' to '$NEWFILENAME'"
         if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
             fuselog Ok
             fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
