@@ -658,6 +658,91 @@ test_hard_link() {
     return 0
 }
 
+test_rename() {
+    # $1 is the original filepath
+    # $2 is the new filepath
+    local fromfile="$1"
+    local tofile="$2"
+    local filecontents
+    
+    fuselog -n "Verifying '$fromfile' exists... "
+    if ! [ -e "$fromfile" ]; then
+        TEST_RESULT="Original file doesn't exist."
+        return 1
+    fi
+    fuselog Ok
+    fuselog -n "Capturing $fromfile' contents... "
+    if ! filecontents=$(< "$fromfile"); then
+        TEST_RESULT="Couldn't capture original file's contents."
+        return 1
+    fi
+    fuselog Ok
+    
+    fuselog -n "mv -f \"$fromfile\" \"$tofile\"... "
+    if ! mv -f "$fromfile" "$tofile"; then
+        TEST_RESULT="mv command indicated failure."
+        return 1
+    fi
+    fuselog Ok
+    fuselog -n "Verifying '$tofile' exists... "
+    if ! [ -e "$tofile" ]; then
+        TEST_RESULT="New file doesn't exist."
+        return 1
+    fi
+    fuselog Ok
+    fuselog -n "Comparing contents of '$tofile' to original... "
+    if [ "$filecontents" != "$(< $tofile)" ]; then
+        fuselog "Original contents:"
+        fuselog "$filecontents"
+        fuselog "New contents:"
+        fuselog "$(< $tofile)"
+        TEST_RESULT="Contents don't match original file."
+        return 1
+    fi
+    
+    TEST_RESULT=""
+    return 0
+}
+
+test_rename_clobber() {
+    fuselog -n "Creating original file to rename... "
+    if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
+        TEST_RESULT="Could not create original file, can't test renaming."
+        return 1
+    fi
+    fuselog Ok
+    local oldfilename="$TEST_RESULT"
+    
+    fuselog -n "Creating contents for '$oldfilename' (will say Ok regardless of results)... "
+    run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_clobber "$oldfilename" 42 A
+    fuselog Ok
+    
+    fuselog -n "Creating file to be clobbered... "
+    if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
+        TEST_RESULT="Could not create second file, can't test renaming while clobbering."
+        return 1
+    fi
+    fuselog Ok
+    local newfilename="$TEST_RESULT"
+    
+    fuselog -n "Creating contents for '$newfilename' (will say Ok regardless of results)... "
+    run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_clobber "$newfilename" 27 Y
+    fuselog Ok
+    
+    fuselog -n "Renaming '$oldfilename' to '$newfilename'... "
+    if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$oldfilename" "$newfilename"; then
+        # TEST_RESULT is already set
+        return 0
+    fi
+        
+    fuselog Ok
+    fuselog -n "Cleaning up by deleting '$newfilename' (will say Ok regardless of success)... "
+    run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rm "$newfilename"
+ 
+    TEST_RESULT=""
+    return 0
+}
+
 
 
 
@@ -1082,6 +1167,157 @@ if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_hard_link; then
 else
     fuselog Failed, continuing on.
 fi
+
+fuselog Symbolic links not currently supported, and support may not be added.
+
+
+
+fuselog
+fuselog Renaming
+fuselog Renaming basename within root directory:
+fuselog -n "Creating original file to rename... "
+if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
+    fuselog "Could not create file, can't test renaming."
+else
+    fuselog Ok
+    OLDFILENAME="$TEST_RESULT"
+    make_name
+    while [ -e "$GENERATED_NAME" ]; do
+        make_name
+    done
+    NEWFILENAME="$GENERATED_NAME"
+    unset GENERATED_NAME
+    fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'... "
+    if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
+        fuselog Ok
+        fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
+        run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rm "$NEWFILENAME"
+        fuselog Ok
+    else
+        fuselog "Failed, continuing on."
+    fi
+    
+    unset NEWFILENAME
+    unset OLDFILENAME
+fi
+
+fuselog Renaming basename within subdirectory:
+fuselog -n "Creating directory to work with... "
+if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_mkdir; then
+    fuselog "Could not create directory, can't test renaming."
+else
+    fuselog Ok
+    DIRNAME="$TEST_RESULT"
+    fuselog -n "Creating file to rename... "
+    if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file "$DIRNAME"; then
+        fuselog "Could not create file, can't test renaming."
+    else
+        fuselog Ok
+        OLDFILENAME="$TEST_RESULT"
+        make_name txt
+        while [ -e "${DIRNAME}/$GENERATED_NAME" ]; do
+            make_name txt
+        done
+        NEWFILENAME="${DIRNAME}/$GENERATED_NAME"
+        unset GENERATED_NAME
+        fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'... "
+        if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
+            fuselog Ok
+            fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
+            run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rm "$NEWFILENAME"
+            fuselog Ok
+        else
+            fuselog "Failed, continuing on."
+        fi
+
+        unset NEWFILENAME
+        unset OLDFILENAME
+    fi
+    fuselog -n "Cleaning up by deleting '$DIRNAME' (will say Ok regardless of success)... "
+        run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rmdir "$DIRNAME"
+        fuselog Ok
+    unset DIRNAME
+fi
+
+fuselog Renaming to same basename in different directory:
+fuselog -n "Creating file to rename... "
+if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
+    fuselog "Could not create file, can't test renaming."
+else
+    fuselog Ok
+    OLDFILENAME="$TEST_RESULT"
+    fuselog -n "Creating directory to which to move '$OLDFILENAME'... "
+    if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_mkdir; then
+        fuselog "Could not create directory, can't test renaming."
+    else
+        fuselog Ok
+        DIRNAME="$TEST_RESULT"
+        NEWFILENAME="${DIRNAME}/$OLDFILENAME"
+        fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'"
+        if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
+            fuselog Ok
+            fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
+            run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rm "$NEWFILENAME"
+            fuselog Ok
+        else
+            fuselog "Failed, continuing on."
+        fi
+        unset NEWFILENAME
+        fuselog -n "Cleaning up by deleting '$DIRNAME' (will say Ok regardless of success)... "
+        run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rmdir "$DIRNAME"
+        fuselog Ok
+        unset DIRNAME
+    fi
+    unset OLDFILENAME
+fi
+
+fuselog Renaming to different basename in different directory:
+fuselog -n "Creating file to rename... "
+if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_create_file; then
+    fuselog "Could not create file, can't test renaming."
+else
+    fuselog Ok
+    OLDFILENAME="$TEST_RESULT"
+    fuselog "Creating directory into which to move '$OLDFILENAME'... "
+    if ! run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_mkdir; then
+        fuselog "Could not create directory, can't test renaming."
+    else
+        fuselog Ok
+        DIRNAME="$TEST_RESULT"
+        make_name txt
+        while [ -e "${DIRNAME}/$GENERATED_NAME" ]; do
+            make_name txt
+        done
+        NEWFILENAME="${DIRNAME}/$GENERATED_NAME"
+        unset GENERATED_NAME
+        fuselog -n "Renaming '$OLDFILENAME' to '$NEWFILENAME'... "
+        if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename "$OLDFILENAME" "$NEWFILENAME"; then
+            fuselog Ok
+            fuselog -n "Cleaning up by deleting '$NEWFILENAME' (will say Ok regardless of success)... "
+            run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rm "$NEWFILENAME"
+            fuselog Ok
+        else
+            fuselog "Failed, continuing on."
+        fi
+        unset NEWFILENAME
+        fuselog -n "Cleaning up by deleting '$DIRNAME' (will say Ok regardless of success)... "
+        run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rmdir "$DIRNAME"
+        fuselog Ok
+        unset DIRNAME
+    fi
+    unset OLDFILENAME
+fi
+
+fuselog Renaming while clobbering an existing file:
+if run_test "$DEFAULT_ATTEMPTS" "$DEFAULT_WAIT" 0 test_rename_clobber; then
+    fuselog Ok
+else
+    fuselog Failed, continuing on.
+fi
+
+
+
+
 
 
 
