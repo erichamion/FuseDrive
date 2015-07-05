@@ -798,6 +798,7 @@ static int fudr_rename(const char* from, const char* to)
     }
     
     
+    free(toFileId);
     free(toParentId);
     free(fromParentId);
     gdrive_path_free(pFromPath);

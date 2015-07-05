@@ -737,7 +737,7 @@ int gdrive_change_basename(const char* fileId, const char* newName)
     
     int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
         -EIO : 0;
-    free(pBuf);
+    gdrive_dlbuf_free(pBuf);
     return returnVal;
     
 }
