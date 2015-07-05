@@ -216,6 +216,7 @@ test_df() {
         return 1
     fi
     TEST_RESULT=""
+    return 0
 }
 
 test_ls_basic() {
@@ -367,6 +368,8 @@ test_compare_atime() {
         TEST_RESULT="Failed. Expected '$cmp_atime', saw '$real_atime'."
         return 1
     fi
+    TEST_RESULT=""
+    return 0
 }
 
 test_set_mtime() {
@@ -409,6 +412,8 @@ test_compare_mtime() {
         TEST_RESULT="Failed. Expected '$cmp_mtime', saw '$real_mtime'."
         return 1
     fi
+    TEST_RESULT=""
+    return 0
 }
 
 test_truncate() {
@@ -557,6 +562,11 @@ test_rmdir_fail() {
 test_rm() {
     # $1 is the filename to delete
     local myfile="$1"
+    if ! [ -e "$myfile" ]; then
+        fuselog -n "File doesn't exist, not deleting. "
+        TEST_RESULT=""
+        return 0
+    fi
     if ! rm "$myfile" 2> /dev/null; then
         TEST_RESULT="rm command indicated error."
         return 1
@@ -565,11 +575,18 @@ test_rm() {
         TEST_RESULT="Failed. rm command indicated success, but file still exists."
         return 1
     fi
+    TEST_RESULT=""
+    return 0
 }
 
 test_rmdir() {
     # $1 is the name of the directory to remove
     local mydir="$1"
+    if ! [ -e "$mydir" ]; then
+        fuselog -n "Directory doesn't exist, not deleting. "
+        TEST_RESULT=""
+        return 0
+    fi
     if ! rmdir "$mydir" 2> /dev/null; then
         TEST_RESULT="rmdir command indicated error."
         return 1
