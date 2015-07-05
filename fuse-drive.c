@@ -682,7 +682,7 @@ static int fudr_rename(const char* from, const char* to)
         
         // If from and to are hard links to the same file, do nothing and 
         // return success.
-        if (strcmp(fromFileId, toFileId))
+        if (!strcmp(fromFileId, toFileId))
         {
             free(toFileId);
             free(fromFileId);
