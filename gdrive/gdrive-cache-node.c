@@ -916,7 +916,7 @@ Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
     return gdrive_cnode_get_fileinfo(pNode);
 }
 
-int gdrive_file_get_perms(const Gdrive_File* fh)
+unsigned int gdrive_file_get_perms(const Gdrive_File* fh)
 {
     const Gdrive_Cache_Node* pNode = fh;
     return gdrive_finfo_real_perms(&(pNode->fileinfo));
@@ -1208,10 +1208,10 @@ static bool
 gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags)
 {
     // What permissions do we have?
-    int perms = gdrive_finfo_real_perms(&(pNode->fileinfo));
+    unsigned int perms = gdrive_finfo_real_perms(&(pNode->fileinfo));
     
     // What permissions do we need?
-    int neededPerms = 0;
+    unsigned int neededPerms = 0;
     // At least on my system, O_RDONLY is 0, which prevents testing for the
     // individual bit flag. On systems like mine, just assume we always need
     // read access. If there are other systems that have a different O_RDONLY

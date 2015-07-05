@@ -129,7 +129,7 @@ void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo,
  *      pFileinfo (const Gdrive_Fileinfo*):
  *              Pointer to an existing Gdrive_Fileinfo struct that has at least 
  *              the basePermission and type members filled in.
- * Return value (int):
+ * Return value (unsigned int):
  *      An integer value from 0 to 7 representing Unix filesystem permissions
  *      for the file. A permission needs to be present in both the Google Drive
  *      user's roles for the particular file and the overall access mode for the
@@ -137,7 +137,7 @@ void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo,
  *      read and write access), but the system only has GDRIVE_ACCESS_READ, the
  *      returned value will be 4 (read access only).
  */
-int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo);
+unsigned int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo);
 
 
 

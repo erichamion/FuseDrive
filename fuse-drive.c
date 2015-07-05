@@ -19,6 +19,9 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <grp.h>
+#include <pwd.h>
 #include <assert.h>
 
 
@@ -36,7 +39,14 @@ static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
 
 static int fudr_rm_file_or_dir_by_id(const char* fileId, const char* parentId);
 
-//static int fudr_access(const char* path, int mask);
+static unsigned int fudr_get_max_perms(bool isDir);
+
+static bool fudr_group_match(gid_t gidToMatch, gid_t gid, uid_t uid);
+
+
+
+
+static int fudr_access(const char* path, int mask);
 
 //static int fudr_bmap(const char* path, size_t blocksize, uint64_t* blockno);
 
@@ -173,15 +183,15 @@ static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
         stbuf->st_nlink = pFileinfo->nParents;
     }
     
-    int perms = gdrive_finfo_real_perms(pFileinfo);
-    // For now, Owner/Group/User permissions are identical.  Eventually should
-    // add a command-line option for a umask or similar.
+    unsigned int perms = gdrive_finfo_real_perms(pFileinfo);
+    unsigned int maxPerms = 
+        fudr_get_max_perms(pFileinfo->type == GDRIVE_FILETYPE_FOLDER);
     // Owner permissions.
-    stbuf->st_mode = stbuf->st_mode | (perms << 6);
+    stbuf->st_mode = stbuf->st_mode | ((perms << 6) & maxPerms);
     // Group permissions
-    stbuf->st_mode = stbuf->st_mode | (perms << 3);
+    stbuf->st_mode = stbuf->st_mode | ((perms << 3) & maxPerms);
     // User permissions
-    stbuf->st_mode = stbuf->st_mode | (perms);
+    stbuf->st_mode = stbuf->st_mode | ((perms) & maxPerms);
     
     stbuf->st_uid = geteuid();
     stbuf->st_gid = getegid();
@@ -224,16 +234,95 @@ static int fudr_rm_file_or_dir_by_id(const char* fileId, const char* parentId)
     return gdrive_delete(fileId, parentId);
 }
 
+static unsigned int fudr_get_max_perms(bool isDir)
+{
+    struct fuse_context* context = fuse_get_context();
+    unsigned long perms = (unsigned long) context->private_data;
+    if (isDir)
+        perms >>= 9;
+    else
+        perms &= 0777;
+    
+    return perms & ~context->umask;
+}
+
+static bool fudr_group_match(gid_t gidToMatch, gid_t gid, uid_t uid)
+{
+    // Simplest case - primary group matches
+    if (gid == gidToMatch)
+        return true;
+    
+    // Get a list of all the users in the group, and see whether the desired
+    // user is in the list. It seems like there MUST be a cleaner way to do
+    // this!
+    const struct passwd* userInfo = getpwuid(uid);
+    const struct group* grpInfo = getgrgid(gidToMatch);
+    for (char** pName = grpInfo->gr_mem; *pName; pName++)
+    {
+        if (!strcmp(*pName, userInfo->pw_name))
+            return true;
+    }
+    
+    // No match found
+    return false;
+}
 
 
 
 
-//static int fudr_access(const char* path, int mask)
-//{
-//    //Either just have a default set of permissions, or have a default plus 
-//    //store modified permissions as private file metadata.
-//    return -ENOSYS;
-//}
+static int fudr_access(const char* path, int mask)
+{
+    // If fudr_chmod() or fudr_chown() is ever added, this function will likely 
+    // need changes.
+    
+    char* fileId = gdrive_filepath_to_id(path);
+    if (!fileId)
+    {
+        // File doesn't exist
+        return -ENOENT;
+    }
+    const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
+    free(fileId);
+    if (!pFileinfo)
+    {
+        // Unknown error
+        return -EIO;
+    }
+    
+    if (mask == F_OK)
+    {
+        // Only checking whether the file exists
+        return 0;
+    }
+    
+    unsigned int filePerms = gdrive_finfo_real_perms(pFileinfo);
+    unsigned int maxPerms = 
+        fudr_get_max_perms(pFileinfo->type == GDRIVE_FILETYPE_FOLDER);
+    
+    const struct fuse_context* context = fuse_get_context();
+    
+    if (context->uid == geteuid())
+    {
+        // User permission
+        maxPerms >>= 6;
+    }
+    else if (fudr_group_match(getegid(), context->gid, context->uid))
+    {
+        // Group permission
+        maxPerms >>= 3;
+    }
+    // else other permission, don't change maxPerms
+    
+    unsigned int finalPerms = filePerms & maxPerms;
+    
+    if (((mask & R_OK) && !(finalPerms & S_IROTH)) ||
+            ((mask & W_OK) && !(finalPerms & S_IWOTH)) ||
+            ((mask & X_OK) && !(finalPerms & S_IXOTH))
+            )
+        return -EACCES;
+    
+    return 0;
+}
 //
 //
 //bmap only makes sense for block devices.
@@ -1009,46 +1098,46 @@ fudr_write(const char* path, const char *buf, size_t size, off_t offset,
 
 
 static struct fuse_operations fo = {
-    .access         = NULL, //fudr_access,      // Need
-    .bmap           = NULL, //fudr_bmap,        // no
-    .chmod          = NULL, //fudr_chmod,       // Maybe
-    .chown          = NULL, //fudr_chown,       // Maybe
+    .access         = fudr_access,
+    .bmap           = NULL, //fudr_bmap,        // Not needed
+    .chmod          = NULL, //fudr_chmod,       // Might consider later
+    .chown          = NULL, //fudr_chown,       // Might consider later
     .create         = fudr_create,
     .destroy        = fudr_destroy,
-    .fallocate      = NULL, //fudr_fallocate,   // no
+    .fallocate      = NULL, //fudr_fallocate,   // Not needed
     .fgetattr       = fudr_fgetattr,
-    .flock          = NULL, //fudr_flock,       // no
-    .flush          = NULL, //fudr_flush,       // no
+    .flock          = NULL, //fudr_flock,       // Not needed
+    .flush          = NULL, //fudr_flush,       // Not needed
     .fsync          = fudr_fsync,
-    .fsyncdir       = NULL, //fudr_fsyncdir,    // no
+    .fsyncdir       = NULL, //fudr_fsyncdir,    // Not needed
     .ftruncate      = fudr_ftruncate,
     .getattr        = fudr_getattr,
-    .getxattr       = NULL, //fudr_getxattr,    // no
+    .getxattr       = NULL, //fudr_getxattr,    // Not needed
     .init           = fudr_init,
-    .ioctl          = NULL, //fudr_ioctl,       // no
+    .ioctl          = NULL, //fudr_ioctl,       // Not needed
     .link           = fudr_link,
-    .listxattr      = NULL, //fudr_listxattr,   // no
-    .lock           = NULL, //fudr_lock,        // no
+    .listxattr      = NULL, //fudr_listxattr,   // Not needed
+    .lock           = NULL, //fudr_lock,        // Not needed
     .mkdir          = fudr_mkdir,
-    .mknod          = NULL, //fudr_mknod,       // no
+    .mknod          = NULL, //fudr_mknod,       // Not needed
     .open           = fudr_open,
-    .opendir        = NULL, //fudr_opendir,     // no
-    .poll           = NULL, //fudr_poll,        // no
+    .opendir        = NULL, //fudr_opendir,     // Not needed
+    .poll           = NULL, //fudr_poll,        // Not needed
     .read           = fudr_read,
     .read_buf       = NULL, //fudr_read_buf,    // ???
     .readdir        = fudr_readdir,
-    .readlink       = NULL, //fudr_readlink,    // Maybe
+    .readlink       = NULL, //fudr_readlink,    // Might consider later
     .release        = fudr_release,
-    .releasedir     = NULL, //fudr_releasedir,  // no
-    .removexattr    = NULL, //fudr_removexattr, // no
+    .releasedir     = NULL, //fudr_releasedir,  // Not needed
+    .removexattr    = NULL, //fudr_removexattr, // Not needed
     .rename         = fudr_rename,
     .rmdir          = fudr_rmdir,
-    .setxattr       = NULL, //fudr_setxattr,    // no
+    .setxattr       = NULL, //fudr_setxattr,    // Not needed
     .statfs         = fudr_statfs,
-    .symlink        = NULL, //fudr_symlink,     // Maybe
+    .symlink        = NULL, //fudr_symlink,     // Might consider later
     .truncate       = fudr_truncate,
     .unlink         = fudr_unlink,
-    .utime          = NULL, //fudr_utime,       // no
+    .utime          = NULL, //fudr_utime,       // Not needed
     .utimens        = fudr_utimens,
     .write          = fudr_write,
     .write_buf      = NULL, //fudr_write_buf,   // ????
@@ -1069,7 +1158,7 @@ int fudr_main(int argc, char** argv)
         printf("Could not set up a Google Drive connection.");
         return 1;
     }
-    return fuse_main(argc, argv, &fo, NULL);
+    return fuse_main(argc, argv, &fo, (void*) 0755644);
 }
 
 #endif	/*__GDRIVE_TEST__*/

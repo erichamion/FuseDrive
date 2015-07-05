@@ -33,8 +33,9 @@
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -ds</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -d -s</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f -s</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f -s -o allow_other</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" ~/mytemp -f -s</runcommand>
+        <runcommand>"${OUTPUT_PATH}" ~/mytemp -f -s -o allow_other</runcommand>
         <rundir></rundir>
         <buildfirst>true</buildfirst>
         <terminal-type>0</terminal-type>

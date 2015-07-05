@@ -119,7 +119,7 @@ Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh);
  * Parameters:
  *      fh (Gdrive_File*):
  *              A file handle returned by a prior call to gdrive_file_open().
- * Return value (int):
+ * Return value (unsigned int):
  *      An integer value from 0 to 7 representing Unix filesystem permissions
  *      for the file. A permission needs to be present in both the Google Drive
  *      user's roles for the particular file and the overall access mode for the
@@ -127,7 +127,7 @@ Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh);
  *      read and write access), but the system only has GDRIVE_ACCESS_READ, the
  *      returned value will be 4 (read access only).
  */
-int gdrive_file_get_perms(const Gdrive_File* fh);
+unsigned int gdrive_file_get_perms(const Gdrive_File* fh);
 
 
 #ifdef	__cplusplus

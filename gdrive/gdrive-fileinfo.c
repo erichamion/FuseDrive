@@ -344,7 +344,7 @@ void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo,
     pFileinfo->dirtyMetainfo = false;
 }
 
-int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo)
+unsigned int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo)
 {
     // Get the overall system permissions, which are different for a folder
     // or for a regular file.
