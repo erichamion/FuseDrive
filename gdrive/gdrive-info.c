@@ -673,6 +673,75 @@ int gdrive_add_parent(const char* fileId, const char* parentId)
     return returnVal;
 }
 
+int gdrive_change_basename(const char* fileId, const char* newName)
+{
+    assert(fileId && newName && fileId[0] != '\0' && newName[0] != '\0');
+    
+    // Create the request body with the new name
+    Gdrive_Json_Object* pObj = gdrive_json_new();
+    if (!pObj)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    gdrive_json_add_string(pObj, "title", newName);
+    char* body = gdrive_json_to_new_string(pObj, false);
+    gdrive_json_kill(pObj);
+    if (!body)
+    {
+        // Error, probably memory
+        return -ENOMEM;
+    }
+    
+    // Create the url in the form of:
+    // "<GDRIVE_URL_FILES>/<fileId>"
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 1);
+    if (!url)
+    {
+        // Memory error
+        free(body);
+        return -ENOMEM;
+    }
+    strcpy(url, GDRIVE_URL_FILES);
+    strcat(url, "/");
+    strcat(url, fileId);
+    
+    // Set up the network transfer
+    Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+    if (!pTransfer)
+    {
+        // Memory error
+        free(url);
+        free(body);
+        return -ENOMEM;
+    }
+    if (gdrive_xfer_set_url(pTransfer, url) || 
+            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false") ||
+            gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
+            )
+    {
+        // Error, probably memory
+        gdrive_xfer_free(pTransfer);
+        free(url);
+        free(body);
+        return -ENOMEM;
+    }
+    free(url);
+    gdrive_xfer_set_body(pTransfer, body);
+    gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_PATCH);
+    
+    // Send the network request
+    Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+    gdrive_xfer_free(pTransfer);
+    free(body);
+    
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+        -EIO : 0;
+    free(pBuf);
+    return returnVal;
+    
+}
+
 
 /*************************************************************************
  * Implementations of semi-public functions - for public use within any

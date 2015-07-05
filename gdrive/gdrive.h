@@ -237,6 +237,8 @@ int gdrive_delete(const char* fileId, const char* parentId);
 
 int gdrive_add_parent(const char* fileId, const char* parentId);
 
+int gdrive_change_basename(const char* fileId, const char* newName);
+
 
 
 
