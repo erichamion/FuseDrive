@@ -323,14 +323,12 @@ static int fudr_access(const char* path, int mask)
     
     return 0;
 }
-//
-//
-//bmap only makes sense for block devices.
+
+////bmap only makes sense for block devices.
 //static int fudr_bmap(const char* path, size_t blocksize, uint64_t* blockno)
 //{
 //    
 //}
-//
 
 //static int fudr_chmod(const char* path, mode_t mode)
 //{
@@ -339,13 +337,12 @@ static int fudr_access(const char* path, int mask)
 //    //return -EPERM unless IsAuthenticatedUser is true for one of the owners.
 //    return -ENOSYS;
 //}
-//
+
 ////chown probably does not make sense for our needs.
 //static int fudr_chown(const char* path, uid_t uid, gid_t gid)
 //{
 //    return -ENOSYS;
 //}
-//
 
 static int 
 fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
@@ -360,6 +357,21 @@ fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     if (dummyFileId != NULL)
     {
         return -EEXIST;
+    }
+    
+    // Need write access to the parent directory
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    if (!pGpath)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    int accessResult = fudr_access(gdrive_path_get_dirname(pGpath), W_OK);
+    gdrive_path_free(pGpath);
+    if (accessResult)
+    {
+        // Access check failed
+        return accessResult;
     }
     
     // Create the file
@@ -381,7 +393,6 @@ fudr_create(const char* path, mode_t mode, struct fuse_file_info* fi)
     return -error;
 }
 
-
 static void fudr_destroy(void* private_data)
 {
     // Silence compiler warning about unused parameter
@@ -390,13 +401,13 @@ static void fudr_destroy(void* private_data)
     gdrive_cleanup();
 }
 
-
 //static int 
 //fudr_fallocate(const char* path, int mode, off_t offset, off_t len, 
 //               struct fuse_file_info* fi)
 //{
 //    return -ENOSYS;
 //}
+
 static int 
 fudr_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi)
 {
@@ -412,19 +423,17 @@ fudr_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi)
     
     return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
 }
-//
-//According to fuse.h, the kernel handles local file locking if flock is
-//not implemented.  Files probably can't be locked on Google Drive, so 
-//don't implement this.
+
 //static int fudr_flock(const char* path, struct fuse_file_info* fi, int op)
 //{
 //    
 //}
-//
+
 //static int fudr_flush(const char* path, struct fuse_file_info* fi)
 //{
 //    return -ENOSYS;
 //}
+
 static int 
 fudr_fsync(const char* path, int isdatasync, struct fuse_file_info* fi)
 {
@@ -442,11 +451,13 @@ fudr_fsync(const char* path, int isdatasync, struct fuse_file_info* fi)
     
     return gdrive_file_sync((Gdrive_File*) fi->fh);
 }
+
 //static int 
 //fudr_fsyncdir(const char* path, int isdatasync, struct fuse_file_info* fi)
 //{
 //    return -ENOSYS;
 //}
+
 static int 
 fudr_ftruncate(const char* path, off_t size, struct fuse_file_info* fi)
 {
@@ -459,6 +470,11 @@ fudr_ftruncate(const char* path, off_t size, struct fuse_file_info* fi)
         // Invalid file handle
         return -EBADF;
     }
+    
+    // Need write access to the file
+    int accessResult = fudr_access(path, W_OK);
+    if (accessResult)
+        return accessResult;
     
     return gdrive_file_truncate(fh, size);
 }
@@ -474,14 +490,11 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
         return -ENOENT;
     }
     
-    //Gdrive_Fileinfo* pFileinfo;
-    //if (gdrive_file_info_from_id(pGdriveInfo, fileId, &pFileinfo) != 0)
     const Gdrive_Fileinfo* pFileinfo = gdrive_finfo_get_by_id(fileId);
     free(fileId);
     if (pFileinfo == NULL)
     {
         // An error occurred.
-        //free(fileId);
         return -ENOENT;
     }    
     
@@ -493,6 +506,7 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
 //{
 //    return -ENOSYS;
 //}
+
 static void* fudr_init(struct fuse_conn_info *conn)
 {
     // Add any desired capabilities.
@@ -505,12 +519,14 @@ static void* fudr_init(struct fuse_conn_info *conn)
     
     return fuse_get_context()->private_data;
 }
+
 //static int 
 //fudr_ioctl(const char* path, int cmd, void* arg, struct fuse_file_info* fi, 
 //           unsigned int flags, void* data)
 //{
 //    return -ENOSYS;
 //}
+
 static int fudr_link(const char* from, const char* to)
 {
     Gdrive_Path* pOldPath = gdrive_path_create(from);
@@ -533,6 +549,11 @@ static int fudr_link(const char* from, const char* to)
         // Basenames differ, not supported
         return -ENOENT;
     }
+    
+    // Need write access in the target directory
+    int accessResult = fudr_access(gdrive_path_get_dirname(pNewPath), W_OK);
+    if (accessResult)
+        return accessResult;
     
     char* fileId = gdrive_filepath_to_id(from);
     if (!fileId)
@@ -557,6 +578,7 @@ static int fudr_link(const char* from, const char* to)
     free(newParentId);
     return returnVal;
 }
+
 //static int fudr_listxattr(const char* path, char* list, size_t size)
 //{
 //    return -ENOSYS;
@@ -567,6 +589,7 @@ static int fudr_link(const char* from, const char* to)
 //{
 //    return -ENOSYS;
 //}
+
 static int fudr_mkdir(const char* path, mode_t mode)
 {
     // Silence compiler warning for unused variable. If and when chmod is 
@@ -581,6 +604,18 @@ static int fudr_mkdir(const char* path, mode_t mode)
         return -EEXIST;
     }
     
+    // Need write access to the parent directory
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    if (!pGpath)
+    {
+        // Memory error
+        return -ENOMEM;
+    }
+    int accessResult = fudr_access(gdrive_path_get_dirname(pGpath), W_OK);
+    gdrive_path_free(pGpath);
+    if (accessResult)
+        return accessResult;
+    
     // Create the folder
     int error = 0;
     dummyFileId = gdrive_file_new(path, true, &error);
@@ -591,12 +626,12 @@ static int fudr_mkdir(const char* path, mode_t mode)
     
     return -error;
 }
+
 //static int fudr_mknod(const char* path, mode_t mode, dev_t rdev)
 //{
 //    return -ENOSYS;
 //}
-//
-//
+
 static int fudr_open(const char *path, struct fuse_file_info *fi)
 {
     // Get the file ID
@@ -606,6 +641,22 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
         // File not found
         return -ENOENT;
     }
+    
+    // Confirm permissions
+    unsigned int modeNeeded = 0;
+    if (fi->flags & (O_RDONLY | O_RDWR))
+    {
+        modeNeeded |= R_OK;
+    }
+    if (fi->flags & (O_WRONLY | O_RDWR))
+    {
+        modeNeeded |= W_OK;
+    }
+    if (!modeNeeded)
+        modeNeeded = F_OK;
+    int accessResult = fudr_access(path, modeNeeded);
+    if (accessResult)
+        return accessResult;
     
     // Open the file
     int error = 0;
@@ -622,7 +673,7 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
     fi->fh = (uint64_t) pFile;
     return 0;
 }
-//
+
 //static int fudr_opendir(const char* path, struct fuse_file_info* fi)
 //{
 //    return -ENOSYS;
@@ -640,6 +691,11 @@ fudr_read(const char *path, char *buf, size_t size, off_t offset,
 {
     // Silence compiler warning about unused parameter
     (void) path;
+    
+    // Check for read access
+    int accessResult = fudr_access(path, R_OK);
+    if (accessResult)
+        return accessResult;
     
     Gdrive_File* pFile = (Gdrive_File*) fi->fh;
     
@@ -665,6 +721,14 @@ fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     if (folderId == NULL)
     {
         return -ENOENT;
+    }
+    
+    // Check for read access
+    int accessResult = fudr_access(path, R_OK);
+    if (accessResult)
+    {
+        free(folderId);
+        return accessResult;
     }
     
     Gdrive_Fileinfo_Array* pFileArray = 
@@ -707,7 +771,7 @@ fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 //{
 //    return -ENOSYS;
 //}
-//
+
 static int fudr_release(const char* path, struct fuse_file_info *fi)
 {
     // Suppress unused parameter warning
@@ -722,14 +786,17 @@ static int fudr_release(const char* path, struct fuse_file_info *fi)
     gdrive_file_close((Gdrive_File*)fi->fh, fi->flags);
     return 0;
 }
+
 //static int fudr_releasedir(const char* path, struct fuse_file_info *fi)
 //{
 //    return -ENOSYS;
 //}
+
 //static int fudr_removexattr(const char* path, const char* value)
 //{
 //    return -ENOSYS;
 //}
+
 static int fudr_rename(const char* from, const char* to)
 {
     // Neither from nor to should be the root directory
@@ -798,6 +865,15 @@ static int fudr_rename(const char* from, const char* to)
                 return -ENOTEMPTY;
             }
         }
+        
+        // Need write access for the destination
+        int accessResult = fudr_access(to, W_OK);
+        if (accessResult)
+        {
+            free(toFileId);
+            free(fromFileId);
+            return -EACCES;
+        }
     }
     else 
     {
@@ -842,6 +918,18 @@ static int fudr_rename(const char* from, const char* to)
         return -ENOENT;
     }
     
+    // Need write access in the destination parent directory
+    int accessResult = fudr_access(gdrive_path_get_dirname(pToPath), W_OK);
+    if (accessResult)
+    {
+        free(toParentId);
+        free(fromParentId);
+        gdrive_path_free(pToPath);
+        gdrive_path_free(pFromPath);
+        free(fromFileId);
+        return accessResult;
+    }
+    
     // If the directories are different, create a new hard link and delete
     // the original. Compare the actual file IDs of the parents, not the paths,
     // because different paths could refer to the same directory.
@@ -851,6 +939,7 @@ static int fudr_rename(const char* from, const char* to)
         if (result != 0)
         {
             // An error occurred
+            free(toParentId);
             free(fromParentId);
             gdrive_path_free(pToPath);
             gdrive_path_free(pFromPath);
@@ -861,6 +950,7 @@ static int fudr_rename(const char* from, const char* to)
         if (result != 0)
         {
             // An error occurred
+            free(toParentId);
             free(fromParentId);
             gdrive_path_free(pToPath);
             gdrive_path_free(pFromPath);
@@ -895,6 +985,7 @@ static int fudr_rename(const char* from, const char* to)
     free(fromFileId);
     return returnVal;
 }
+
 static int fudr_rmdir(const char* path)
 {
     // Can't delete the root directory
@@ -931,6 +1022,14 @@ static int fudr_rmdir(const char* path)
         return -ENOTEMPTY;
     }
     
+    // Need write access
+    int accessResult = fudr_access(path, W_OK);
+    if (accessResult)
+    {
+        free(fileId);
+        return accessResult;
+    }
+    
     // Get the parent ID
     Gdrive_Path* pGpath = gdrive_path_create(path);
     if (pGpath == NULL)
@@ -948,12 +1047,14 @@ static int fudr_rmdir(const char* path)
     free(fileId);
     return returnVal;
 }
+
 //static int 
 //fudr_setxattr(const char* path, const char* name, const char* value, 
 //              size_t size, int flags)
 //{
 //    return -ENOSYS;
 //}
+
 static int fudr_statfs(const char* path, struct statvfs* stbuf)
 {
     // Suppress compiler warning about unused parameter
@@ -971,10 +1072,12 @@ static int fudr_statfs(const char* path, struct statvfs* stbuf)
     
     return 0;
 }
+
 //static int fudr_symlink(const char* to, const char* from)
 //{
 //    return -ENOSYS;
 //}
+
 static int fudr_truncate(const char* path, off_t size)
 {
     char* fileId = gdrive_filepath_to_id(path);
@@ -982,6 +1085,14 @@ static int fudr_truncate(const char* path, off_t size)
     {
         // File not found
         return -ENOENT;
+    }
+    
+    // Need write access
+    int accessResult = fudr_access(path, W_OK);
+    if (accessResult)
+    {
+        free(fileId);
+        return accessResult;
     }
     
     // Open the file
@@ -1002,6 +1113,7 @@ static int fudr_truncate(const char* path, off_t size)
     
     return result;
 }
+
 static int fudr_unlink(const char* path)
 {
     char* fileId = gdrive_filepath_to_id(path);
@@ -1009,6 +1121,14 @@ static int fudr_unlink(const char* path)
     {
         // No such file
         return -ENOENT;
+    }
+    
+    // Need write access
+    int accessResult = fudr_access(path, W_OK);
+    if (accessResult)
+    {
+        free(fileId);
+        return accessResult;
     }
     
     Gdrive_Path* pGpath = gdrive_path_create(path);
@@ -1026,10 +1146,12 @@ static int fudr_unlink(const char* path)
     free(fileId);
     return returnVal;
 }
+
 //static int fudr_utime()
 //{
 //    return -ENOSYS;
 //}
+
 static int fudr_utimens(const char* path, const struct timespec ts[2])
 {
     char* fileId = gdrive_filepath_to_id(path);
@@ -1073,12 +1195,18 @@ static int fudr_utimens(const char* path, const struct timespec ts[2])
     gdrive_file_close(fh, O_RDWR);
     return error;
 }
+
 static int 
 fudr_write(const char* path, const char *buf, size_t size, off_t offset, 
            struct fuse_file_info* fi)
 {
     // Avoid compiler warning for unused variable
     (void) path;
+    
+    // Check for write access
+    int accessResult = fudr_access(path, W_OK);
+    if (accessResult)
+        return accessResult;
     
     Gdrive_File* fh = (Gdrive_File*) fi->fh;
     if (fh == NULL)
@@ -1089,6 +1217,7 @@ fudr_write(const char* path, const char *buf, size_t size, off_t offset,
     
     return gdrive_file_write(fh, buf, size, offset);
 }
+
 //static int 
 //fudr_write_buf(const char* path, struct fuse_bufvec* buf, off_t off, 
 //               struct fuse_file_info* fi)
