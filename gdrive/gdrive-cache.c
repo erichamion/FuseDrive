@@ -329,11 +329,12 @@ Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId,
     
     // Test whether the cached information is too old.  Use last updated time
     // for either the individual node or the entire cache, whichever is newer.
+    // If the node's update time is 0, always update it.
     time_t cacheUpdated = pCache->lastUpdateTime;
     time_t nodeUpdated = gdrive_cnode_get_update_time(pNode);
     time_t expireTime = (nodeUpdated > cacheUpdated ? 
         nodeUpdated : cacheUpdated) + pCache->cacheTTL;
-    if (expireTime < time(NULL))
+    if (expireTime < time(NULL) || nodeUpdated == (time_t) 0)
     {
         // Update the cache and try again.
         
@@ -342,7 +343,7 @@ Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId,
         bool isFolder = (gdrive_cnode_get_filetype(pNode) == 
                 GDRIVE_FILETYPE_FOLDER);
         
-        gdrive_cache_update(pCache);
+        gdrive_cache_update();
         
         return (isFolder ? 
                 gdrive_cache_get_item(fileId, addIfDoesntExist, 

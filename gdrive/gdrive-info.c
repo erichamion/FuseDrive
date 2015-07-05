@@ -651,7 +651,23 @@ int gdrive_add_parent(const char* fileId, const char* parentId)
     gdrive_xfer_free(pTransfer);
     free(body);
     
-    return (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? -EIO : 0;
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+        -EIO : 0;
+    gdrive_dlbuf_free(pBuf);
+    
+    if (returnVal == 0)
+    {
+        // Update the parent count in case we do anything else with the file
+        // before the cache expires. (For example, if there was only one parent
+        // before, and the user deletes one of the links, we don't want to
+        // delete the entire file because of a bad parent count).
+        Gdrive_Fileinfo* pFileinfo = gdrive_cache_get_item(fileId, false, NULL);
+        if (pFileinfo)
+        {
+            pFileinfo->nParents++;
+        }
+    }
+    return returnVal;
 }
 
 

@@ -1088,5 +1088,5 @@ fi
 
 fuselog
 fuselog 'DONE!'
-fuselog All tests successful
+fuselog No fatal errors
 clean_exit 0

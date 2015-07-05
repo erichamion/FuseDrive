@@ -108,20 +108,49 @@ Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
         }
         // Convenience to avoid things like "return &((*ppNode)->fileinfo);"
         Gdrive_Cache_Node* pNode = *ppNode;
-
-        // Copy the fileId into the fileinfo. Everything else is left null.
-        pNode->fileinfo.id = malloc(strlen(fileId) + 1);
-        if (pNode->fileinfo.id == NULL)
+        
+        // Get the fileinfo
+        char* url = malloc(strlen(GDRIVE_URL_FILES) + strlen(fileId) + 2);
+        if (!url)
         {
-            // Memory error.
-            gdrive_cnode_free(pNode);
-            *ppNode = NULL;
+            // Memory error
             return NULL;
         }
-        strcpy(pNode->fileinfo.id, fileId);
-
-        // Since this is a new entry, set the node's updated time.
-        pNode->lastUpdateTime = time(NULL);
+        strcpy(url, GDRIVE_URL_FILES);
+        strcat(url, "/");
+        strcat(url, fileId);
+        Gdrive_Transfer* pTransfer = gdrive_xfer_create();
+        if (!pTransfer)
+        {
+            // Memory error
+            return NULL;
+        }
+        if (gdrive_xfer_set_url(pTransfer, url))
+        {
+            // Error, probably memory
+            free(url);
+            return NULL;
+        }
+        free(url);
+        gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
+        Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
+        gdrive_xfer_free(pTransfer);
+        if (!pBuf || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+        {
+            // Download or request error
+            free(pBuf);
+            return NULL;
+        }
+        Gdrive_Json_Object* pObj = 
+                gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+        gdrive_dlbuf_free(pBuf);
+        if (!pObj)
+        {
+            // Couldn't convert network response to JSON
+            return NULL;
+        }
+        gdrive_cnode_update_from_json(pNode, pObj);
+        gdrive_json_kill(pObj);
 
         return pNode;
     }
