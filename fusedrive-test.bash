@@ -157,7 +157,7 @@ tally_failure() {
     else
         FATAL_FAILURE_COUNT=1
     fi
-    FAILURE_MSGS="${FAILURE_MSGS}Fatal failure on ${2}: $3\n"
+    FAILURE_MSGS="${FAILURE_MSGS}Fatal failure on ${2}: $3"$'\n'
 }
 
 run_test() {
