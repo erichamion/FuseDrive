@@ -527,7 +527,10 @@ int gdrive_remove_parent(const char* fileId, const char* parentId)
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
     
-    return (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? -EIO : 0;
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+        -EIO : 0;
+    gdrive_dlbuf_free(pBuf);
+    return returnVal;
 }
 
 int gdrive_delete(const char* fileId, const char* parentId)
