@@ -1,0 +1,146 @@
+FuseDrive:
+
+---------
+DESCRIPTION:
+A FUSE filesystem mounts a Google Drive account onto a local filesystem.
+
+---------
+BUILDING FUSEDRIVE:
+
+BEFORE BUILDING: There is a header file intentionally missing from the Git 
+    repository.  It contains Google developer account information that should 
+    not be publicly distributed.  Before building FuseDrive, this header file
+    needs to be recreated.
+    
+    STEP 1: LOG IN OR CREATE A GOOGLE DEVELOPER ACCOUNT. Go to the Google 
+            Developer's Console at "http://console.developers.google.com".  
+            Register or log in as appropriate.
+    STEP 2: CREATE A NEW PROJECT. From the Google Developer's Console, Create 
+            Project.  You will be prompted for a project name.  Any name can be 
+            used, but fuse-drive is a good suggestion.  Once the project is 
+            created (which takes a few moments), you are automatically sent to 
+            the project's Dashboard.
+    STEP 3: ENABLE DRIVE API.  Choose "APIs & auth", followed by "APIs", from 
+            the left-hand menu. Find and click on "Drive API", and then "Enable 
+            API".
+    STEP 4: OBTAIN CREDENTIALS.
+        4A: Click "Consent screen" on the left-hand menu.  Fill in the Product
+            name field.  Anything can be used here.  All other fields can be
+            left blank if desired.  Click "Save" at the bottom of the page.
+        4B: Click "Credentials" on the left-hand menu.  Under the OAuth option,
+            click "Create new Client ID".  Choose "Installed application", then
+            "Other", and click "Create Client ID".  You will receive a Client
+            ID, a Client secret, and a set of Redirect URIs.  The Redirect URIs
+            aren't important, but the Client ID and Client secret are needed.
+    STEP 5: FILL IN THE HEADER FILE. In the gdrive directory, there is a file
+            named gdrive-client-secret-template.h.  Open this file, and replace
+            the fake Client ID and Client Secret with the real ones that you 
+            just created.  Save the modified file a gdrive-client-secret.h 
+            (still in the gdrive directory).
+
+BUILDING:
+    Requirements:
+        gcc (I've been using gcc 4.8.4 on Linux Mint 17)
+        libcurl
+        json-c
+        libfuse
+    
+    There are two configurations, Release and Debug. If you don't specify a
+    configuration, the last configuration that I used in Netbeans before 
+    committing will be used.
+    
+    make [CONF=configuration]
+    will build the specified configuration. The binary (and for Debug, the test
+    script) will be in the dist/<configuration>/<architecture> directory.
+    
+    make [CONF=configuration] clean
+    does what you would expect.
+    
+    There is no installation.  The binary is a standalone executable that can be
+    run from any location.
+
+
+---------
+RUNNING:
+    FuseDrive can be run from any location.  In the example below, I assume the
+    binary is named fusedrive and is in the current working directory.
+    
+    Usage:
+        ./fusedrive [fusedrive-specific-options] <mount-point> [FUSE-options]
+        
+    Options can appear in any order, but the order given above is recommended.
+    Any options not recognized by fuse-drive will be passed on to FUSE.
+    
+    fusedrive specific options:
+        --access, -a        Set the access level to the Google Drive account.
+                            Must be followed by an access level, which is one 
+                            of:
+                            meta:  Can navigate directories and view file 
+                                   meta-information, but cannot read or write
+                                   files.
+                            read:  Read-only access
+                            write: Full read-write access. This is the default.
+                            apps:  (Not currently used)
+                            all:   Full read-write access and apps access.
+                                   Apps access is not currently used, so this is
+                                   the equivalent of write
+        --config, -c        Specify a configuration file, currently only used
+                            to store authentication information. Must be 
+                            followed by the path to a file (which will be 
+                            created if it doesn't exist).
+                            Default: ~/fuse-drive/.auth
+        --cache-time        The time (in seconds) for which cached file 
+                            information is assumed to be good. Must be followed
+                            by an integer.
+                            Default: 30
+        --interaction, -i   Determines when the user can be prompted for new
+                            authorization. Must be followed by one of the
+                            following values:
+                            always: The user can be prompted at any time. Only
+                                    recommended if testing in a terminal. If
+                                    new authorization is needed (which is very
+                                    rare except at startup) and the user does
+                                    not see the prompt, the filesystem will
+                                    appear to freeze for no apparent reason.
+                            never:  Never prompt the user. There must be an
+                                    existing config file with valid 
+                                    authentication information, or the 
+                                    filesystem will fail.
+                            startup:Only prompt for authentication at startup
+                                    (if necessary). This is the default.
+        --chunk-size        Determines the minimum size of temporary downloaded 
+                            files. Temporary files are stored in chunks to speed 
+                            up random access and improved perceived 
+                            responsiveness. Must be followed by an integer.
+                            Default: 1048576 (1 MiB)
+        --max-chunks        The maximum number of chunks per file. Each chunk
+                            keeps an open file, so if a large number of Google
+                            Drive files will be open simultaneously, there may
+                            be problems with too many file descriptors. Must be
+                            followed by an integer.
+                            Default: 15
+        --file-perm, -p     Permissions, in standard Unix 3-digit octal format 
+                            (user-group-other), for regular files. For example,
+                            644 gives read/write permission to the user, and
+                            read-only permission to everybody else.
+                            Default: 644
+        --dir-perm, -d      Permissions, in standard Unix 3-digit octal format,
+                            for directories.
+                            Default: Copy the file permissions, and add execute
+                            permission to any category that has read permission.
+                            For example, if file-perm is 640, default dir-perm
+                            is 750.
+        --                  Stop processing fuse-drive arguments.  Any following
+                            arguments will be passed directly to FUSE.
+
+
+
+---------
+TESTING:
+    After building the Debug configuration, the directory that contains the
+    binary will also have a bash script, fusedrive-test. This script just 
+    performs some basic file operations and checks their results. It can also
+    run valgrind to check for memory leaks or other errors.
+    
+    Run fusedrive-test by itself with no arguments to get a summary of its
+    usage.

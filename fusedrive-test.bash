@@ -811,6 +811,8 @@ while [ "$1" = --valgrind ] || [ "$1" = --no-mount ]; do
         exit 1
     fi
 done
+
+echo '$1='"$1"
     
 LOGFILEOPTION="$1"
 EXE="$2"
@@ -826,7 +828,7 @@ if [ -a "$LOGFILEOPTION" ] && ! [ -w "$LOGFILEOPTION" ]; then
     echo Please make sure logfile either does not exist or can be written
     exit 1
 fi
-LOGFILE=$(realpath "$LOGFILEOPTION")
+LOGFILE=$(readlink -f "$LOGFILEOPTION")
 unset LOGFILEOPTION
 
 # $EXE should be an executable file
@@ -849,6 +851,9 @@ MOUNTPATH=$(realpath "$MOUNTPATHGIVEN")
 unset MOUNTPATHGIVEN
 
 # Separate the new log from any existing information in the logfile
+if ! [ -e "$LOGFILE" ]; then
+    touch "$LOGFILE"
+fi
 if ! echo -e '\n========================================\n' >> "$LOGFILE"; then
     echo Could not append to logfile "'$LOGFILE'"
     LOGFILE=/dev/null
