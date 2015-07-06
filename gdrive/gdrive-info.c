@@ -780,6 +780,10 @@ CURL* gdrive_get_curlhandle(void)
     return curl_easy_duphandle(pInfo->curlHandle);
 }
 
+const char* gdrive_get_access_token(void)
+{
+    return gdrive_get_info()->accessToken;
+}
 
 
 /******************
@@ -1337,35 +1341,6 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     }
     gdrive_json_kill(pObj);
     return id;
-}
-
-/*
- * pHeaders can be NULL, or an existing set of headers can be given.
- */
-struct curl_slist* gdrive_get_authbearer_header(struct curl_slist* pHeaders)
-{
-    Gdrive_Info* pInfo = gdrive_get_info();
-    
-    // If we don't have any access token yet, do nothing
-    if (!pInfo->accessToken)
-        return pHeaders;
-    
-    // First form a string with the required text and the access token.
-    char* header = malloc(strlen("Authorization: Bearer ") + 
-                          strlen(pInfo->accessToken) + 1
-    );
-    if (header == NULL)
-    {
-        // Memory error
-        return NULL;
-    }
-    strcpy(header, "Authorization: Bearer ");
-    strcat(header, pInfo->accessToken);
-    
-    // Copy the string into a curl_slist for use in headers.
-    struct curl_slist* returnVal = curl_slist_append(pHeaders, header);
-    free(header);
-    return returnVal;
 }
 
 static int gdrive_save_auth(void)

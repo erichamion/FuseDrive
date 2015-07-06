@@ -76,6 +76,15 @@ Gdrive_Info* gdrive_get_info(void);
  */
 CURL* gdrive_get_curlhandle(void);
 
+/*
+ * gdrive_get_access_token():   Retrieve the current access token.
+ * Return value (const char*):
+ *      A pointer to a null-terminated string, or a NULL pointer if there is no
+ *      current access token. The pointed-to memory should not be altered or
+ *      freed.
+ */
+const char* gdrive_get_access_token(void);
+
 
 /******************
  * Other semi-public accessible functions
@@ -93,14 +102,6 @@ CURL* gdrive_get_curlhandle(void);
  */
 int gdrive_auth(void);
     
-/*
- * Should probably be moved into gdrive-transfer.c and made static. Not ready
- * for that yet.
- */
-struct curl_slist* gdrive_get_authbearer_header(struct curl_slist* pHeaders);
-
-
-
 
 
 

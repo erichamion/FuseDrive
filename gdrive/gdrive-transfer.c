@@ -44,6 +44,9 @@ static size_t
 gdrive_xfer_upload_callback_internal(char* buffer, size_t size, size_t nitems, 
                                      void* instream);
 
+static struct curl_slist* 
+gdrive_get_authbearer_header(struct curl_slist* pHeaders);
+
 
 /*************************************************************************
  * Implementations of public functions for internal or external use
@@ -340,4 +343,34 @@ gdrive_xfer_upload_callback_internal(char* buffer, size_t size, size_t nitems,
     
     pTransfer->uploadOffset += bytesTransferred;
     return bytesTransferred;
+}
+
+/*
+ * pHeaders can be NULL, or an existing set of headers can be given.
+ */
+static struct curl_slist* 
+gdrive_get_authbearer_header(struct curl_slist* pHeaders)
+{
+    const char* token = gdrive_get_access_token();
+    
+    // If we don't have any access token yet, do nothing
+    if (!token)
+        return pHeaders;
+    
+    // First form a string with the required text and the access token.
+    char* header = malloc(strlen("Authorization: Bearer ") + 
+                          strlen(token) + 1
+    );
+    if (header == NULL)
+    {
+        // Memory error
+        return NULL;
+    }
+    strcpy(header, "Authorization: Bearer ");
+    strcat(header, token);
+    
+    // Copy the string into a curl_slist for use in headers.
+    struct curl_slist* returnVal = curl_slist_append(pHeaders, header);
+    free(header);
+    return returnVal;
 }
