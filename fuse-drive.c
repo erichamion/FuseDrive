@@ -30,6 +30,7 @@
 #include "fuse-drive.h"
 #include "gdrive/gdrive-util.h"
 #include "gdrive/gdrive.h"
+#include "fuse-drive-options.h"
 
 
 static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo, 
@@ -1282,12 +1283,31 @@ int main(int argc, char** argv)
 int fudr_main(int argc, char** argv) 
 #endif
 {
-    if ((gdrive_init(GDRIVE_ACCESS_WRITE, "/home/me/.fuse-drive/.auth", 10, GDRIVE_INTERACTION_STARTUP, GDRIVE_BASE_CHUNK_SIZE * 4, 15)) != 0)
+    
+    
+    Fudr_Options* pOptions = fudr_options_create(argc, argv);
+    if (!pOptions)
     {
-        printf("Could not set up a Google Drive connection.");
+        fputs("Could not load command line option parser, aborting\n", stderr);
         return 1;
     }
-    return fuse_main(argc, argv, &fo, (void*) 0755644);
+    
+    if (gdrive_init(pOptions->gdrive_access, pOptions->gdrive_auth_file, 
+                    pOptions->gdrive_cachettl, 
+                    pOptions->gdrive_interaction_type, 
+                    pOptions->gdrive_chunk_size, pOptions->gdrive_max_chunks)
+            )
+    {
+        fputs("Could not set up a Google Drive connection.\n", stderr);
+        return 1;
+    }
+    int returnVal;
+    returnVal = fuse_main(pOptions->fuse_argc, pOptions->fuse_argv, &fo, 
+                          (void*) ((pOptions->dir_perms << 9) + 
+                          pOptions->file_perms));
+    
+    fudr_options_free(pOptions);
+    return returnVal;
 }
 
 #endif	/*__GDRIVE_TEST__*/

@@ -37,6 +37,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 OBJECTFILES= \
 	${OBJECTDIR}/cache-test.o \
 	${OBJECTDIR}/code-template.o \
+	${OBJECTDIR}/fuse-drive-options.o \
 	${OBJECTDIR}/fuse-drive.o \
 	${OBJECTDIR}/gdrive/gdrive-cache-node.o \
 	${OBJECTDIR}/gdrive/gdrive-cache.o \
@@ -86,6 +87,11 @@ ${OBJECTDIR}/code-template.o: code-template.c
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
 	$(COMPILE.c) -g -Wall -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/code-template.o code-template.c
+
+${OBJECTDIR}/fuse-drive-options.o: fuse-drive-options.c 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} "$@.d"
+	$(COMPILE.c) -g -Wall -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/fuse-drive-options.o fuse-drive-options.c
 
 ${OBJECTDIR}/fuse-drive.o: fuse-drive.c 
 	${MKDIR} -p ${OBJECTDIR}

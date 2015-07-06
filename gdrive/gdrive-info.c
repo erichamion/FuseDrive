@@ -1346,6 +1346,10 @@ struct curl_slist* gdrive_get_authbearer_header(struct curl_slist* pHeaders)
 {
     Gdrive_Info* pInfo = gdrive_get_info();
     
+    // If we don't have any access token yet, do nothing
+    if (!pInfo->accessToken)
+        return pHeaders;
+    
     // First form a string with the required text and the access token.
     char* header = malloc(strlen("Authorization: Bearer ") + 
                           strlen(pInfo->accessToken) + 1

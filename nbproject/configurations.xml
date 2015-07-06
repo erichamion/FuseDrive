@@ -24,6 +24,7 @@
         <itemPath>gdrive/header-template.h</itemPath>
       </logicalFolder>
       <itemPath>cache-test.h</itemPath>
+      <itemPath>fuse-drive-options.h</itemPath>
       <itemPath>fuse-drive.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
@@ -52,6 +53,7 @@
         <itemPath>gdrive/gdrive-util.c</itemPath>
       </logicalFolder>
       <itemPath>cache-test.c</itemPath>
+      <itemPath>fuse-drive-options.c</itemPath>
       <itemPath>fuse-drive.c</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
@@ -103,6 +105,10 @@
       <item path="cache-test.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
       </item>
@@ -215,6 +221,10 @@
       </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
       </item>
+      <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive.h" ex="false" tool="3" flavor2="0">
@@ -317,6 +327,10 @@
       <item path="cache-test.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
       </item>
@@ -421,6 +435,10 @@
       <item path="cache-test.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="fuse-drive-options.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
       </item>

@@ -61,12 +61,6 @@ Gdrive_Transfer* gdrive_xfer_create()
         memset(returnVal, 0, sizeof(Gdrive_Transfer));
         returnVal->retryOnAuthError = true;
         returnVal->pHeaders = gdrive_get_authbearer_header(NULL);
-        if (returnVal->pHeaders == NULL)
-        {
-            // Error. Cleanup and return NULL.
-            free(returnVal);
-            return NULL;
-        }
     }
     
     return returnVal;

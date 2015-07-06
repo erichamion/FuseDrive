@@ -28,14 +28,15 @@
         <runcommandpicklist>
           <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/</runcommandpicklistitem>
-          <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -d</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -ds</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -d -s</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f -s</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f -s -o allow_other</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -a all -f -s -o allow_other</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" ~/mytemp -f -s -o allow_other</runcommand>
+        <runcommand>"${OUTPUT_PATH}" ~/mytemp</runcommand>
         <rundir></rundir>
         <buildfirst>true</buildfirst>
         <terminal-type>0</terminal-type>
