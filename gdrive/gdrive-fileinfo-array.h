@@ -3,6 +3,9 @@
  * Author: me
  * 
  * A struct and related functions to hold arrays of Gdrive_Fileinfo structs.
+ * 
+ * This header is part of the public Gdrive interface, and functions that appear
+ * here can be used anywhere.
  *
  * Created on May 7, 2015, 9:04 PM
  */
@@ -24,7 +27,7 @@ typedef struct Gdrive_Fileinfo_Array Gdrive_Fileinfo_Array;
 
 
 /*************************************************************************
- * Constructors and destructors
+ * CConstructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*

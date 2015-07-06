@@ -29,7 +29,7 @@ typedef struct Gdrive_Fileinfo_Array
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 Gdrive_Fileinfo_Array* gdrive_finfoarray_create(int maxSize)

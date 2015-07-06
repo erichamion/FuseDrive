@@ -51,7 +51,7 @@ gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo,
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 const Gdrive_Fileinfo* gdrive_finfo_get_by_id(const char* fileId)
@@ -127,7 +127,7 @@ const Gdrive_Fileinfo* gdrive_finfo_get_by_id(const char* fileId)
         return NULL;
     }
     
-    if (gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    if (gdrive_dlbuf_get_httpresp(pBuf) >= 400)
     {
         // Server returned an error that couldn't be retried, or continued
         // returning an error after retrying

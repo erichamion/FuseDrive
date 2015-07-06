@@ -30,7 +30,7 @@ static Gdrive_File_Contents* gdrive_fcontents_create();
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 Gdrive_File_Contents* gdrive_fcontents_add(Gdrive_File_Contents* pHead)
@@ -271,7 +271,7 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
     
-    bool success = (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400);
+    bool success = (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400);
     gdrive_dlbuf_free(pBuf);
     if (success)
     {

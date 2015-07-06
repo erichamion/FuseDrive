@@ -38,7 +38,7 @@ static void gdrive_cache_remove_id(const char* fileId);
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 int gdrive_cache_init(time_t cacheTTL)
 {
@@ -79,7 +79,7 @@ int gdrive_cache_init(time_t cacheTTL)
     gdrive_xfer_free(pTransfer);
     
     bool success = false;
-    if (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400)
+    if (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400)
     {
         // Response was good, try extracting the data.
         Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
@@ -206,7 +206,7 @@ int gdrive_cache_update()
     
     
     int returnVal = -1;
-    if (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400)
+    if (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400)
     {
         // Response was good, try extracting the data.
         Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));

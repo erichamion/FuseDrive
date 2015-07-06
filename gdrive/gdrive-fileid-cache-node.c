@@ -37,7 +37,7 @@ gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode);
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead,

@@ -76,7 +76,7 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
@@ -135,7 +135,7 @@ Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
         gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
         Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
         gdrive_xfer_free(pTransfer);
-        if (!pBuf || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+        if (!pBuf || gdrive_dlbuf_get_httpresp(pBuf) >= 400)
         {
             // Download or request error
             free(pBuf);
@@ -738,7 +738,7 @@ int gdrive_file_sync(Gdrive_File* fh)
     // Do the transfer
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
-    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400);
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400);
     if (returnVal == 0)
     {
         // Success. Clear the dirty flag
@@ -1416,7 +1416,7 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
     gdrive_xfer_free(pTransfer);
     free(uploadResourceStr);
     
-    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    if (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400)
     {
         // Transfer was unsuccessful
         *pError = EIO;

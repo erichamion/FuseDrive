@@ -5,7 +5,8 @@
  * Utility functions that are needed by various parts of the Gdrive code but
  * don't really seem to be part of the Gdrive functionality.
  * 
- * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 9, 2015, 12:00 PM
  */

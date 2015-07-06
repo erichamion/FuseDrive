@@ -53,7 +53,7 @@ static void gdrive_exponential_wait(int tryNum);
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 Gdrive_Download_Buffer* gdrive_dlbuf_create(size_t initialSize, FILE* fh)
@@ -117,7 +117,7 @@ void gdrive_dlbuf_free(Gdrive_Download_Buffer* pBuf)
  * Getter and setter functions
  ******************/
 
-long gdrive_dlbuf_get_httpResp(Gdrive_Download_Buffer* pBuf)
+long gdrive_dlbuf_get_httpresp(Gdrive_Download_Buffer* pBuf)
 {
     return pBuf->httpResp;
 }
@@ -189,7 +189,7 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
         // Download error
         return -1;
     }
-    if (gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    if (gdrive_dlbuf_get_httpresp(pBuf) >= 400)
     {
         // Handle HTTP error responses.  Normal error handling - 5xx gets 
         // retried, 403 gets retried if it's due to rate limits, 401 gets
@@ -203,7 +203,7 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
         }
         
         bool retry = false;
-        switch (gdrive_dlbuf_retry_on_error(pBuf, gdrive_dlbuf_get_httpResp(pBuf)))
+        switch (gdrive_dlbuf_retry_on_error(pBuf, gdrive_dlbuf_get_httpresp(pBuf)))
         {
         case GDRIVE_RETRY_RETRY:
             // Normal retry, use exponential backoff.

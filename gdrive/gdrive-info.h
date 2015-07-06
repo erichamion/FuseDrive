@@ -4,6 +4,9 @@
  * 
  * Declarations and definitions to be used by various gdrive code and header
  * files, but which are not part of the public gdrive interface.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on April 14, 2015, 9:31 PM
  */

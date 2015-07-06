@@ -19,10 +19,6 @@
                     <name>Release</name>
                     <type>1</type>
                 </confElem>
-                <confElem>
-                    <name>GDrive-test</name>
-                    <type>1</type>
-                </confElem>
             </confList>
             <formatting>
                 <project-formatting-style>true</project-formatting-style>

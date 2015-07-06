@@ -4,6 +4,9 @@
  * 
  * A struct and related functions for managing overall filesystem information
  * such as used and free space.
+ * 
+ * This header is part of the public interface, and functions that appear here
+ * are meant to be used anywhere.
  *
  * Created on May 8, 2015, 9:18 AM
  */

@@ -4,6 +4,9 @@
  * 
  * A struct and related functions for managing nodes in a cache that maps from
  * file paths to Google Drive file IDs.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 7, 2015, 1:49 AM
  */
@@ -20,7 +23,7 @@ extern "C" {
 typedef struct Gdrive_Fileid_Cache_Node Gdrive_Fileid_Cache_Node;
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*

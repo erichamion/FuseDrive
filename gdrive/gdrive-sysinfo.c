@@ -41,7 +41,7 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest);
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 // No constructors. This is a single struct instance that lives
@@ -198,7 +198,7 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest)
     gdrive_xfer_free(pTransfer);
     
     int returnVal = -1;
-    if (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400)
+    if (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400)
     {
         // Response was good, try extracting the data.
         Gdrive_Json_Object* pObj = 

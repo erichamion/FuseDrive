@@ -7,6 +7,9 @@
  * most functions return copies of any needed values.  Also, anywhere a key's 
  * value is retrieved, the key can reflect nested objects in the form of 
  * "outer-key/inner-key1/inner-key2".
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on April 15, 2015, 1:20 AM
  */

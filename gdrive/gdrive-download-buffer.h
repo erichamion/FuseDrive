@@ -2,10 +2,12 @@
  * File:   gdrive-download-buffer.h
  * Author: me
  * 
- * This header file should be included by gdrive-internal.h
  * 
  * gdrive-download-buffer: A struct and related functions to manage downloading
  * data into an in-memory buffer or into a file on disk.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 3, 2015, 4:12 PM
  */
@@ -45,7 +47,7 @@ enum Gdrive_Request_Type
 
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*
@@ -85,7 +87,7 @@ void gdrive_dlbuf_free(Gdrive_Download_Buffer* pBuf);
  *************************************************************************/
 
 /*
- * gdrive_dlbuf_get_httpResp(): Returns the HTTP status code for the transfer.
+ * gdrive_dlbuf_get_httpresp(): Returns the HTTP status code for the transfer.
  * Parameters:
  *      pBuf (Gdrive_Download_Buffer*):
  *              A pointer to the download buffer that performed the transfer.
@@ -93,7 +95,7 @@ void gdrive_dlbuf_free(Gdrive_Download_Buffer* pBuf);
  *      The HTTP status code for the last transfer done using pBuf. If pBuf has
  *      not completed a transfer, the return value will be 0.
  */
-long gdrive_dlbuf_get_httpResp(Gdrive_Download_Buffer* pBuf);
+long gdrive_dlbuf_get_httpresp(Gdrive_Download_Buffer* pBuf);
 
 /*
  * gdrive_dlbuf_get_data(): Retrieves the contents of the last download using 
@@ -104,10 +106,10 @@ long gdrive_dlbuf_get_httpResp(Gdrive_Download_Buffer* pBuf);
  *              A pointer to the download buffer that performed the transfer.
  * Return value (const char*):
  *      The location of the in-memory buffer that holds the contents of the last
- *      download using pBuf. If pBuf has not completed a transfer or used a
- *      FILE* stream, the return value is undefined. Note: The memory pointed
- *      to by this function's return value will be freed by calling 
- *      gdrive_dlbuf_free(pBuf).
+ *      download using pBuf. If pBuf has not completed a transfer, or if the
+ *      transfer used a FILE* stream, the return value is undefined. Note: The 
+ *      memory pointed to by this function's return value will be freed by 
+ *      calling gdrive_dlbuf_free(pBuf).
  */
 const char* gdrive_dlbuf_get_data(Gdrive_Download_Buffer* pBuf);
 
@@ -171,11 +173,6 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle);
  * Return value (int):
  *      0 on success, other on failure.
  */
-//int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
-//                                     bool retryOnAuthError,
-//                                     int tryNum,
-//                                     int maxTries
-//);
 int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
                                      CURL* curlHandle,
                                      bool retryOnAuthError,

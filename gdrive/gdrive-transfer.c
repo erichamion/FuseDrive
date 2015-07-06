@@ -53,7 +53,7 @@ gdrive_get_authbearer_header(struct curl_slist* pHeaders);
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 Gdrive_Transfer* gdrive_xfer_create()

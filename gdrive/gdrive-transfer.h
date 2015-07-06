@@ -3,6 +3,9 @@
  * Author: me
  * 
  * A struct and related functions to describe an upload or download request.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 14, 2015, 7:33 PM
  */

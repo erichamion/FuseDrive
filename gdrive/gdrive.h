@@ -8,7 +8,6 @@
  * gdrive-fileinfo.h, gdrive-fileinfo-array.h, gdrive-sysinfo.h, and 
  * gdrive-file.h) form the public interface.
  * 
- * TODO: Review to make sure all the necessary public files are included.
  *
  * Created on April 14, 2015, 9:29 PM
  */

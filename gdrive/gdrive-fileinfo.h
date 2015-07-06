@@ -3,6 +3,9 @@
  * Author: me
  * 
  * A struct and related functions for working with basic file information.
+ * 
+ * This header is part of the public Gdrive interface, and functions that appear
+ * here can be used anywhere.
  *
  * Created on May 5, 2015, 9:42 PM
  */
@@ -45,7 +48,7 @@ typedef struct Gdrive_Fileinfo
 
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*
@@ -86,27 +89,87 @@ void gdrive_finfo_cleanup(Gdrive_Fileinfo* pFileinfo);
  *      pFileinfo (Gdrive_Fileinfo*):
  *              The Gdrive_Fileinfo struct from which to retrieve the time.
  *      dest (char*):
- *              A destination buffer which will receive the time string.
+ *              A destination buffer which will receive the time string. This
+ *              should already be allocated with at least max bytes.
+ *      max (size_t):
+ *              The maximum number of bytes, including the terminating null, to
+ *              place into dest.
+ * Return value (int):
+ *      The number of bytes that were placed in dest, excluding the terminating
+ *      null.
  */
 int gdrive_finfo_get_atime_string(Gdrive_Fileinfo* pFileinfo, 
                                   char* dest, 
                                   size_t max
 );
 
+/*
+ * gdrive_finfo_set_atime():    Set the access time in a Gdrive_Fileinfo struct.
+ * Parameters:
+ *      pFileinfo (Gdrive_Fileinfo*):
+ *              A pointer to the struct whose time should be set.
+ *      ts (const struct timespec*):
+ *              A pointer to a timespec struct representing the time.
+ * Return value:
+ *      0 on success, non-zero on failure.
+ */
 int gdrive_finfo_set_atime(Gdrive_Fileinfo* pFileinfo, 
                            const struct timespec* ts
 );
 
+/*
+ * gdrive_finfo_get_atime_string(): Retrieve a file's creation time as a string
+ *                                  in RFC3339 format.
+ * Parameters:
+ *      pFileinfo (Gdrive_Fileinfo*):
+ *              The Gdrive_Fileinfo struct from which to retrieve the time.
+ *      dest (char*):
+ *              A destination buffer which will receive the time string. This
+ *              should already be allocated with at least max bytes.
+ *      max (size_t):
+ *              The maximum number of bytes, including the terminating null, to
+ *              place into dest.
+ * Return value (int):
+ *      The number of bytes that were placed in dest, excluding the terminating
+ *      null.
+ */
 int gdrive_finfo_get_ctime_string(Gdrive_Fileinfo* pFileinfo, 
                                   char* dest, 
                                   size_t max
 );
 
+/*
+ * gdrive_finfo_get_atime_string(): Retrieve a file's modification time as a 
+ *                                  string in RFC3339 format.
+ * Parameters:
+ *      pFileinfo (Gdrive_Fileinfo*):
+ *              The Gdrive_Fileinfo struct from which to retrieve the time.
+ *      dest (char*):
+ *              A destination buffer which will receive the time string. This
+ *              should already be allocated with at least max bytes.
+ *      max (size_t):
+ *              The maximum number of bytes, including the terminating null, to
+ *              place into dest.
+ * Return value (int):
+ *      The number of bytes that were placed in dest, excluding the terminating
+ *      null.
+ */
 int gdrive_finfo_get_mtime_string(Gdrive_Fileinfo* pFileinfo, 
                                   char* dest, 
                                   size_t max
 );
 
+/*
+ * gdrive_finfo_set_atime():    Set the modification time in a Gdrive_Fileinfo 
+ *                              struct.
+ * Parameters:
+ *      pFileinfo (Gdrive_Fileinfo*):
+ *              A pointer to the struct whose time should be set.
+ *      ts (const struct timespec*):
+ *              A pointer to a timespec struct representing the time.
+ * Return value:
+ *      0 on success, non-zero on failure.
+ */
 int gdrive_finfo_set_mtime(Gdrive_Fileinfo* pFileinfo, 
                            const struct timespec* ts
 );

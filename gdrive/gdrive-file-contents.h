@@ -5,6 +5,9 @@
  * A struct and related functions for managing a single portion, or chunk, of
  * a Google Drive file and saving the contents of the chunk to a temporary
  * on-disk file.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 6, 2015, 8:45 AM
  */
@@ -22,7 +25,7 @@ extern "C" {
 typedef struct Gdrive_File_Contents Gdrive_File_Contents;
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*
@@ -197,6 +200,33 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
                              size_t size
 );
 
+/*
+ * gdrive_fcontents_write():    Write to a file chunk's on-disk temporary file
+ *                              from an in-memory buffer.
+ * Parameters:
+ *      pContents (Gdrive_File_Contents*):
+ *              The Gdrive_File_Contents struct describing the file chunk to
+ *              which to write.
+ *      buf (char*):
+ *              The in-memory buffer from which to read data.
+ *      offset (off_t):
+ *              The offset (zero-based, in bytes) within the entire Google Drive
+ *              file at which to start writing. Note: Unless this 
+ *              Gdrive_File_Contents struct happens to hold the first chunk of
+ *              the file (the chunk that starts at offset 0), this will NOT be
+ *              the offset within the chunk.
+ *      size (size_t):
+ *              The number of bytes to write.
+ *      extendChunk (bool):
+ *              If true, the chunk will be extended if writing past the end. If
+ *              false, writing will stop upon reaching the end of the chunk,
+ *              even if fewer than size bytes have been written
+ * Return value (off_t):
+ *      On success the number of bytes actually written.  On error, the return 
+ *      value is negative. The absolute value of the returned value will 
+ *      correspond to the errors that can be returned by the ferror() system 
+ *      call.
+ */
 off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
                              const char* buf, 
                              off_t offset,
@@ -204,6 +234,17 @@ off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents,
                              bool extendChunk
 );
 
+/*
+ * gdrive_fcontents_truncate(): Truncate a file chunk to a specified size.
+ * Parameters:
+ *      pContents (Gdrive_File_Contents*):
+ *              The Gdrive_File_Contents struct describing the file chunk to
+ *              truncate.
+ *      size (size_t):
+ *              The desired size of the chunk, in bytes.
+ * Return value (int):
+ *      0 on success, or a negative error number on failure.
+ */
 int gdrive_fcontents_truncate(Gdrive_File_Contents* pContents, size_t size);
 
 

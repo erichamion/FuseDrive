@@ -3,6 +3,9 @@
  * Author: me
  * 
  * Functions for working with handles to open Google Drive files.
+ * 
+ * This header is part of the public Gdrive interface, and functions that appear
+ * here can be used anywhere.
  *
  * Created on May 4, 2015, 11:07 PM
  */
@@ -82,22 +85,110 @@ void gdrive_file_close(Gdrive_File* pFile, int flags);
  */
 int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset);
 
-int gdrive_file_write(Gdrive_File* fh, 
-                      const char* buf, 
-                      size_t size, 
+/*
+ * gdrive_file_write(): Write to the cached contents of an open file.
+ * Parameters:
+ *      pFile (Gdrive_File*):
+ *              A file handle returned by a prior call to gdrive_file_open().
+ *      buf (char*):
+ *              The location of a memory buffer from which to read the data.
+ *      size (size_t):
+ *              The number of bytes to write.
+ *      offset (off_t):
+ *              The offset (zero-based, in bytes) from the start of the file at 
+ *              which to start writing. 
+ * Return value (int):
+ *      On success, the actual number of bytes written. On error, returns
+ *      -1 times an error that could be returned from ferror(3).
+ * Note:
+ *      The modified file will be uploaded to Google Drive when the file is 
+ *      closed or when gdrive_file_sync() is called.
+ * TODO:
+ *      Change the return type to size_t, and add a parameter to hold a pointer
+ *      to an error value.
+ */
+int gdrive_file_write(Gdrive_File* fh, const char* buf, size_t size, 
                       off_t offset
 );
 
+/*
+ * gdrive_file_truncate():  Change the size of an open file. If increasing the
+ *                          size, the end of the file will be filled with null
+ *                          bytes.
+ * Parameters:
+ *      pFile (Gdrive_File*):
+ *              A file handle returned by a prior call to gdrive_file_open().
+ *      size (off_t):
+ *              The new size of the file.
+  * Return value (int):
+ *      0 on success, a negative error numer on failure.
+ */
 int gdrive_file_truncate(Gdrive_File* fh, off_t size);
 
+/*
+ * gdrive_file_new():   Create a new file.
+ * Parameters:
+ *      path (const char*):
+ *              The path for the new file.
+ *      createFolder (bool):
+ *              If true, the file created will be a folder. If false, it will be
+ *              a regular file.
+ *      pError (int*):
+ *              Pointer to a memory location to hold an integer error value. On
+ *              success, this will be 0.
+ * Return value (char*):
+ *      A pointer to a null-terminated string containing the Google Drive file
+ *      ID of the newly created file. The caller is responsible for freeing the
+ *      pointed-to memory.
+ */
 char* gdrive_file_new(const char* path, bool createFolder, int* pError);
 
+/*
+ * gdrive_file_sync():  Sync a file with Google Drive. In particular, if the 
+ *                      file has been written to, then the modified file is
+ *                      uploaded to Google Drive.
+ * Parameters:
+ *      fh (Gdrive_File*):
+ *              The file handle for an open file to sync.
+ * Return value:
+ *      0 on success, a negative error number on failure.
+ */
 int gdrive_file_sync(Gdrive_File* fh);
 
+/*
+ * gdrive_file_sync():  Sync a file's metadata (the information stored in a 
+ *                      Gdrive_Fileinfo struct) with Google Drive.
+ * Parameters:
+ *      fh (Gdrive_File*):
+ *              The file handle for an open file to sync.
+ * Return value:
+ *      0 on success, a negative error number on failure.
+ */
 int gdrive_file_sync_metadata(Gdrive_File* fh);
 
+/*
+ * gdrive_file_set_atime(): Set the access time for an open file.
+ * Parameters:
+ *      fh (Gdrive_File*):
+ *              A handle to an open file.
+ *      ts (const struct timespec*):
+ *              The pointer to a timespec struct representing the desired access
+ *              time.
+ * Note:
+ *      This function will happily set a future time, but Google Drive doesn't
+ *      seem to support future access times.
+ */
 int gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts);
 
+/*
+ * gdrive_file_set_mtime(): Set the modification time for an open file.
+ * Parameters:
+ *      fh (Gdrive_File*):
+ *              A handle to an open file.
+ *      ts (const struct timespec*):
+ *              The pointer to a timespec struct representing the desired 
+ *              modification time.
+ */
 int gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts);
 
 

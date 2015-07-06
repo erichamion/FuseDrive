@@ -4,6 +4,9 @@
  * 
  * A struct and related functions for managing query strings or HTTP POST data.
  * Inspired by the curl_slist functions in libcurl.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 3, 2015, 7:33 PM
  */

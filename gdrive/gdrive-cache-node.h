@@ -4,10 +4,13 @@
  * 
  * This file should be included only by modules that need direct access to the
  * cache nodes AS cache nodes (not by modules that only need to work with
- * Gdrive_Filehandle).
+ * Gdrive_File).
  * 
  * A struct and related functions to work with cached data for an individual
  * file.
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 4, 2015, 8:29 PM
  */
@@ -25,7 +28,7 @@ extern "C" {
 typedef struct Gdrive_Cache_Node Gdrive_Cache_Node;
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*
@@ -79,6 +82,18 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
                          Gdrive_Cache_Node** ppToRoot
 );
 
+/*
+ * gdrive_cnode_mark_deleted(): Mark a node for deletion. If there are any open
+ *                              handles to the file, it will be deleted when the
+ *                              last one is closed. Otherwise, it is deleted
+ *                              immediately.
+ * Parameters:
+ *      pNode (Gdrive_Cache_Node*):
+ *              A pointer to the node to mark for deletion.
+ *      ppToRoot (Gdrive_Cache_Node**):
+ *              The address of a pointer to the root node. The pointer at this
+ *              location may be changed to point to a different memory location.
+ */
 void gdrive_cnode_mark_deleted(Gdrive_Cache_Node* pNode, 
                                Gdrive_Cache_Node** ppToRoot
 );
@@ -175,6 +190,16 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
                                 Gdrive_File_Contents* pContents
 );
 
+/*
+ * gdrive_cnode_is_dirty(): Determine whether a node has "dirty" data written
+ *                          to the on-disk or in-memory cache, which has not
+ *                          been sent to Google Drive.
+ * Parameters:
+ *      pNode (Gdrive_Cache_Node*):
+ *              A pointer to the node to check for dirty data.
+ * Return value (bool):
+ *      True if there is dirty data, false otherwise.
+ */
 bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode);
 
 

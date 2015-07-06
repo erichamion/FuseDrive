@@ -2,13 +2,15 @@
  * File:   gdrive-cache.h
  * Author: me
  * 
- * This header file should be included by gdrive-internal.h
  * 
  * A struct and related functions for managing cached data. There are two 
  * in-memory caches. One is a mapping from file pathnames to Google Drive 
  * file IDs, and the other holds basic file information such as size and 
  * access time (along with information about any open files and their on-disk
  * cached contents).
+ * 
+ * This header is used internally by Gdrive code and should not be included 
+ * outside of Gdrive code.
  *
  * Created on May 3, 2015, 9:10 PM
  */
@@ -29,7 +31,7 @@ extern "C" {
 typedef struct Gdrive_Cache Gdrive_Cache;
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 /*
@@ -82,8 +84,8 @@ Gdrive_Fileid_Cache_Node* gdrive_cache_get_fileidcachehead();
 time_t gdrive_cache_get_ttl();
 
 /*
- * gdrive_cache_get_ttl():  Retrieves the time (in seconds since the epoch) the
- *                          cache was last updated.
+ * gdrive_cache_get_lastupdatetime():   Retrieves the time (in seconds since the
+ *                                      epoch) the cache was last updated.
  * Return value (time_t):
  *      The time the cache was last updated.
  */
@@ -124,6 +126,29 @@ int gdrive_cache_update_if_stale();
  */
 int gdrive_cache_update();
 
+/*
+ * gdrive_cache_get_item(): Retrieve the Gdrive_Fileinfo struct for a specified
+ *                          file from the cache, optionally creating the cache
+ *                          entry if it doesn't exist.
+ * Parameters:
+ *      fileId (const char*):
+ *              A null-terminated string containing the Google Drive file ID of
+ *              the desired file. If this ID is needed internally, it is copied,
+ *              so the caller can alter or free this memory at will after this
+ *              function returns.
+ *      addIfDoesntExist (bool):
+ *              If true, a new cache entry will be created if the fileId is not
+ *              found in the cache. If false, failure to find the fileId in the
+ *              cache will be treated as failure.
+ *      pAlreadyExists (bool*):
+ *              A memory location to hold a value which will be true if fileId
+ *              was found in the cache without creating a new entry, false
+ *              otherwise. Can be NULL.
+ * Return value:
+ *      A pointer to a Gdrive_Fileinfo struct on success, or NULL on failure.
+ *      Any modifications made to this struct will be reflected in the cache.
+ *      The pointed-to memory should NOT be freed.
+ */
 Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId,
                                        bool addIfDoesntExist,
                                        bool* pAlreadyExists
@@ -205,8 +230,25 @@ Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId,
  */
 char* gdrive_cache_get_fileid(const char* path);
 
+/*
+ * gdrive_cache_delete_id():    Remove a file ID from the file ID cache, and 
+ *                              mark the file ID for removal from the main 
+ *                              cache. If the file is not open, then the removal
+ *                              from the main cache will be immediate.
+ * Parameters:
+ *      fileId (const char*):
+ *              The Google Drive file ID to remove from the cache.
+ */
 void gdrive_cache_delete_id(const char* fileId);
 
+/*
+ * gdrive_cache_delete_node():  Remove the specified node from the main cache,
+ *                              and free any resources associated with it.
+ * Parameters:
+ *      pNode (Gdrive_Cache_Node*):
+ *              A pointer to the node that should be removed. This pointer 
+ *              should not be used after this function returns.
+ */
 void gdrive_cache_delete_node(Gdrive_Cache_Node* pNode);
 
 

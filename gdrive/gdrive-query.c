@@ -30,7 +30,7 @@ Gdrive_Query* gdrive_query_create(void);
  *************************************************************************/
 
 /******************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  ******************/
 
 void gdrive_query_free(Gdrive_Query* pQuery)

@@ -114,7 +114,7 @@ void gdrive_curlhandle_setup(CURL* curlHandle);
  *************************************************************************/
 
 /******************
- * Fully public constructors and destructors
+ * Fully public constructors, factory methods, destructors and similar
  ******************/
 
 /*
@@ -438,7 +438,7 @@ Gdrive_Fileinfo_Array* gdrive_folder_list(const char* folderId)
     // reducing code duplication and taking advantage of the cache.
     int fileCount = -1;
     Gdrive_Fileinfo_Array* pArray = NULL;
-    if (pBuf != NULL && gdrive_dlbuf_get_httpResp(pBuf) < 400)
+    if (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400)
     {
         // Transfer was successful.  Convert result to a JSON object and extract
         // the file meta-info.
@@ -527,7 +527,7 @@ int gdrive_remove_parent(const char* fileId, const char* parentId)
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
     
-    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400) ? 
         -EIO : 0;
     gdrive_dlbuf_free(pBuf);
     return returnVal;
@@ -575,7 +575,7 @@ int gdrive_delete(const char* fileId, const char* parentId)
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
     
-    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400) ? 
         -EIO : 0;
     gdrive_dlbuf_free(pBuf);
     if (returnVal == 0)
@@ -654,7 +654,7 @@ int gdrive_add_parent(const char* fileId, const char* parentId)
     gdrive_xfer_free(pTransfer);
     free(body);
     
-    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400) ? 
         -EIO : 0;
     gdrive_dlbuf_free(pBuf);
     
@@ -735,7 +735,7 @@ int gdrive_change_basename(const char* fileId, const char* newName)
     gdrive_xfer_free(pTransfer);
     free(body);
     
-    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400) ? 
+    int returnVal = (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400) ? 
         -EIO : 0;
     gdrive_dlbuf_free(pBuf);
     return returnVal;
@@ -749,7 +749,7 @@ int gdrive_change_basename(const char* fileId, const char* newName)
  *************************************************************************/
 
 /******************
- * Semi-public constructors and destructors
+ * Semi-public constructors, factory methods, destructors and similar
  ******************/
 
 Gdrive_Info* gdrive_get_info(void)
@@ -1026,7 +1026,7 @@ gdrive_refresh_auth_token(const char* grantType, const char* tokenString)
         // There was an error sending the request and getting the response.
         return -1;
     }
-    if (gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    if (gdrive_dlbuf_get_httpresp(pBuf) >= 400)
     {
         // Failure, but probably not an error.  Most likely, the user has
         // revoked permission or the refresh token has otherwise been
@@ -1181,7 +1181,7 @@ static int gdrive_check_scopes(void)
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
     
-    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    if (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400)
     {
         // Download failed or gave a bad response.
         gdrive_dlbuf_free(pBuf);
@@ -1312,7 +1312,7 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     Gdrive_Download_Buffer* pBuf = gdrive_xfer_execute(pTransfer);
     gdrive_xfer_free(pTransfer);
     
-    if (pBuf == NULL || gdrive_dlbuf_get_httpResp(pBuf) >= 400)
+    if (pBuf == NULL || gdrive_dlbuf_get_httpresp(pBuf) >= 400)
     {
         // Download error
         gdrive_dlbuf_free(pBuf);
