@@ -231,12 +231,52 @@ Gdrive_Fileinfo_Array*  gdrive_folder_list(const char* folderId);
  */
 char* gdrive_filepath_to_id(const char* path);
 
+/*
+ * gdrive_remove_parent():  Remove one folder from a file's list of parents.
+ * Parameters:
+ *      fileId (const char*):   The file ID of the file.
+ *      parentId (const char*): The file ID of the parent which should be 
+ *                              removed.
+ * Return value (int):
+ *      0 on success. On error, returns a negative value whose absolute value
+ *      is defined in <errors.h>
+ */
 int gdrive_remove_parent(const char* fileId, const char* parentId);
 
+/*
+ * gdrive_delete(): Delete a file by trashing it.
+ * Parameters:
+ *      fileId (const char*):   The file ID of the file to delete.
+ *      parentId (const char*): The file ID of the parent folder. This folder
+ *                              will be removed from the cache in order to 
+ *                              maintain consistent information.
+ * Return value (int):
+ *      0 on success. On error, returns a negative value whose absolute value
+ *      is defined in <errors.h>
+ */
 int gdrive_delete(const char* fileId, const char* parentId);
 
+/*
+ * gdrive_add_parent(): Add a parent to a given file.
+ * Parameters:
+ *      fileId (const char*):   The file ID of the file.
+ *      parentId (const char*): The file ID of the parent folder to add.
+ * Return value (int):
+ *      0 on success. On error, returns a negative value whose absolute value
+ *      is defined in <errors.h>
+ */
 int gdrive_add_parent(const char* fileId, const char* parentId);
 
+/*
+ * gdrive_change_basename():    Rename a file without changing its parent 
+ *                              directory/directories.
+ * Parameters:
+ *      fileId (const char*):   The file ID of the file to rename.
+ *      newName (const char*):  The basename to which to change the file's name.
+ * Return value (int):
+ *      0 on success. On error, returns a negative value whose absolute value
+ *      is defined in <errors.h>
+ */
 int gdrive_change_basename(const char* fileId, const char* newName);
 
 

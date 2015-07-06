@@ -234,7 +234,7 @@ int gdrive_init_nocurl(int access,
     
     // Set chunk size
     pInfo->minChunkSize = (minFileChunkSize > 0) ?
-        _gdrive_divide_round_up(minFileChunkSize, GDRIVE_BASE_CHUNK_SIZE) * 
+        gdrive_divide_round_up(minFileChunkSize, GDRIVE_BASE_CHUNK_SIZE) * 
             GDRIVE_BASE_CHUNK_SIZE :
         GDRIVE_BASE_CHUNK_SIZE;
     pInfo->maxChunks = maxChunksPerFile;

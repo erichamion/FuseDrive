@@ -1066,8 +1066,8 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size,
     int maxChunks = gdrive_get_maxchunks();
     size_t minChunkSize = gdrive_get_minchunksize();
 
-    size_t perfectChunkSize = _gdrive_divide_round_up(fileSize, maxChunks);
-    size_t chunkSize = _gdrive_divide_round_up(perfectChunkSize, minChunkSize) *
+    size_t perfectChunkSize = gdrive_divide_round_up(fileSize, maxChunks);
+    size_t chunkSize = gdrive_divide_round_up(perfectChunkSize, minChunkSize) *
             minChunkSize;
     
     // The actual chunk may be a multiple of chunkSize.  A read that starts at
@@ -1075,7 +1075,7 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size,
     off_t chunkStart = (offset / chunkSize) * chunkSize;
     off_t chunkOffset = offset % chunkSize;
     off_t endChunkOffset = chunkOffset + size - 1;
-    size_t realChunkSize = _gdrive_divide_round_up(endChunkOffset, chunkSize) *
+    size_t realChunkSize = gdrive_divide_round_up(endChunkOffset, chunkSize) *
             chunkSize;
     
     Gdrive_File_Contents* pContents = gdrive_cnode_add_contents(pNode);
