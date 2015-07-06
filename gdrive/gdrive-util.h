@@ -30,7 +30,8 @@ typedef struct Gdrive_Path Gdrive_Path;
 /*
  * gdrive_path_create():    Create a Gdrive_Path struct from the specified path.
  * Parameters:
- *      path (const char*): A null-terminated string holding the desired path.
+ *      path (const char*): 
+ *              A null-terminated string holding the desired path.
  * Return value (Gdrive_Path*):
  *      A pointer to a Gdrive_Path struct that can be used to extract the 
  *      basename and dirname from the path. When no longer needed, this struct
@@ -42,8 +43,8 @@ Gdrive_Path* gdrive_path_create(const char* path);
  * gdrive_path_get_dirname():   Retrieve the directory part of a path, as
  *                              determined by the dirname() system call.
  * Parameters:
- *      gpath (const Gdrive_Path*): A pointer returned by an earlier call to
- *                                  gdrive_path_create().
+ *      gpath (const Gdrive_Path*): 
+ *              A pointer returned by an earlier call to gdrive_path_create().
  * Return value (const char*):
  *      A pointer to a null-terminated string containing the dirname. The 
  *      pointed-to memory should not be altered or freed, and it should not be
@@ -55,8 +56,8 @@ const char* gdrive_path_get_dirname(const Gdrive_Path* gpath);
  * gdrive_path_get_basename():  Retrieve the basename part of a path, as
  *                              determined by the basename() system call.
  * Parameters:
- *      gpath (const Gdrive_Path*): A pointer returned by an earlier call to
- *                                  gdrive_path_create().
+ *      gpath (const Gdrive_Path*): 
+ *              A pointer returned by an earlier call to gdrive_path_create().
  * Return value (const char*):
  *      A pointer to a null-terminated string containing the basename. The 
  *      pointed-to memory should not be altered or freed, and it should not be
@@ -67,7 +68,8 @@ const char* gdrive_path_get_basename(const Gdrive_Path* gpath);
 /*
  * gdrive_path_free():  Frees a Gdrive_Path struct and any associated memory.
  * Parameters:
- *      gpath (Gdrive_Path*):   The struct to free.
+ *      gpath (Gdrive_Path*):   
+ *              The struct to free.
  */
 void gdrive_path_free(Gdrive_Path* gpath);
    
@@ -78,8 +80,10 @@ void gdrive_path_free(Gdrive_Path* gpath);
  * gdrive_divide_round_up():    Divide a dividend by a divisor. If there is a
  *                              remainder, round UP to the next integer.
  * Parameters:
- *      dividend (long):    The dividend.
- *      divisor (long):     The divisor.
+ *      dividend (long):    
+ *              The dividend.
+ *      divisor (long):     
+ *              The divisor.
  * Return value (long):
  *      The smallest integer greater than or equal to the result of 
  *      dividend / divisor.
@@ -94,8 +98,10 @@ long gdrive_divide_round_up(long dividend, long divisor);
  *                          grandparent directory, and so on) if it doesn't
  *                          exist.
  * Parameters:
- *      path (const char*): The path of the file to open.
- *      mode (const char*): The mode parameter of the fopen() system call.
+ *      path (const char*): 
+ *              The path of the file to open.
+ *      mode (const char*): 
+ *              The mode parameter of the fopen() system call.
  * Return value:
  *      A valid FILE* handle on success, or NULL on failure.
  */
@@ -107,7 +113,8 @@ FILE* gdrive_power_fopen(const char* path, const char* mode);
  *                              directory (and the grandparent directory, and so
  *                              on) if it doesn't exist.
  * Parameters:
- *      path (const char*): The path of the directory to create.
+ *      path (const char*): 
+ *              The path of the directory to create.
  * Return value:
  *      Return value (int):
  *      0 on success. On error, returns a negative value whose absolute value

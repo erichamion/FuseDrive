@@ -459,18 +459,81 @@ Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj,
                                           int index
 );
 
+/*
+ * gdrive_json_array_append_object():   Appends the specified JSON object to the
+ *                                      end of a JSON array.
+ * Parameters:
+ *      pArray (Gdrive_Json_Object*):
+ *              The JSON object that represents (not contains) the array.
+ *      pNewObj (Gdrive_Json_Object*):
+ *              The JSON object to add to the end of the array. This should be
+ *              a root object (for example, returned by gdrive_json_new()) or
+ *              an object that has been passed to gdrive_json_keep(). 
+ * Return value (Gdrive_Json_Object*):
+ *      Same as the return value for json_object_array_add(), which is not 
+ *      documented.
+ */
 int gdrive_json_array_append_object(Gdrive_Json_Object* pArray, 
                                     Gdrive_Json_Object* pNewObj
 );
 
+/*
+ * gdrive_json_array_append_string():   Appends the specified string to the
+ *                                      end of a JSON array.
+ * Parameters:
+ *      pArray (Gdrive_Json_Object*):
+ *              The JSON object that represents (not contains) the array.
+ *      val (const char*):
+ *              The string to add. An internal copy is made, so the caller can
+ *              modify or free the original after this function returns. 
+ * Return value (Gdrive_Json_Object*):
+ *      Same as the return value for json_object_array_add(), which is not 
+ *      documented.
+ */
 int gdrive_json_array_append_string(Gdrive_Json_Object* pArray, 
                                     const char* val
 );
 
+/*
+ * gdrive_json_array_append_bool(): Appends the specified boolean value to the
+ *                                  end of a JSON array.
+ * Parameters:
+ *      pArray (Gdrive_Json_Object*):
+ *              The JSON object that represents (not contains) the array.
+ *      val (bool):
+ *              The value to add. 
+ * Return value (Gdrive_Json_Object*):
+ *      Same as the return value for json_object_array_add(), which is not 
+ *      documented.
+ */
 int gdrive_json_array_append_bool(Gdrive_Json_Object* pArray, bool val);
 
+/*
+ * gdrive_json_array_append_double():   Appends the specified double to the
+ *                                      end of a JSON array.
+ * Parameters:
+ *      pArray (Gdrive_Json_Object*):
+ *              The JSON object that represents (not contains) the array.
+ *      val (double):
+ *              The value to add. 
+ * Return value (Gdrive_Json_Object*):
+ *      Same as the return value for json_object_array_add(), which is not 
+ *      documented.
+ */
 int gdrive_json_array_append_double(Gdrive_Json_Object* pArray, double val);
 
+/*
+ * gdrive_json_array_append_int64():    Appends the specified integer to the
+ *                                      end of a JSON array.
+ * Parameters:
+ *      pArray (Gdrive_Json_Object*):
+ *              The JSON object that represents (not contains) the array.
+ *      val (int64_t):
+ *              The value to add. 
+ * Return value (Gdrive_Json_Object*):
+ *      Same as the return value for json_object_array_add(), which is not 
+ *      documented.
+ */
 int gdrive_json_array_append_int64(Gdrive_Json_Object* pArray, int64_t val);
 
 /*

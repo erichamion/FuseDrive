@@ -23,7 +23,7 @@ typedef struct Gdrive_Sysinfo Gdrive_Sysinfo;
 
 
 /*************************************************************************
- * Constructors and destructors
+ * Constructors, factory methods, destructors and similar
  *************************************************************************/
 
 // No constructors. This is a single struct instance that lives
@@ -64,9 +64,6 @@ int64_t gdrive_sysinfo_get_used(void);
 /*
  * gdrive_sysinfo_get_rootid(): Retrieves the Google Drive file ID for the top
  *                              folder in the Google Drive filesystem.
- * Parameters:
- *      pSysinfo (Gdrive_Sysinfo*):
- *              A pointer to the Gdrive_Sysinfo struct.
  * Return value (const char*):
  *      A null-terminated string holding the file ID of the root Google Drive
  *      folder. The memory at the returned location should not be altered or

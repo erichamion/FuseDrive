@@ -68,7 +68,7 @@ typedef struct Gdrive_Info Gdrive_Info;
 
 
 /******************
- * Fully public constructors and destructors
+ * Fully public constructors, factory methods, destructors, and similar
  ******************/
 
 /*
@@ -234,9 +234,10 @@ char* gdrive_filepath_to_id(const char* path);
 /*
  * gdrive_remove_parent():  Remove one folder from a file's list of parents.
  * Parameters:
- *      fileId (const char*):   The file ID of the file.
- *      parentId (const char*): The file ID of the parent which should be 
- *                              removed.
+ *      fileId (const char*):   
+ *              The file ID of the file.
+ *      parentId (const char*): 
+ *              The file ID of the parent which should be removed.
  * Return value (int):
  *      0 on success. On error, returns a negative value whose absolute value
  *      is defined in <errors.h>
@@ -244,12 +245,13 @@ char* gdrive_filepath_to_id(const char* path);
 int gdrive_remove_parent(const char* fileId, const char* parentId);
 
 /*
- * gdrive_delete(): Delete a file by trashing it.
+ * gdrive_delete(): Delete a file by moving it to the trash.
  * Parameters:
- *      fileId (const char*):   The file ID of the file to delete.
- *      parentId (const char*): The file ID of the parent folder. This folder
- *                              will be removed from the cache in order to 
- *                              maintain consistent information.
+ *      fileId (const char*):   
+ *              The file ID of the file to delete.
+ *      parentId (const char*): 
+ *              The file ID of the parent folder. This folder will be removed 
+ *              from the cache in order to maintain consistent information.
  * Return value (int):
  *      0 on success. On error, returns a negative value whose absolute value
  *      is defined in <errors.h>
@@ -259,8 +261,10 @@ int gdrive_delete(const char* fileId, const char* parentId);
 /*
  * gdrive_add_parent(): Add a parent to a given file.
  * Parameters:
- *      fileId (const char*):   The file ID of the file.
- *      parentId (const char*): The file ID of the parent folder to add.
+ *      fileId (const char*):   
+ *              The file ID of the file.
+ *      parentId (const char*): 
+ *              The file ID of the parent folder to add.
  * Return value (int):
  *      0 on success. On error, returns a negative value whose absolute value
  *      is defined in <errors.h>
@@ -271,8 +275,10 @@ int gdrive_add_parent(const char* fileId, const char* parentId);
  * gdrive_change_basename():    Rename a file without changing its parent 
  *                              directory/directories.
  * Parameters:
- *      fileId (const char*):   The file ID of the file to rename.
- *      newName (const char*):  The basename to which to change the file's name.
+ *      fileId (const char*):   
+ *              The file ID of the file to rename.
+ *      newName (const char*):  
+ *              The basename to which to change the file's name.
  * Return value (int):
  *      0 on success. On error, returns a negative value whose absolute value
  *      is defined in <errors.h>

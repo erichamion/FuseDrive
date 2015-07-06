@@ -42,9 +42,16 @@ extern "C" {
     
 
 /******************
- * Semi-public constructors and destructors
+ * Semi-public constructors, factory methods, destructors and similar
  ******************/
 
+/*
+ * gdrive_get_info():   Retrieves the Gdrive_Info struct that contains settings
+ *                      and general Google Drive state information.
+ * Return value (Gdrive_Info*):
+ *      A pointer to the Gdrive_Info struct. This is a pointer to a static 
+ *      struct and should not be freed.
+ */
 Gdrive_Info* gdrive_get_info(void);
 
 
