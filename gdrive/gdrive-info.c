@@ -1141,7 +1141,11 @@ static int gdrive_prompt_for_auth(void)
     // The authorization code should never be this long, so it's fine to ignore
     // longer input
     char authCode[1024] = "";
-    fgets(authCode, 1024, stdin);
+    if (!fgets(authCode, 1024, stdin))
+    {
+        puts("Error getting user input");
+        return -1;
+    }
     
     if (authCode[0] == '\0')
     {

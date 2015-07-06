@@ -54,7 +54,7 @@ OBJECTFILES= \
 
 
 # C Compiler Flags
-CFLAGS=
+CFLAGS=-Wextra
 
 # CC Compiler Flags
 CCFLAGS=-Wextra
@@ -67,7 +67,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=`pkg-config --libs fuse` `pkg-config --libs libcurl` `pkg-config --libs json-c`  
+LDLIBSOPTIONS=`pkg-config --libs fuse` `pkg-config --libs libcurl` `pkg-config --libs json-c` -lm   
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
@@ -80,82 +80,82 @@ ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/fusedrive: ${OBJECTFILES}
 ${OBJECTDIR}/code-template.o: code-template.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/code-template.o code-template.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/code-template.o code-template.c
 
 ${OBJECTDIR}/fuse-drive-options.o: fuse-drive-options.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/fuse-drive-options.o fuse-drive-options.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/fuse-drive-options.o fuse-drive-options.c
 
 ${OBJECTDIR}/fuse-drive.o: fuse-drive.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/fuse-drive.o fuse-drive.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/fuse-drive.o fuse-drive.c
 
 ${OBJECTDIR}/gdrive/gdrive-cache-node.o: gdrive/gdrive-cache-node.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-cache-node.o gdrive/gdrive-cache-node.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-cache-node.o gdrive/gdrive-cache-node.c
 
 ${OBJECTDIR}/gdrive/gdrive-cache.o: gdrive/gdrive-cache.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-cache.o gdrive/gdrive-cache.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-cache.o gdrive/gdrive-cache.c
 
 ${OBJECTDIR}/gdrive/gdrive-download-buffer.o: gdrive/gdrive-download-buffer.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-download-buffer.o gdrive/gdrive-download-buffer.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-download-buffer.o gdrive/gdrive-download-buffer.c
 
 ${OBJECTDIR}/gdrive/gdrive-file-contents.o: gdrive/gdrive-file-contents.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-file-contents.o gdrive/gdrive-file-contents.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-file-contents.o gdrive/gdrive-file-contents.c
 
 ${OBJECTDIR}/gdrive/gdrive-fileid-cache-node.o: gdrive/gdrive-fileid-cache-node.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-fileid-cache-node.o gdrive/gdrive-fileid-cache-node.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-fileid-cache-node.o gdrive/gdrive-fileid-cache-node.c
 
 ${OBJECTDIR}/gdrive/gdrive-fileinfo-array.o: gdrive/gdrive-fileinfo-array.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-fileinfo-array.o gdrive/gdrive-fileinfo-array.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-fileinfo-array.o gdrive/gdrive-fileinfo-array.c
 
 ${OBJECTDIR}/gdrive/gdrive-fileinfo.o: gdrive/gdrive-fileinfo.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-fileinfo.o gdrive/gdrive-fileinfo.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-fileinfo.o gdrive/gdrive-fileinfo.c
 
 ${OBJECTDIR}/gdrive/gdrive-info.o: gdrive/gdrive-info.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-info.o gdrive/gdrive-info.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-info.o gdrive/gdrive-info.c
 
 ${OBJECTDIR}/gdrive/gdrive-json.o: gdrive/gdrive-json.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-json.o gdrive/gdrive-json.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-json.o gdrive/gdrive-json.c
 
 ${OBJECTDIR}/gdrive/gdrive-query.o: gdrive/gdrive-query.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-query.o gdrive/gdrive-query.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-query.o gdrive/gdrive-query.c
 
 ${OBJECTDIR}/gdrive/gdrive-sysinfo.o: gdrive/gdrive-sysinfo.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-sysinfo.o gdrive/gdrive-sysinfo.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-sysinfo.o gdrive/gdrive-sysinfo.c
 
 ${OBJECTDIR}/gdrive/gdrive-transfer.o: gdrive/gdrive-transfer.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-transfer.o gdrive/gdrive-transfer.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-transfer.o gdrive/gdrive-transfer.c
 
 ${OBJECTDIR}/gdrive/gdrive-util.o: gdrive/gdrive-util.c 
 	${MKDIR} -p ${OBJECTDIR}/gdrive
 	${RM} "$@.d"
-	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=500 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-util.o gdrive/gdrive-util.c
+	$(COMPILE.c) -O2 -Wall -s -DFUSE_USE_VERSION=26 -D_XOPEN_SOURCE=700 `pkg-config --cflags fuse` `pkg-config --cflags libcurl` `pkg-config --cflags json-c` -std=c99  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/gdrive/gdrive-util.o gdrive/gdrive-util.c
 
 # Subprojects
 .build-subprojects:

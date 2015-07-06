@@ -29,6 +29,7 @@
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
                    projectFiles="true">
+      <itemPath>README</itemPath>
       <itemPath>fusedrive-test.bash</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
@@ -95,6 +96,8 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
+      <item path="README" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
@@ -179,9 +182,10 @@
           <developmentMode>5</developmentMode>
           <stripSymbols>true</stripSymbols>
           <standard>3</standard>
+          <commandLine>-Wextra</commandLine>
           <preprocessorList>
             <Elem>FUSE_USE_VERSION=26</Elem>
-            <Elem>_XOPEN_SOURCE=500</Elem>
+            <Elem>_XOPEN_SOURCE=700</Elem>
           </preprocessorList>
           <warningLevel>2</warningLevel>
         </cTool>
@@ -201,9 +205,12 @@
             <linkerOptionItem>`pkg-config --libs fuse`</linkerOptionItem>
             <linkerOptionItem>`pkg-config --libs libcurl`</linkerOptionItem>
             <linkerOptionItem>`pkg-config --libs json-c`</linkerOptionItem>
+            <linkerLibStdlibItem>Mathematics</linkerLibStdlibItem>
           </linkerLibItems>
         </linkerTool>
       </compileType>
+      <item path="README" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
