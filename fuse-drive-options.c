@@ -256,9 +256,10 @@ Fudr_Options* fudr_options_create(int argc, char** argv)
         }
         
         // If we might need to interact with the user, need to add the
-        // foreground option.
-        if (pOptions->gdrive_interaction_type != GDRIVE_INTERACTION_NEVER)
-            pOptions->fuse_argv[pOptions->fuse_argc++] = "-f";
+        // foreground option. The foreground option also changes other behavior
+        // (specifically, the working directory is different). Since we need the
+        // option sometimes, always add it to be consistent.
+        pOptions->fuse_argv[pOptions->fuse_argc++] = "-f";
         
         // Enforce single-threaded mode
         pOptions->fuse_argv[pOptions->fuse_argc++] = "-s";

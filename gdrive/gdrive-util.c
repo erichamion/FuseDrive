@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <libgen.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 typedef struct Gdrive_Path
 {
@@ -83,6 +85,69 @@ long _gdrive_divide_round_up(long dividend, long divisor)
     return (dividend % divisor == 0) ? 
         (dividend / divisor) : 
         (dividend / divisor + 1);
+}
+
+FILE* gdrive_power_fopen(const char* path, const char* mode)
+{
+    // Any files we create would be authentication and possibly (not currently
+    // implemented) configuration files. These should be visible only to the
+    // user.
+    mode_t oldUmask = umask(S_IRGRP | S_IWGRP | S_IXGRP | 
+                            S_IROTH | S_IWOTH | S_IXOTH);
+    
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    const char* dirname = gdrive_path_get_dirname(pGpath);
+    
+    FILE* returnVal = NULL;
+    
+    // Does the parent directory exist?
+    if (access(dirname, F_OK))
+    {
+        // Directory doesn't exist, need to create it.
+        if (!gdrive_recursive_mkdir(dirname))
+        {
+            // Successfully created directory
+            returnVal = fopen(path, mode);
+        }
+        // else do nothing, cleanup and return failure
+    }
+    else
+    {
+        // Directory exists, just need to open the file
+        returnVal = fopen(path, mode);
+    }
+    
+    umask(oldUmask);
+    gdrive_path_free(pGpath);
+    return returnVal;
+}
+
+int gdrive_recursive_mkdir(const char* path)
+{
+    Gdrive_Path* pGpath = gdrive_path_create(path);
+    const char* parentDir = gdrive_path_get_dirname(pGpath);
+    
+    int returnVal;
+    // Does the parent directory exist?
+    if (access(parentDir, F_OK))
+    {
+        // Directory doesn't exist, need to create it.
+        returnVal = gdrive_recursive_mkdir(parentDir);
+        if (!returnVal)
+        {
+            // Successfully created directory
+            returnVal = mkdir(path, 0755);
+        }
+        // else do nothing, cleanup and return failure
+    }
+    else
+    {
+        // Directory exists, just need to open the file
+        returnVal = mkdir(path, 0755);
+    }
+    
+    gdrive_path_free(pGpath);
+    return returnVal;
 }
 
 

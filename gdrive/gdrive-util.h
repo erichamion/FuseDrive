@@ -36,6 +36,11 @@ void gdrive_path_free(Gdrive_Path* gpath);
 long _gdrive_divide_round_up(long dividend, long divisor);
 
 
+FILE* gdrive_power_fopen(const char* path, const char* mode);
+int gdrive_recursive_mkdir(const char* path);
+
+
+
 // For debugging purposes
 void dumpfile(FILE* fh, FILE* dest);
 

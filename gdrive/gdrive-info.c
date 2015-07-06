@@ -194,7 +194,7 @@ int gdrive_init_nocurl(int access,
     // If a filename was given, attempt to open the file and read its contents.
     if (authFilename != NULL)
     {
-        pInfo->authFilename = realpath(authFilename, NULL);
+        pInfo->authFilename = malloc(strlen(authFilename) + 1);
         if (pInfo->authFilename != NULL)
         {
             strcpy(pInfo->authFilename, authFilename);
@@ -1381,7 +1381,7 @@ static int gdrive_save_auth(void)
     
     // Create a JSON object, fill it with the necessary details, 
     // convert to a string, and write to the file.
-    FILE* outFile = fopen(pInfo->authFilename, "w");
+    FILE* outFile = gdrive_power_fopen(pInfo->authFilename, "w");
     if (outFile == NULL)
     {
         // Couldn't open file for writing.
