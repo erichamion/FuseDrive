@@ -79,6 +79,15 @@ void gdrive_finfo_cleanup(Gdrive_Fileinfo* pFileinfo);
  * Getter and setter functions
  *************************************************************************/
 
+/*
+ * gdrive_finfo_get_atime_string(): Retrieve a file's access time as a string
+ *                                  in RFC3339 format.
+ * Parameters:
+ *      pFileinfo (Gdrive_Fileinfo*):
+ *              The Gdrive_Fileinfo struct from which to retrieve the time.
+ *      dest (char*):
+ *              A destination buffer which will receive the time string.
+ */
 int gdrive_finfo_get_atime_string(Gdrive_Fileinfo* pFileinfo, 
                                   char* dest, 
                                   size_t max

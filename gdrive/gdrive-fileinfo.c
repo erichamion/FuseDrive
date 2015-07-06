@@ -465,7 +465,9 @@ gdrive_epoch_timens_to_rfc3339(char* dest, size_t max,
     
     // strftime() doesn't do fractional seconds. Add the '.', the fractional
     // part, and the 'Z' for timezone.
-    int bytesWritten = snprintf(dest + baseLength, max, ".%09luZ", ts->tv_nsec);
+    int bytesWritten = baseLength;
+    bytesWritten += snprintf(dest + baseLength, max - baseLength, 
+                             ".%09luZ", ts->tv_nsec);
     
     return bytesWritten;
     
