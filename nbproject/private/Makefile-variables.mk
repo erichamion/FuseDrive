@@ -6,4 +6,3 @@
 # Debug configuration
 # Release configuration
 # GDrive-test configuration
-# CacheTest configuration

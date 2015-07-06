@@ -31,7 +31,7 @@ DEFAULTCONF=Debug
 CONF=${DEFAULTCONF}
 
 # All Configurations
-ALLCONFS=Debug Release GDrive-test CacheTest 
+ALLCONFS=Debug Release GDrive-test 
 
 
 # build

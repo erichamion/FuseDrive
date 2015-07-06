@@ -1450,37 +1450,4 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
 }
 
 
-/*************************************************************************
- * Testing purposes only
- *************************************************************************/
-#ifdef CACHE_TEST
 
-void cachetest_print_cachenode(const Gdrive_Cache_Node* pNode, int offset, const char* prefix, bool isFirst, FILE* outfile)
-{
-    if (pNode == NULL)
-    {
-        if (offset > 0)
-        {
-            fprintf(outfile, "%*s", offset, " ");
-        }
-        fprintf(outfile, "%s%s\n", prefix, "<>");
-        return;
-    }
-    
-    const char* parentId = pNode->pParent ? pNode->pParent->fileinfo.id : "<None>";
-    
-    int newOffset = offset + strlen(pNode->fileinfo.id) + strlen(parentId) + strlen(prefix) + 1;
-    if (isFirst)
-    {
-        newOffset += 4;
-    }
-    cachetest_print_cachenode(pNode->pRight, newOffset, "\u250C\u2500", false, outfile);
-    if (offset > 0)
-    {
-        fprintf(outfile, "%*s", offset, " ");
-    }
-    fprintf(outfile, "%s%s (%s)%s\n", prefix, pNode->fileinfo.id, parentId, " \u2500\u2524");
-    cachetest_print_cachenode(pNode->pLeft, newOffset, "\u2514\u2500", false, outfile);
-}
-
-#endif /* CACHE_TEST */

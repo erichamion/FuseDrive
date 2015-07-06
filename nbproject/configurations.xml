@@ -23,14 +23,12 @@
         <itemPath>gdrive/gdrive.h</itemPath>
         <itemPath>gdrive/header-template.h</itemPath>
       </logicalFolder>
-      <itemPath>cache-test.h</itemPath>
       <itemPath>fuse-drive-options.h</itemPath>
       <itemPath>fuse-drive.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
                    projectFiles="true">
-      <itemPath>cache-test.bash</itemPath>
       <itemPath>fusedrive-test.bash</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
@@ -52,7 +50,6 @@
         <itemPath>gdrive/gdrive-transfer.c</itemPath>
         <itemPath>gdrive/gdrive-util.c</itemPath>
       </logicalFolder>
-      <itemPath>cache-test.c</itemPath>
       <itemPath>fuse-drive-options.c</itemPath>
       <itemPath>fuse-drive.c</itemPath>
     </logicalFolder>
@@ -98,12 +95,6 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="cache-test.bash" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="cache-test.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="cache-test.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
@@ -213,12 +204,6 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="cache-test.bash" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="cache-test.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="cache-test.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
@@ -320,120 +305,6 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="cache-test.bash" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="cache-test.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="cache-test.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="code-template.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="fuse-drive-options.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="fuse-drive.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="fuse-drive.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="fusedrive-test.bash" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-cache-node.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-cache-node.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-cache.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-cache.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-client-secret.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-download-buffer.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-download-buffer.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-file-contents.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-file-contents.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-file.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-fileid-cache-node.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-fileid-cache-node.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-fileinfo-array.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-fileinfo-array.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-fileinfo.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-fileinfo.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-info.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-info.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-json.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-json.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-query.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-query.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-sysinfo.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-sysinfo.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-transfer.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-transfer.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-util.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive-util.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/gdrive.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="gdrive/header-template.h" ex="false" tool="3" flavor2="0">
-      </item>
-    </conf>
-    <conf name="CacheTest" type="1">
-      <toolsSet>
-        <compilerSet>default</compilerSet>
-        <dependencyChecking>true</dependencyChecking>
-        <rebuildPropChanged>false</rebuildPropChanged>
-      </toolsSet>
-      <compileType>
-        <cTool>
-          <standard>3</standard>
-          <commandLine>-Wextra</commandLine>
-          <preprocessorList>
-            <Elem>CACHE_TEST</Elem>
-            <Elem>FUSE_USE_VERSION=26</Elem>
-            <Elem>_XOPEN_SOURCE=700</Elem>
-          </preprocessorList>
-          <warningLevel>2</warningLevel>
-        </cTool>
-        <ccTool>
-          <warningLevel>2</warningLevel>
-        </ccTool>
-        <linkerTool>
-          <linkerLibItems>
-            <linkerOptionItem>`pkg-config --libs fuse`</linkerOptionItem>
-            <linkerOptionItem>`pkg-config --libs libcurl`</linkerOptionItem>
-            <linkerOptionItem>`pkg-config --libs json-c`</linkerOptionItem>
-            <linkerLibStdlibItem>Mathematics</linkerLibStdlibItem>
-          </linkerLibItems>
-        </linkerTool>
-      </compileType>
-      <item path="cache-test.bash" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="cache-test.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="cache-test.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="code-template.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="fuse-drive-options.c" ex="false" tool="0" flavor2="0">

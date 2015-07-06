@@ -210,18 +210,7 @@ void gdrive_cache_delete_id(const char* fileId);
 void gdrive_cache_delete_node(Gdrive_Cache_Node* pNode);
 
 
-/*************************************************************************
- * Testing purposes only
- *************************************************************************/
-#ifdef CACHE_TEST
 
-void cachetest_print_fullcache(FILE* fout);
-
-void cachetest_print_fileidcache(FILE* fout);
-
-void cachetest_print_maincache(FILE* fout);
-
-#endif /* CACHE_TEST */
 
     
 

@@ -121,14 +121,7 @@ Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
 );
 
 
-/*************************************************************************
- * Testing purposes only
- *************************************************************************/
-#ifdef CACHE_TEST
-#include <stdio.h>
-void cachetest_print_fidnode(const Gdrive_Fileid_Cache_Node* pNode, FILE* outfile);
 
-#endif /* CACHE_TEST */
 
 
 #ifdef	__cplusplus

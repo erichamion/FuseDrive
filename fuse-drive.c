@@ -1277,11 +1277,7 @@ static struct fuse_operations fo = {
 /*
  * 
  */
-#ifndef CACHE_TEST
 int main(int argc, char** argv) 
-#else
-int fudr_main(int argc, char** argv) 
-#endif
 {
     
     

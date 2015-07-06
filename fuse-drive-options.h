@@ -2,7 +2,8 @@
  * File:   fuse-drive-options.h
  * Author: me
  *
- * Created on July 5, 2015, 5:29 PM
+ * A struct and related functions for interpreting command line options and
+ * for determining which options should be passed on to fuse_main().
  */
 
 #ifndef FUSE_DRIVE_OPTIONS_H
@@ -42,9 +43,31 @@ typedef struct Fudr_Options
     int fuse_argc;
 } Fudr_Options;
 
-
+/*
+ * fudr_options_create():   Create a Fudr_Options struct and fill it with
+ *                          values based on user-specified command line 
+ *                          arguments.
+ * Parameters:
+ *      argc (int):     The same argc that was passed in to main().
+ *      argv (char**):  The same argv that was passed in to main().
+ * Return value (Fudr_Options*):
+ *      Pointer to a Fudr_Options struct that has values based on the arguments
+ *      in argv. Any options not specified have defined default values. This
+ *      struct contains some pointer members, which should not be changed. When
+ *      there is no more need for the struct, the caller is responsible for
+ *      disposing of it with fudr_options_free().
+ */
 Fudr_Options* fudr_options_create(int argc, char** argv);
 
+/*
+ * fudr_options_free(): Safely free a Fudr_Options struct and any memory
+ *                      associated with it.
+ * Parameters:
+ *      pOptions (Fudr_Options*):   A pointer previously returned by
+ *                                  fudr_options_create(). The pointed-to memory
+ *                                  will be freed and should no longer be used
+ *                                  after this function returns.
+ */
 void fudr_options_free(Fudr_Options* pOptions);
 
 #ifdef	__cplusplus

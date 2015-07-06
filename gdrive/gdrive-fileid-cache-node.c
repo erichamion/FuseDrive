@@ -285,19 +285,4 @@ gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode)
 }
 
 
-/*************************************************************************
- * Testing purposes only
- *************************************************************************/
-#ifdef CACHE_TEST
 
-void cachetest_print_fidnode(const Gdrive_Fileid_Cache_Node* pNode, FILE* outfile)
-{
-    fprintf(outfile, "Node:\n\tFile ID:\t%s\n\tPath:\t%s\nUpdated:\t%ld\nNext:\t%lx", pNode->fileId, pNode->path, pNode->lastUpdateTime, (unsigned long) pNode->pNext);
-    fputs("---", outfile);
-    if (pNode->pNext)
-    {
-        cachetest_print_fidnode(pNode->pNext, outfile);
-    }
-}
-
-#endif /* CACHE_TEST */
