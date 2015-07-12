@@ -4,10 +4,6 @@
 #include <string.h>
 
 
-
-
-
-
 /*************************************************************************
  * Private struct and declarations of private functions for use within 
  * this file
@@ -21,7 +17,6 @@ typedef struct Gdrive_Fileinfo_Array
 } Gdrive_Fileinfo_Array;
 
 // No private functions
-
 
 
 /*************************************************************************
@@ -81,8 +76,6 @@ void gdrive_finfoarray_free(Gdrive_Fileinfo_Array* pArray)
 }
 
 
-
-
 /******************
  * Getter and setter functions
  ******************/
@@ -95,7 +88,7 @@ gdrive_finfoarray_get_first(Gdrive_Fileinfo_Array* pArray)
 
 const Gdrive_Fileinfo* 
 gdrive_finfoarray_get_next(Gdrive_Fileinfo_Array* pArray, 
-                               const Gdrive_Fileinfo* pPrev)
+                           const Gdrive_Fileinfo* pPrev)
 {
     if (pArray == NULL || pPrev == NULL)
     {
@@ -117,8 +110,7 @@ int gdrive_finfoarray_get_count(Gdrive_Fileinfo_Array* pArray)
  ******************/
 
 int gdrive_finfoarray_add_from_json(Gdrive_Fileinfo_Array* pArray, 
-                                        Gdrive_Json_Object* pObj
-)
+                                        Gdrive_Json_Object* pObj)
 {
     if (pArray == NULL || pObj == NULL)
     {
