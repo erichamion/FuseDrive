@@ -108,8 +108,7 @@ int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset);
  *      to an error value.
  */
 int gdrive_file_write(Gdrive_File* fh, const char* buf, size_t size, 
-                      off_t offset
-);
+                      off_t offset);
 
 /*
  * gdrive_file_truncate():  Change the size of an open file. If increasing the
@@ -190,7 +189,6 @@ int gdrive_file_set_atime(Gdrive_File* fh, const struct timespec* ts);
  *              modification time.
  */
 int gdrive_file_set_mtime(Gdrive_File* fh, const struct timespec* ts);
-
 
 
 /*
