@@ -43,11 +43,6 @@ gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp);
 static void gdrive_exponential_wait(int tryNum);
 
 
-
-
-
-
-
 /*************************************************************************
  * Implementations of public functions for internal or external use
  *************************************************************************/
@@ -175,11 +170,8 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle)
 }
 
 int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
-                                     CURL* curlHandle,
-                                     bool retryOnAuthError,
-                                     int tryNum,
-                                     int maxTries
-)
+                                     CURL* curlHandle, bool retryOnAuthError, 
+                                     int tryNum, int maxTries)
 {
     CURLcode curlResult = gdrive_dlbuf_download(pBuf, curlHandle);
 
@@ -203,29 +195,30 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
         }
         
         bool retry = false;
-        switch (gdrive_dlbuf_retry_on_error(pBuf, gdrive_dlbuf_get_httpresp(pBuf)))
-        {
-        case GDRIVE_RETRY_RETRY:
-            // Normal retry, use exponential backoff.
-            gdrive_exponential_wait(tryNum);
-            retry = true;
-            break;
-
-        case GDRIVE_RETRY_RENEWAUTH:
-            // Authentication error, probably expired access token.
-            // If retryOnAuthError is true, refresh auth and retry (unless auth 
-            // fails).
-            if (retryOnAuthError)
+        switch (gdrive_dlbuf_retry_on_error(pBuf, 
+                                            gdrive_dlbuf_get_httpresp(pBuf)))
             {
-                retry = (gdrive_auth() == 0);
+            case GDRIVE_RETRY_RETRY:
+                // Normal retry, use exponential backoff.
+                gdrive_exponential_wait(tryNum);
+                retry = true;
                 break;
-            }
-            // else fall through
-            
-        case GDRIVE_RETRY_NORETRY:
-        default:
-            retry = false;
-            break;
+
+            case GDRIVE_RETRY_RENEWAUTH:
+                // Authentication error, probably expired access token.
+                // If retryOnAuthError is true, refresh auth and retry (unless auth 
+                // fails).
+                if (retryOnAuthError)
+                {
+                    retry = (gdrive_auth() == 0);
+                    break;
+                }
+                // else fall through
+
+            case GDRIVE_RETRY_NORETRY:
+            default:
+                retry = false;
+                break;
         }
         
         if (retry)
@@ -248,14 +241,12 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
 }
 
 
-
-
 /*************************************************************************
  * Implementations of private functions for use within this file
  *************************************************************************/
 
-static size_t 
-gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, void *userdata)
+static size_t gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, 
+                                    void *userdata)
 {
     if (size == 0 || nmemb == 0)
     {
@@ -298,9 +289,8 @@ gdrive_dlbuf_callback(char *newData, size_t size, size_t nmemb, void *userdata)
     return dataSize;
 }
 
-static size_t
-gdrive_dlbuf_header_callback(char* buffer, size_t size, size_t nitems, 
-                             void* userdata)
+static size_t gdrive_dlbuf_header_callback(char* buffer, size_t size, 
+                                           size_t nitems, void* userdata)
 {
     Gdrive_Download_Buffer* pDlBuf = (Gdrive_Download_Buffer*) userdata;
     
@@ -320,25 +310,27 @@ gdrive_dlbuf_header_callback(char* buffer, size_t size, size_t nitems,
     
     strncpy(pDlBuf->pReturnedHeaders + oldSize - 1, buffer, newHeaderLength);
     pDlBuf->pReturnedHeaders[totalSize - 2] = '\n';
-    pDlBuf->pReturnedHeaders[totalSize -1] = '\0';
+    pDlBuf->pReturnedHeaders[totalSize - 1] = '\0';
     
     return newHeaderLength;
 }
 
-static enum Gdrive_Retry_Method 
-gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp)
+static enum Gdrive_Retry_Method gdrive_dlbuf_retry_on_error(
+        Gdrive_Download_Buffer* pBuf, long httpResp)
 {
-    // TODO:    Currently only handles 403 errors correctly when pBuf->fh is 
-    //          NULL (when the downloaded data is stored in-memory, not in a 
-    //          file).
+    /* TODO:    Currently only handles 403 errors correctly when pBuf->fh is 
+     *          NULL (when the downloaded data is stored in-memory, not in a 
+     *          file).
+     */
           
     
-    // Most transfers should retry:
-    // A. After HTTP 5xx errors, using exponential backoff
-    // B. After HTTP 403 errors with a reason of "rateLimitExceeded" or 
-    //    "userRateLimitExceeded", using exponential backoff
-    // C. After HTTP 401, after refreshing credentials
-    // If not one of the above cases, should not retry.
+    /* Most transfers should retry:
+     * A. After HTTP 5xx errors, using exponential backoff
+     * B. After HTTP 403 errors with a reason of "rateLimitExceeded" or 
+     *    "userRateLimitExceeded", using exponential backoff
+     * C. After HTTP 401, after refreshing credentials
+     * If not one of the above cases, should not retry.
+     */
     
     if (httpResp >= 500)
     {
@@ -362,7 +354,8 @@ gdrive_dlbuf_retry_on_error(Gdrive_Download_Buffer* pBuf, long httpResp)
             return -1;
         }
         reason[0] = '\0';
-        Gdrive_Json_Object* pRoot = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+        Gdrive_Json_Object* pRoot = 
+                gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
         if (pRoot != NULL)
         {
             Gdrive_Json_Object* pErrors = 
@@ -398,16 +391,18 @@ static void gdrive_exponential_wait(int tryNum)
     int i;
     // Start with 2^tryNum seconds.
     for (i = 0, waitTime = 1000; i < tryNum; i++, waitTime *= 2)
-        ;   // No loop body.
+    {
+        // Empty loop
+    }
     // Randomly add up to 1 second more.
     waitTime += (rand() % 1000) + 1;
     // Convert waitTime to a timespec for use with nanosleep.
     struct timespec waitTimeNano;
-    waitTimeNano.tv_sec = waitTime / 1000;  // Integer division
+    // Intentional integer division:
+    waitTimeNano.tv_sec = waitTime / 1000;
     waitTimeNano.tv_nsec = (waitTime % 1000) * 1000000L;
     nanosleep(&waitTimeNano, NULL);
 }
-
 
 
 // Just for temporary debugging purposes. This might be kept around and moved to
