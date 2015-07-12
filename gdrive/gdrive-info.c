@@ -29,12 +29,14 @@
 #define GDRIVE_GRANTTYPE_REFRESH "refresh_token"
 
 #define GDRIVE_URL_AUTH_TOKEN "https://www.googleapis.com/oauth2/v3/token"
-#define GDRIVE_URL_AUTH_TOKENINFO "https://www.googleapis.com/oauth2/v1/tokeninfo"
+#define GDRIVE_URL_AUTH_TOKENINFO "https://www.googleapis.com/oauth2/"\
+                                  "v1/tokeninfo"
 #define GDRIVE_URL_AUTH_NEWAUTH "https://accounts.google.com/o/oauth2/auth"
 // GDRIVE_URL_FILES, GDRIVE_URL_ABOUT, and GDRIVE_URL_CHANGES defined in 
 // gdrive-internal.h because they are used elsewhere
 
-#define GDRIVE_SCOPE_META "https://www.googleapis.com/auth/drive.readonly.metadata"
+#define GDRIVE_SCOPE_META "https://www.googleapis.com/auth/"\
+                          "drive.readonly.metadata"
 #define GDRIVE_SCOPE_READ "https://www.googleapis.com/auth/drive.readonly"
 #define GDRIVE_SCOPE_WRITE "https://www.googleapis.com/auth/drive"
 #define GDRIVE_SCOPE_APPS "https://www.googleapis.com/auth/drive.apps.readonly"
@@ -106,8 +108,6 @@ static int gdrive_save_auth(void);
 void gdrive_curlhandle_setup(CURL* curlHandle);
 
 
-
-
 /*************************************************************************
  * Implementations of fully public functions intended for use outside of
  * gdrive-* files (as well as inside)
@@ -123,13 +123,9 @@ void gdrive_curlhandle_setup(CURL* curlHandle);
  *                  has granted necessary access permissions for the Google 
  *                  Drive account.
  */
-int gdrive_init(int access, 
-                const char* authFilename, 
-                time_t cacheTTL,
-                enum Gdrive_Interaction interactionMode,
-                size_t minFileChunkSize,
-                int maxChunksPerFile
-)
+int gdrive_init(int access, const char* authFilename, time_t cacheTTL, 
+                enum Gdrive_Interaction interactionMode, 
+                size_t minFileChunkSize, int maxChunksPerFile)
 {
     Gdrive_Info* pInfo = gdrive_get_info();
     
@@ -164,13 +160,9 @@ int gdrive_init(int access,
  *                          the network connection (does not call 
  *                          curl_global_init()).
  */
-int gdrive_init_nocurl(int access, 
-                       const char* authFilename, 
-                       time_t cacheTTL,
-                       enum Gdrive_Interaction interactionMode,
-                       size_t minFileChunkSize,
-                       int maxChunksPerFile
-)
+int gdrive_init_nocurl(int access, const char* authFilename, time_t cacheTTL, 
+                       enum Gdrive_Interaction interactionMode, 
+                       size_t minFileChunkSize, int maxChunksPerFile)
 {
     // Seed the RNG.
     srand(time(NULL));
@@ -230,10 +222,9 @@ int gdrive_init_nocurl(int access,
         // Cache initialization error, probably a memory error
         return -1;
     }
-    //pInfo->settings.cacheTTL = cacheTTL;
     
     // Set chunk size
-    pInfo->minChunkSize = (minFileChunkSize > 0) ?
+    pInfo->minChunkSize = (minFileChunkSize > 0) ? 
         gdrive_divide_round_up(minFileChunkSize, GDRIVE_BASE_CHUNK_SIZE) * 
             GDRIVE_BASE_CHUNK_SIZE :
         GDRIVE_BASE_CHUNK_SIZE;
@@ -254,7 +245,6 @@ void gdrive_cleanup_nocurl(void)
     gdrive_cache_cleanup();
     gdrive_info_cleanup();
 }
-
 
 
 /******************
@@ -298,7 +288,6 @@ int gdrive_get_filesystem_perms(enum Gdrive_Filetype type)
 }
 
 
-
 /******************
  * Other fully public functions
  ******************/
@@ -309,7 +298,6 @@ int gdrive_get_filesystem_perms(enum Gdrive_Filetype type)
  */
 char* gdrive_filepath_to_id(const char* path)
 {
-    //char* result = NULL;
     if (path == NULL || (path[0] != '/'))
     {
         // Invalid path
@@ -347,10 +335,14 @@ char* gdrive_filepath_to_id(const char* path)
     int index;
     // Ignore trailing slashes
     for (index = strlen(path) - 1; path[index] == '/'; index--)
-        ;   // No loop body
+    {
+        // Empty loop
+    }
     // Find the last '/' before the current index.
     for (/*No init*/; path[index] != '/'; index--)
-        ;   // No loop body
+    {
+        // Empty loop
+    }
     
     // Find the parent's fileId.
     
@@ -416,8 +408,8 @@ Gdrive_Fileinfo_Array* gdrive_folder_list(const char* folderId)
     gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     
     if (
-            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
-            gdrive_xfer_add_query(pTransfer, "q", filter) ||
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) || 
+            gdrive_xfer_add_query(pTransfer, "q", filter) || 
             gdrive_xfer_add_query(pTransfer, "fields", 
                                   "items(title,id,mimeType)")
         )
@@ -599,7 +591,7 @@ int gdrive_add_parent(const char* fileId, const char* parentId)
     
     // URL will look like 
     // "<standard Drive Files url>/<fileId>/parents"
-    char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 1 +
+    char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 1 + 
         strlen("/parents") + 1);
     if (url == NULL)
     {
@@ -716,7 +708,7 @@ int gdrive_change_basename(const char* fileId, const char* newName)
         return -ENOMEM;
     }
     if (gdrive_xfer_set_url(pTransfer, url) || 
-            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false") ||
+            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false") || 
             gdrive_xfer_add_header(pTransfer, "Content-Type: application/json")
             )
     {
@@ -757,7 +749,6 @@ Gdrive_Info* gdrive_get_info(void)
     static Gdrive_Info info = {0};
     return &info;
 }
-
 
 
 /******************
@@ -832,12 +823,6 @@ int gdrive_auth(void)
 }
 
 
-
-
-
-
-
-
 /*************************************************************************
  * Implementations of private functions for use within this file
  *************************************************************************/
@@ -871,7 +856,7 @@ static int gdrive_read_auth_file(const char* filename)
         }
         
         int bytesRead = fread(buffer, 1, st.st_size, inFile);
-        buffer[bytesRead>=0 ? bytesRead : 0] = '\0';
+        buffer[bytesRead >= 0 ? bytesRead : 0] = '\0';
         int returnVal = 0;
         
         Gdrive_Json_Object* pObj = gdrive_json_from_string(buffer);
@@ -950,8 +935,8 @@ static void gdrive_info_cleanup(void)
 
 
 
-static int 
-gdrive_refresh_auth_token(const char* grantType, const char* tokenString)
+static int gdrive_refresh_auth_token(const char* grantType, 
+                                     const char* tokenString)
 {
     // Make sure we were given a valid grant_type
     if (strcmp(grantType, GDRIVE_GRANTTYPE_CODE) && 
@@ -1002,13 +987,13 @@ gdrive_refresh_auth_token(const char* grantType, const char* tokenString)
     }
     if (
             gdrive_xfer_add_postfield(pTransfer, tokenOrCodeField, 
-                                      tokenString) ||
+                                      tokenString) || 
             gdrive_xfer_add_postfield(pTransfer, GDRIVE_FIELDNAME_CLIENTID, 
-                                      GDRIVE_CLIENT_ID) ||
+                                      GDRIVE_CLIENT_ID) || 
             gdrive_xfer_add_postfield(pTransfer, GDRIVE_FIELDNAME_CLIENTSECRET,
-                                      GDRIVE_CLIENT_SECRET) ||
+                                      GDRIVE_CLIENT_SECRET) || 
             gdrive_xfer_add_postfield(pTransfer, GDRIVE_FIELDNAME_GRANTTYPE, 
-                                      grantType) ||
+                                      grantType) || 
             gdrive_xfer_set_url(pTransfer, GDRIVE_URL_AUTH_TOKEN)
         )
     {
@@ -1039,7 +1024,8 @@ gdrive_refresh_auth_token(const char* grantType, const char* tokenString)
     // need to pull the access_token string (and refresh token string if
     // present) out of it.
 
-    Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+    Gdrive_Json_Object* pObj = 
+            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
     gdrive_dlbuf_free(pBuf);
     if (pObj == NULL)
     {
@@ -1171,7 +1157,7 @@ static int gdrive_check_scopes(void)
     gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     gdrive_xfer_set_retryonautherror(pTransfer, false);
     if (
-            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_AUTH_TOKENINFO) ||
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_AUTH_TOKENINFO) || 
             gdrive_xfer_add_query(pTransfer, GDRIVE_FIELDNAME_ACCESSTOKEN, 
                                   pInfo->accessToken)
         )
@@ -1196,7 +1182,8 @@ static int gdrive_check_scopes(void)
     // from the JSON array that should have been returned, and compare them
     // with the expected scopes.
     
-    Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+    Gdrive_Json_Object* pObj = 
+            gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
     gdrive_dlbuf_free(pBuf);
     if (pObj == NULL)
     {
@@ -1225,9 +1212,13 @@ static int gdrive_check_scopes(void)
         // and endIndex indicates the (null or space) terminator character.
         for (
                 endIndex = startIndex; 
-                !(grantedScopes[endIndex] == ' ' || grantedScopes[endIndex] == '\0');
+                !(grantedScopes[endIndex] == ' ' || 
+                grantedScopes[endIndex] == '\0');
                 endIndex++
-                );  // No loop body
+                )
+        {
+            // Empty body
+        };
         
         // Compare the current scope to each of the entries in 
         // GDRIVE_ACCESS_SCOPES.  If there's a match, set the appropriate bit(s)
@@ -1268,7 +1259,9 @@ static char* gdrive_get_root_folder_id(void)
     const char* mainCopy = gdrive_sysinfo_get_rootid();
     char* newCopy = malloc(strlen(mainCopy) + 1);
     if (newCopy)
+    {
         strcpy(newCopy, mainCopy);
+    }
     return newCopy;
 }
 
@@ -1301,8 +1294,8 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
     }
     gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     if (
-            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) ||
-            gdrive_xfer_add_query(pTransfer, "q", filter) ||
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_FILES) || 
+            gdrive_xfer_add_query(pTransfer, "q", filter) || 
             gdrive_xfer_add_query(pTransfer, "fields", "items(id)")
         )
     {
