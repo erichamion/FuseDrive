@@ -684,6 +684,12 @@ int gdrive_file_sync(Gdrive_File* fh)
         return 0;
     }
     
+    // Check for write permissions
+    if (!gdrive_file_check_perm(fh, O_RDWR))
+    {
+        return -EACCES;
+    }
+    
     // Just using simple upload for now.
     // TODO: Consider using resumable upload, possibly only for large files.
     Gdrive_Transfer* pTransfer = gdrive_xfer_create();
@@ -749,6 +755,12 @@ int gdrive_file_sync_metadata(Gdrive_File* fh)
     {
         // Nothing to sync, do nothing
         return 0;
+    }
+    
+    // Check for write permissions
+    if (!gdrive_file_check_perm(fh, O_RDWR))
+    {
+        return -EACCES;
     }
     
     int error = 0;

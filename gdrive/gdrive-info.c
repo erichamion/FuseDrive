@@ -487,6 +487,13 @@ int gdrive_remove_parent(const char* fileId, const char* parentId)
             parentId != NULL && parentId[0] != '\0'
             );
     
+    // Need write access
+    Gdrive_Info* pInfo = gdrive_get_info();
+    if (!(pInfo->mode & GDRIVE_ACCESS_WRITE))
+    {
+        return -EACCES;
+    }
+    
     // URL will look like 
     // "<standard Drive Files url>/<fileId>/parents/<parentId>"
     char* url = malloc(strlen(GDRIVE_URL_FILES) + 1 + strlen(fileId) + 
@@ -535,6 +542,13 @@ int gdrive_delete(const char* fileId, const char* parentId)
     // TODO: May want to add an option for whether to trash or really delete.
     
     assert(fileId != NULL && fileId[0] != '\0');
+    
+    // Need write access
+    Gdrive_Info* pInfo = gdrive_get_info();
+    if (!(pInfo->mode & GDRIVE_ACCESS_WRITE))
+    {
+        return -EACCES;
+    }
     
     // URL will look like 
     // "<standard Drive Files url>/<fileId>/trash"
@@ -590,6 +604,13 @@ int gdrive_add_parent(const char* fileId, const char* parentId)
     assert(fileId != NULL && fileId[0] != '\0' && 
             parentId != NULL && parentId[0] != '\0'
             );
+    
+    // Need write access
+    Gdrive_Info* pInfo = gdrive_get_info();
+    if (!(pInfo->mode & GDRIVE_ACCESS_WRITE))
+    {
+        return -EACCES;
+    }
     
     // URL will look like 
     // "<standard Drive Files url>/<fileId>/parents"
@@ -670,6 +691,13 @@ int gdrive_add_parent(const char* fileId, const char* parentId)
 int gdrive_change_basename(const char* fileId, const char* newName)
 {
     assert(fileId && newName && fileId[0] != '\0' && newName[0] != '\0');
+    
+    // Need write access
+    Gdrive_Info* pInfo = gdrive_get_info();
+    if (!(pInfo->mode & GDRIVE_ACCESS_WRITE))
+    {
+        return -EACCES;
+    }
     
     // Create the request body with the new name
     Gdrive_Json_Object* pObj = gdrive_json_new();
