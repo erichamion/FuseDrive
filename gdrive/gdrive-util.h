@@ -76,7 +76,6 @@ void gdrive_path_free(Gdrive_Path* gpath);
    
 
 
-
 /*
  * gdrive_divide_round_up():    Divide a dividend by a divisor. If there is a
  *                              remainder, round UP to the next integer.
@@ -90,7 +89,6 @@ void gdrive_path_free(Gdrive_Path* gpath);
  *      dividend / divisor.
  */
 long gdrive_divide_round_up(long dividend, long divisor);
-
 
 
 /*
@@ -122,9 +120,6 @@ FILE* gdrive_power_fopen(const char* path, const char* mode);
  *      is defined in <errors.h>
  */
 int gdrive_recursive_mkdir(const char* path);
-
-
-
 
 
 // #ifdef	__cplusplus
