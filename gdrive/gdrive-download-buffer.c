@@ -206,8 +206,8 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
 
             case GDRIVE_RETRY_RENEWAUTH:
                 // Authentication error, probably expired access token.
-                // If retryOnAuthError is true, refresh auth and retry (unless auth 
-                // fails).
+                // If retryOnAuthError is true, refresh auth and retry (unless 
+                // auth fails).
                 if (retryOnAuthError)
                 {
                     retry = (gdrive_auth() == 0);
@@ -216,9 +216,12 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
                 // else fall through
 
             case GDRIVE_RETRY_NORETRY:
-            default:
-                retry = false;
-                break;
+                // Fall through
+                default:
+                {
+                    retry = false;
+                    break;
+                }
         }
         
         if (retry)
