@@ -42,7 +42,10 @@ Gdrive_Json_Object* gdrive_json_get_nested_object(Gdrive_Json_Object* pObj,
                 endIndex = startIndex; 
                 key[endIndex] != '\0' && key[endIndex] != '/';
                 endIndex++
-                );  // This for loop intentionally has no body.
+                )
+        {
+            // Empty body
+        }
         
         // Copy the current key into a buffer and make sure it's null 
         // terminated.
@@ -66,11 +69,8 @@ Gdrive_Json_Object* gdrive_json_get_nested_object(Gdrive_Json_Object* pObj,
 }
 
 
-int64_t gdrive_json_get_string(Gdrive_Json_Object* pObj, 
-                            const char* key, 
-                            char* result, 
-                            long maxlen
-)
+int64_t gdrive_json_get_string(Gdrive_Json_Object* pObj, const char* key, 
+                               char* result, long maxlen)
 {
     if (maxlen < 0)
     {
@@ -102,10 +102,8 @@ int64_t gdrive_json_get_string(Gdrive_Json_Object* pObj,
     return maxlen >= sourcelen ? sourcelen : maxlen - sourcelen;
 }
 
-char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj, 
-                                 const char* key,
-                                 long* pLength
-)
+char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj, const char* key, 
+                                 long* pLength)
 {
     // Find the length of the string.
     long length = gdrive_json_get_string(pObj, key, NULL, 0);
@@ -138,11 +136,8 @@ char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj,
     return result;
 }
 
-int gdrive_json_realloc_string(Gdrive_Json_Object* pObj, 
-                                     const char* key,
-                                     char** pDest, 
-                                     long* pLength
-)
+int gdrive_json_realloc_string(Gdrive_Json_Object* pObj, const char* key, 
+                               char** pDest, long* pLength)
 {
     // Find the length of the string.
     long length = gdrive_json_get_string(pObj, key, NULL, 0);
@@ -170,16 +165,12 @@ int gdrive_json_realloc_string(Gdrive_Json_Object* pObj,
 
     // Actually retrieve the string.  This should return a non-zero positive
     // number, so determine success or failure based on that condition.
-    return (gdrive_json_get_string(pObj, key, *pDest, length) > 0) ?
-        0 :
-        -1;
+    return (gdrive_json_get_string(pObj, key, *pDest, length) > 0) ? 
+        0 : -1;
 }
 
-int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj,
-                              const char* key,
-                              bool convertTypes, 
-                              bool* pSuccess
-)
+int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj, const char* key, 
+                              bool convertTypes, bool* pSuccess)
 {
     Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
     if (pInnerObj == NULL)
@@ -188,7 +179,7 @@ int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj,
         *pSuccess = false;
         return 0;
     }
-    if (!convertTypes &&
+    if (!convertTypes && 
             !(json_object_is_type(pInnerObj, json_type_int) || 
             json_object_is_type(pInnerObj, json_type_double))
             )
@@ -203,10 +194,8 @@ int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj,
 
 }
 
-double gdrive_json_get_double(Gdrive_Json_Object* pObj, 
-                              const char* key, 
-                              bool* pSuccess
-)
+double gdrive_json_get_double(Gdrive_Json_Object* pObj, const char* key, 
+                              bool* pSuccess)
 {
     Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
     if (pInnerObj == NULL)
@@ -228,10 +217,8 @@ double gdrive_json_get_double(Gdrive_Json_Object* pObj,
 
 }
 
-bool gdrive_json_get_boolean(Gdrive_Json_Object* pObj, 
-                             const char* key, 
-                             bool* pSuccess
-)
+bool gdrive_json_get_boolean(Gdrive_Json_Object* pObj, const char* key, 
+                             bool* pSuccess)
 {
     Gdrive_Json_Object* pInnerObj = gdrive_json_get_nested_object(pObj, key);
     if (pInnerObj == NULL)
@@ -263,10 +250,8 @@ Gdrive_Json_Object* gdrive_json_new()
     return json_object_new_object();
 }
 
-void gdrive_json_add_string(Gdrive_Json_Object* pObj, 
-                            const char* key, 
-                            const char* str
-)
+void gdrive_json_add_string(Gdrive_Json_Object* pObj, const char* key, 
+                            const char* str)
 {
     // json_object_new_xxxx should give a reference count of 1, then
     // json_object_object_add should decrement the count.  Everything should
@@ -275,10 +260,8 @@ void gdrive_json_add_string(Gdrive_Json_Object* pObj,
     json_object_object_add(pObj, key, json_object_new_string(str));
 }
 
-void gdrive_json_add_int64(Gdrive_Json_Object* pObj,
-                           const char* key, 
-                           int64_t value
-)
+void gdrive_json_add_int64(Gdrive_Json_Object* pObj, const char* key, 
+                           int64_t value)
 {
     // json_object_new_xxxx should give a reference count of 1, then
     // json_object_object_add should decrement the count.  Everything should
@@ -287,10 +270,8 @@ void gdrive_json_add_int64(Gdrive_Json_Object* pObj,
     json_object_object_add(pObj, key, json_object_new_int64(value));
 }
 
-void gdrive_json_add_double(Gdrive_Json_Object* pObj, 
-                            const char* key, 
-                            double value
-)
+void gdrive_json_add_double(Gdrive_Json_Object* pObj, const char* key, 
+                            double value)
 {
     // json_object_new_xxxx should give a reference count of 1, then
     // json_object_object_add should decrement the count.  Everything should
@@ -299,10 +280,8 @@ void gdrive_json_add_double(Gdrive_Json_Object* pObj,
     json_object_object_add(pObj, key, json_object_new_double(value));
 }
 
-void gdrive_json_add_boolean(Gdrive_Json_Object* pObj, 
-                             const char* key, 
-                             bool value
-)
+void gdrive_json_add_boolean(Gdrive_Json_Object* pObj, const char* key, 
+                             bool value)
 {
     // json_object_new_xxxx should give a reference count of 1, then
     // json_object_object_add should decrement the count.  Everything should
@@ -312,8 +291,7 @@ void gdrive_json_add_boolean(Gdrive_Json_Object* pObj,
 }
 
 Gdrive_Json_Object* gdrive_json_add_new_array(Gdrive_Json_Object* pObj, 
-                                              const char* key
-)
+                                              const char* key)
 {
     // json_object_new_xxxx should give a reference count of 1, then
     // json_object_object_add should decrement the count.  Everything should
@@ -329,10 +307,8 @@ Gdrive_Json_Object* gdrive_json_add_new_array(Gdrive_Json_Object* pObj,
     return array;
 }
 
-void gdrive_json_add_existing_array(Gdrive_Json_Object* pObj,
-                                                   const char* key,
-                                                   Gdrive_Json_Object* pArray
-)
+void gdrive_json_add_existing_array(Gdrive_Json_Object* pObj, const char* key, 
+                                    Gdrive_Json_Object* pArray)
 {
     // Use json_object_get() before json_object_object_add() to leave the 
     // reference count unchanged.
