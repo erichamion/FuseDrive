@@ -61,12 +61,10 @@ typedef struct Gdrive_Cache_Node Gdrive_Cache_Node;
  *      Google Drive file ID. On failure, or if the given file ID doesn't 
  *      already have a cache node and addIfDoesntExist is false, returns NULL.
  */
-Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
-                                    Gdrive_Cache_Node** ppNode,
-                                    const char* fileId,
-                                    bool addIfDoesntExist,
-                                    bool* pAlreadyExists
-);
+Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent, 
+                                    Gdrive_Cache_Node** ppNode, 
+                                    const char* fileId, bool addIfDoesntExist, 
+                                    bool* pAlreadyExists);
 
 /*
  *  gdrive_cnode_delete():  Deletes a node and safely frees its memory, 
@@ -79,8 +77,7 @@ Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
  *              pointer may change.
  */
 void gdrive_cnode_delete(Gdrive_Cache_Node* pNode, 
-                         Gdrive_Cache_Node** ppToRoot
-);
+                         Gdrive_Cache_Node** ppToRoot);
 
 /*
  * gdrive_cnode_mark_deleted(): Mark a node for deletion. If there are any open
@@ -95,8 +92,7 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
  *              location may be changed to point to a different memory location.
  */
 void gdrive_cnode_mark_deleted(Gdrive_Cache_Node* pNode, 
-                               Gdrive_Cache_Node** ppToRoot
-);
+                               Gdrive_Cache_Node** ppToRoot);
 
 /*
  * gdrive_cnode_free_all(): Safely frees the memory associated with all cache
@@ -151,8 +147,6 @@ enum Gdrive_Filetype gdrive_cnode_get_filetype(Gdrive_Cache_Node* pNode);
 Gdrive_Fileinfo* gdrive_cnode_get_fileinfo(Gdrive_Cache_Node* pNode);
 
 
-
-
 /*************************************************************************
  * Other accessible functions
  *************************************************************************/
@@ -171,8 +165,7 @@ Gdrive_Fileinfo* gdrive_cnode_get_fileinfo(Gdrive_Cache_Node* pNode);
  *              https://developers.google.com/drive/v2/reference/files
  */
 void gdrive_cnode_update_from_json(Gdrive_Cache_Node* pNode, 
-                                       Gdrive_Json_Object* pObj
-);
+                                   Gdrive_Json_Object* pObj);
 
 /*
  * gdrive_cnode_delete_file_contents(): Removes a single Gdrive_File_Contents
@@ -187,8 +180,7 @@ void gdrive_cnode_update_from_json(Gdrive_Cache_Node* pNode,
  *              A pointer to the struct to be deleted.
  */
 void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode, 
-                                Gdrive_File_Contents* pContents
-);
+                                Gdrive_File_Contents* pContents);
 
 /*
  * gdrive_cnode_is_dirty(): Determine whether a node has "dirty" data written
@@ -201,9 +193,6 @@ void gdrive_cnode_delete_file_contents(Gdrive_Cache_Node* pNode,
  *      True if there is dirty data, false otherwise.
  */
 bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode);
-
-
-
 
 
 // #ifdef	__cplusplus
