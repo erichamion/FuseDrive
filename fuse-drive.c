@@ -24,13 +24,12 @@
 #include <pwd.h>
 #include <assert.h>
 
-
-
 // Project header(s)
 #include "fuse-drive.h"
 #include "gdrive/gdrive-util.h"
 #include "gdrive/gdrive.h"
 #include "fuse-drive-options.h"
+
 
 
 static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo, 
@@ -43,9 +42,6 @@ static int fudr_rm_file_or_dir_by_id(const char* fileId, const char* parentId);
 static unsigned int fudr_get_max_perms(bool isDir);
 
 static bool fudr_group_match(gid_t gidToMatch, gid_t gid, uid_t uid);
-
-
-
 
 static int fudr_access(const char* path, int mask);
 
@@ -60,9 +56,9 @@ static int fudr_create(const char* path, mode_t mode,
 
 static void fudr_destroy(void* private_data);
 
-// static int 
-// fudr_fallocate(const char* path, int mode, off_t offset, off_t len, 
-//                struct fuse_file_info* fi);
+/* static int fudr_fallocate(const char* path, int mode, off_t offset, 
+ *                           off_t len, struct fuse_file_info* fi);
+ */
 
 static int 
 fudr_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi);
@@ -71,57 +67,58 @@ fudr_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi);
 
 // static int fudr_flush(const char* path, struct fuse_file_info* fi);
 
-static int 
-fudr_fsync(const char* path, int isdatasync, struct fuse_file_info* fi);
+static int fudr_fsync(const char* path, int isdatasync, 
+                      struct fuse_file_info* fi);
 
-// static int 
-// fudr_fsyncdir(const char* path, int isdatasync, struct fuse_file_info* fi);
+/* static int fudr_fsyncdir(const char* path, int isdatasync, 
+ *                          struct fuse_file_info* fi);
+ */
 
-static int 
-fudr_ftruncate(const char* path, off_t size, struct fuse_file_info* fi);
+static int fudr_ftruncate(const char* path, off_t size, 
+                          struct fuse_file_info* fi);
 
 static int fudr_getattr(const char *path, struct stat *stbuf);
 
-// static int 
-// fudr_getxattr(const char* path, const char* name, char* value, size_t size);
+/* static int fudr_getxattr(const char* path, const char* name, char* value, 
+ *                          size_t size);
+ */
 
 static void* fudr_init(struct fuse_conn_info *conn);
 
-// static int 
-// fudr_ioctl(const char* path, int cmd, void* arg, struct fuse_file_info* fi, 
-//            unsigned int flags, void* data);
+/* static int fudr_ioctl(const char* path, int cmd, void* arg, 
+ *                       struct fuse_file_info* fi, unsigned int flags, 
+ *                       void* data);
+ */
 
 static int fudr_link(const char* from, const char* to);
 
 // static int fudr_listxattr(const char* path, char* list, size_t size);
 
-// static int 
-// fudr_lock(const char* path, struct fuse_file_info* fi, int cmd, 
-//           struct flock* locks);
+/* static int fudr_lock(const char* path, struct fuse_file_info* fi, int cmd, 
+ *                      struct flock* locks);
+ */
 
 static int fudr_mkdir(const char* path, mode_t mode);
 
-//static int fudr_mknod(const char* path, mode_t mode, dev_t rdev);
+// static int fudr_mknod(const char* path, mode_t mode, dev_t rdev);
 
 static int fudr_open(const char *path, struct fuse_file_info *fi);
 
 // static int fudr_opendir(const char* path, struct fuse_file_info* fi);
 
-// static int 
-// fudr_poll(const char* path, struct fuse_file_info* fi, 
-//           struct fuse_pollhandle* ph, unsigned* reventsp);
+/* static int fudr_poll(const char* path, struct fuse_file_info* fi, 
+ *                      struct fuse_pollhandle* ph, unsigned* reventsp);
+ */
 
-static int 
-fudr_read(const char *path, char *buf, size_t size, off_t offset,
-          struct fuse_file_info *fi);
+static int fudr_read(const char *path, char *buf, size_t size, off_t offset, 
+                     struct fuse_file_info *fi);
 
-// static int 
-// fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
-//               size_t size, off_t off, struct fuse_file_info* fi);
+/* static int fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
+ *                          size_t size, off_t off, struct fuse_file_info* fi);
+ */
 
-static int 
-fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-             off_t offset, struct fuse_file_info *fi);
+static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler, 
+                        off_t offset, struct fuse_file_info *fi);
 
 // static int fudr_readlink(const char* path, char* buf, size_t size);
 
@@ -135,9 +132,9 @@ static int fudr_rename(const char* from, const char* to);
 
 static int fudr_rmdir(const char* path);
 
-// static int 
-// fudr_setxattr(const char* path, const char* name, const char* value, 
-//               size_t size, int flags);
+/* static int fudr_setxattr(const char* path, const char* name, 
+ *                          const char* value, size_t size, int flags);
+ */
 
 static int fudr_statfs(const char* path, struct statvfs* stbuf);
 
@@ -151,18 +148,17 @@ static int fudr_unlink(const char* path);
 
 static int fudr_utimens(const char* path, const struct timespec ts[2]);
 
-static int 
-fudr_write(const char* path, const char *buf, size_t size, off_t offset, 
-           struct fuse_file_info* fi);
+static int fudr_write(const char* path, const char *buf, size_t size, 
+                      off_t offset, struct fuse_file_info* fi);
 
-// static int 
-// fudr_write_buf(const char* path, struct fuse_bufvec* buf, off_t off, 
-//                struct fuse_file_info* fi);
-
+/* static int fudr_write_buf(const char* path, struct fuse_bufvec* buf, 
+ *                           off_t off, struct fuse_file_info* fi);
+ */
 
 
 
-static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
+
+static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo, 
                                    bool isRoot, struct stat* stbuf)
 {
     switch (pFileinfo->type)
@@ -170,17 +166,19 @@ static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo,
         case GDRIVE_FILETYPE_FOLDER:
             stbuf->st_mode = S_IFDIR;
             stbuf->st_nlink = pFileinfo->nParents + pFileinfo->nChildren;
-            // Account for ".".  Also, if the root of the filesystem, account for 
-            // "..", which is outside of the Google Drive filesystem and thus not
-            // included in nParents.
+            // Account for ".".  Also, if the root of the filesystem, account 
+            // for  "..", which is outside of the Google Drive filesystem and 
+            // thus not included in nParents.
             stbuf->st_nlink += isRoot ? 2 : 1;
             break;
 
         case GDRIVE_FILETYPE_FILE:
             // Fall through to default
             default:
+            {
                 stbuf->st_mode = S_IFREG;
                 stbuf->st_nlink = pFileinfo->nParents;
+            }
     }
     
     unsigned int perms = gdrive_finfo_real_perms(pFileinfo);
@@ -254,7 +252,9 @@ static bool fudr_group_match(gid_t gidToMatch, gid_t gid, uid_t uid)
 {
     // Simplest case - primary group matches
     if (gid == gidToMatch)
+    {
         return true;
+    }
     
     // Get a list of all the users in the group, and see whether the desired
     // user is in the list. It seems like there MUST be a cleaner way to do
@@ -264,7 +264,9 @@ static bool fudr_group_match(gid_t gidToMatch, gid_t gid, uid_t uid)
     for (char** pName = grpInfo->gr_mem; *pName; pName++)
     {
         if (!strcmp(*pName, userInfo->pw_name))
+        {
             return true;
+        }
     }
     
     // No match found
@@ -330,25 +332,27 @@ static int fudr_access(const char* path, int mask)
     return 0;
 }
 
-// //bmap only makes sense for block devices.
-// static int fudr_bmap(const char* path, size_t blocksize, uint64_t* blockno)
-// {
-//     
-// }
+/* static int fudr_bmap(const char* path, size_t blocksize, uint64_t* blockno)
+ * {
+ *     
+ * }
+ */
 
-// static int fudr_chmod(const char* path, mode_t mode)
-// {
-//     //If this is implemented at all, will need to store new permissions as
-//     //private file metadata.  Should check the owners[] list in file metadata,
-//     //return -EPERM unless IsAuthenticatedUser is true for one of the owners.
-//     return -ENOSYS;
-// }
+/* static int fudr_chmod(const char* path, mode_t mode)
+ * {
+ *     // If this is implemented at all, will need to store new permissions as
+ *     // private file metadata.  Should check the owners[] list in file 
+ *     // metadata, return -EPERM unless IsAuthenticatedUser is true for one of 
+ *     // the owners.
+ *     return -ENOSYS;
+ * }
+ */
 
-// //chown probably does not make sense for our needs.
-// static int fudr_chown(const char* path, uid_t uid, gid_t gid)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_chown(const char* path, uid_t uid, gid_t gid)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_create(const char* path, mode_t mode, 
                        struct fuse_file_info* fi)
@@ -407,12 +411,12 @@ static void fudr_destroy(void* private_data)
     gdrive_cleanup();
 }
 
-// static int 
-// fudr_fallocate(const char* path, int mode, off_t offset, off_t len, 
-//                struct fuse_file_info* fi)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_fallocate(const char* path, int mode, off_t offset, 
+ *                           off_t len, struct fuse_file_info* fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_fgetattr(const char* path, struct stat* stbuf, 
                          struct fuse_file_info* fi)
@@ -430,15 +434,17 @@ static int fudr_fgetattr(const char* path, struct stat* stbuf,
     return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
 }
 
-// static int fudr_flock(const char* path, struct fuse_file_info* fi, int op)
-// {
-//     
-// }
+/* static int fudr_flock(const char* path, struct fuse_file_info* fi, int op)
+ * {
+ *     
+ * }
+ */
 
-// static int fudr_flush(const char* path, struct fuse_file_info* fi)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_flush(const char* path, struct fuse_file_info* fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_fsync(const char* path, int isdatasync, 
                       struct fuse_file_info* fi)
@@ -458,11 +464,12 @@ static int fudr_fsync(const char* path, int isdatasync,
     return gdrive_file_sync((Gdrive_File*) fi->fh);
 }
 
-// static int 
-// fudr_fsyncdir(const char* path, int isdatasync, struct fuse_file_info* fi)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_fsyncdir(const char* path, int isdatasync, 
+ *                          struct fuse_file_info* fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_ftruncate(const char* path, off_t size, 
                           struct fuse_file_info* fi)
@@ -509,11 +516,12 @@ static int fudr_getattr(const char *path, struct stat *stbuf)
     return fudr_stat_from_fileinfo(pFileinfo, strcmp(path, "/") == 0, stbuf);
 }
 
-// static int 
-// fudr_getxattr(const char* path, const char* name, char* value, size_t size)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_getxattr(const char* path, const char* name, char* value, 
+ *                          size_t size)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static void* fudr_init(struct fuse_conn_info *conn)
 {
@@ -530,12 +538,13 @@ static void* fudr_init(struct fuse_conn_info *conn)
     return fuse_get_context()->private_data;
 }
 
-// static int 
-// fudr_ioctl(const char* path, int cmd, void* arg, struct fuse_file_info* fi, 
-//            unsigned int flags, void* data)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_ioctl(const char* path, int cmd, void* arg, 
+ *                       struct fuse_file_info* fi, unsigned int flags, 
+ *                       void* data)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_link(const char* from, const char* to)
 {
@@ -591,16 +600,18 @@ static int fudr_link(const char* from, const char* to)
     return returnVal;
 }
 
-//static int fudr_listxattr(const char* path, char* list, size_t size)
-//{
-//    return -ENOSYS;
-//}
-//static int 
-//fudr_lock(const char* path, struct fuse_file_info* fi, int cmd, 
-//          struct flock* locks)
-//{
-//    return -ENOSYS;
-//}
+/* static int fudr_listxattr(const char* path, char* list, size_t size)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
+
+/* static int fudr_lock(const char* path, struct fuse_file_info* fi, int cmd, 
+ *                      struct flock* locks)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_mkdir(const char* path, mode_t mode)
 {
@@ -641,10 +652,11 @@ static int fudr_mkdir(const char* path, mode_t mode)
     return -error;
 }
 
-// static int fudr_mknod(const char* path, mode_t mode, dev_t rdev)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_mknod(const char* path, mode_t mode, dev_t rdev)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_open(const char *path, struct fuse_file_info *fi)
 {
@@ -667,10 +679,14 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
         modeNeeded |= W_OK;
     }
     if (!modeNeeded)
+    {
         modeNeeded = F_OK;
+    }
     int accessResult = fudr_access(path, modeNeeded);
     if (accessResult)
+    {
         return accessResult;
+    }
     
     // Open the file
     int error = 0;
@@ -688,16 +704,18 @@ static int fudr_open(const char *path, struct fuse_file_info *fi)
     return 0;
 }
 
-// static int fudr_opendir(const char* path, struct fuse_file_info* fi)
-// {
-//     return -ENOSYS;
-// }
-// static int 
-// fudr_poll(const char* path, struct fuse_file_info* fi, 
-//           struct fuse_pollhandle* ph, unsigned* reventsp)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_opendir(const char* path, struct fuse_file_info* fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
+
+/* static int fudr_poll(const char* path, struct fuse_file_info* fi, 
+ *                      struct fuse_pollhandle* ph, unsigned* reventsp)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_read(const char *path, char *buf, size_t size, off_t offset, 
                      struct fuse_file_info *fi)
@@ -717,12 +735,13 @@ static int fudr_read(const char *path, char *buf, size_t size, off_t offset,
     return gdrive_file_read(pFile, buf, size, offset);
 }
 
-// static int 
-// fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
-//               size_t size, off_t off, struct fuse_file_info* fi)
-// {
-//     return -ENOSYS;
-// }
+/* static int 
+ * fudr_read_buf(const char* path, struct fuse_bufvec **bufp, 
+ *               size_t size, off_t off, struct fuse_file_info* fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler, 
                         off_t offset, struct fuse_file_info *fi)
@@ -781,10 +800,11 @@ static int fudr_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return 0;
 }
 
-// static int fudr_readlink(const char* path, char* buf, size_t size)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_readlink(const char* path, char* buf, size_t size)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_release(const char* path, struct fuse_file_info* fi)
 {
@@ -801,15 +821,17 @@ static int fudr_release(const char* path, struct fuse_file_info* fi)
     return 0;
 }
 
-// static int fudr_releasedir(const char* path, struct fuse_file_info *fi)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_releasedir(const char* path, struct fuse_file_info *fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
-// static int fudr_removexattr(const char* path, const char* value)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_removexattr(const char* path, const char* value)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_rename(const char* from, const char* to)
 {
@@ -835,7 +857,8 @@ static int fudr_rename(const char* from, const char* to)
         free(rootId);
         return -EBUSY;
     }
-    char* toFileId = gdrive_filepath_to_id(to); // May be NULL.
+    char* toFileId = gdrive_filepath_to_id(to); 
+    // toFileId may be NULL.
     
     // Special handling if the destination exists
     if (toFileId)
@@ -1062,12 +1085,12 @@ static int fudr_rmdir(const char* path)
     return returnVal;
 }
 
-// static int 
-// fudr_setxattr(const char* path, const char* name, const char* value, 
-//               size_t size, int flags)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_setxattr(const char* path, const char* name, 
+ *                          const char* value, size_t size, int flags)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_statfs(const char* path, struct statvfs* stbuf)
 {
@@ -1087,10 +1110,11 @@ static int fudr_statfs(const char* path, struct statvfs* stbuf)
     return 0;
 }
 
-// static int fudr_symlink(const char* to, const char* from)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_symlink(const char* to, const char* from)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_truncate(const char* path, off_t size)
 {
@@ -1161,10 +1185,11 @@ static int fudr_unlink(const char* path)
     return returnVal;
 }
 
-// static int fudr_utime()
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_utime()
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 static int fudr_utimens(const char* path, const struct timespec ts[2])
 {
@@ -1233,58 +1258,80 @@ static int fudr_write(const char* path, const char *buf, size_t size,
     return gdrive_file_write(fh, buf, size, offset);
 }
 
-// static int 
-// fudr_write_buf(const char* path, struct fuse_bufvec* buf, off_t off, 
-//                struct fuse_file_info* fi)
-// {
-//     return -ENOSYS;
-// }
+/* static int fudr_write_buf(const char* path, struct fuse_bufvec* buf, 
+ *                           off_t off, struct fuse_file_info* fi)
+ * {
+ *     return -ENOSYS;
+ * }
+ */
 
 
 static struct fuse_operations fo = {
     .access         = fudr_access,
-    .bmap           = NULL, // fudr_bmap,        // Not needed
-    .chmod          = NULL, // fudr_chmod,       // Might consider later
-    .chown          = NULL, // fudr_chown,       // Might consider later
+    // bmap is not needed
+    .bmap           = NULL,
+    // Might consider chmod later (somewhat unlikely)
+    .chmod          = NULL,
+    // Might consider chown later (unlikely)
+    .chown          = NULL,
     .create         = fudr_create,
     .destroy        = fudr_destroy,
-    .fallocate      = NULL, // fudr_fallocate,   // Not needed
+    // fallocate is not needed
+    .fallocate      = NULL,
     .fgetattr       = fudr_fgetattr,
-    .flock          = NULL, // fudr_flock,       // Not needed
-    .flush          = NULL, // fudr_flush,       // Not needed
+    // flock is not needed
+    .flock          = NULL,
+    // flush is not needed
+    .flush          = NULL,
     .fsync          = fudr_fsync,
-    .fsyncdir       = NULL, // fudr_fsyncdir,    // Not needed
+    // fsyncdir is not needed
+    .fsyncdir       = NULL,
     .ftruncate      = fudr_ftruncate,
     .getattr        = fudr_getattr,
-    .getxattr       = NULL, // fudr_getxattr,    // Not needed
+    // getxattr is not needed
+    .getxattr       = NULL,
     .init           = fudr_init,
-    .ioctl          = NULL, // fudr_ioctl,       // Not needed
+    // ioctl is not needed
+    .ioctl          = NULL,
     .link           = fudr_link,
-    .listxattr      = NULL, // fudr_listxattr,   // Not needed
-    .lock           = NULL, // fudr_lock,        // Not needed
+    // listxattr is not needed
+    .listxattr      = NULL,
+    // lock is not needed
+    .lock           = NULL,
     .mkdir          = fudr_mkdir,
-    .mknod          = NULL, // fudr_mknod,       // Not needed
+    // mknod is not needed
+    .mknod          = NULL,
     .open           = fudr_open,
-    .opendir        = NULL, // fudr_opendir,     // Not needed
-    .poll           = NULL, // fudr_poll,        // Not needed
+    // opendir is not needed
+    .opendir        = NULL,
+    // poll is not needed
+    .poll           = NULL,
     .read           = fudr_read,
-    .read_buf       = NULL, // fudr_read_buf,    // ???
+    // Not sure how to use read_buf or whether it would help us
+    .read_buf       = NULL,
     .readdir        = fudr_readdir,
-    .readlink       = NULL, // fudr_readlink,    // Might consider later
+    // Might consider later whether readlink and symlink can/should be added
+    .readlink       = NULL,
     .release        = fudr_release,
-    .releasedir     = NULL, // fudr_releasedir,  // Not needed
-    .removexattr    = NULL, // fudr_removexattr, // Not needed
+    // releasedir is not needed
+    .releasedir     = NULL,
+    // removexattr is not needed
+    .removexattr    = NULL,
     .rename         = fudr_rename,
     .rmdir          = fudr_rmdir,
-    .setxattr       = NULL, // fudr_setxattr,    // Not needed
+    // setxattr is not needed
+    .setxattr       = NULL,
     .statfs         = fudr_statfs,
-    .symlink        = NULL, // fudr_symlink,     // Might consider later
+    // Might consider later whether symlink and readlink can/should be added
+    .symlink        = NULL,
     .truncate       = fudr_truncate,
     .unlink         = fudr_unlink,
-    .utime          = NULL, // fudr_utime,       // Not needed
+    // utime isn't needed
+    .utime          = NULL,
     .utimens        = fudr_utimens,
     .write          = fudr_write,
-    .write_buf      = NULL, // fudr_write_buf,   // ????
+    // Not sure how to use write_buf or whether it would help us
+    .write_buf      = NULL,
 };
 
 
