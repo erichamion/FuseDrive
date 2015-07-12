@@ -13,9 +13,9 @@
 #ifndef GDRIVE_FILE_H
 #define	GDRIVE_FILE_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include "gdrive-fileinfo.h"
     
@@ -219,9 +219,9 @@ Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh);
 unsigned int gdrive_file_get_perms(const Gdrive_File* fh);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_FILE_H */
 

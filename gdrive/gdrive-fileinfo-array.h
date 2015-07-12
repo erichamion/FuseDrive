@@ -13,9 +13,9 @@
 #ifndef GDRIVE_FILEINFO_ARRAY_H
 #define	GDRIVE_FILEINFO_ARRAY_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
     
 typedef struct Gdrive_Fileinfo_Array Gdrive_Fileinfo_Array;
@@ -128,9 +128,9 @@ int gdrive_finfoarray_add_from_json(Gdrive_Fileinfo_Array* pArray,
                                         Gdrive_Json_Object* pObj);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_FILEINFO_ARRAY_H */
 

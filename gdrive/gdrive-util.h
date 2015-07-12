@@ -14,9 +14,9 @@
 #ifndef GDRIVE_UTIL_H
 #define	GDRIVE_UTIL_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include <stdio.h>
 #include <time.h>
@@ -122,9 +122,9 @@ FILE* gdrive_power_fopen(const char* path, const char* mode);
 int gdrive_recursive_mkdir(const char* path);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_UTIL_H */
 

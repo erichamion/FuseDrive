@@ -17,9 +17,9 @@
 #ifndef GDRIVE_JSON_H
 #define	GDRIVE_JSON_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 #include <json-c/json.h>
 #include <stdbool.h>
@@ -531,9 +531,9 @@ void gdrive_json_kill(Gdrive_Json_Object* pObj);
 void gdrive_json_keep(Gdrive_Json_Object* pObj);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_JSON_H */
 

@@ -14,9 +14,9 @@
 #ifndef GDRIVE_INFO_H
 #define	GDRIVE_INFO_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
     
 /*
@@ -106,9 +106,9 @@ int gdrive_auth(void);
     
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_INTERNAL_H */
 

@@ -15,9 +15,9 @@
 #ifndef GDRIVE_DOWNLOAD_BUFFER_H
 #define	GDRIVE_DOWNLOAD_BUFFER_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include "gdrive.h"
     
@@ -174,9 +174,9 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
                                      int tryNum, int maxTries);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_DOWNLOAD_BUFFER_H */
 

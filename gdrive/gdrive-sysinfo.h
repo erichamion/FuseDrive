@@ -14,9 +14,9 @@
 #ifndef GDRIVE_SYSINFO_H
 #define	GDRIVE_SYSINFO_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include "gdrive.h"
 #include <sys/types.h>
@@ -81,9 +81,9 @@ const char* gdrive_sysinfo_get_rootid(void);
 // No other public functions
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_SYSINFO_H */
 

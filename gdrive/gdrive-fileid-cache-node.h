@@ -14,9 +14,9 @@
 #ifndef GDRIVE_FILEID_CACHE_NODE_H
 #define	GDRIVE_FILEID_CACHE_NODE_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include <time.h>
     
@@ -118,9 +118,9 @@ Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
         Gdrive_Fileid_Cache_Node* pHead, const char* path);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_FILEID_CACHE_NODE_H */
 

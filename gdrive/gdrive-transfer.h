@@ -13,9 +13,9 @@
 #ifndef GDRIVE_TRANSFER_H
 #define	GDRIVE_TRANSFER_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include "gdrive-download-buffer.h"
     
@@ -289,9 +289,9 @@ int gdrive_xfer_add_header(Gdrive_Transfer* pTransfer, const char* header);
 Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_TRANSFER_DESCRIPTOR_H */
 

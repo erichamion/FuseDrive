@@ -33,9 +33,7 @@
 
 
 static int fudr_stat_from_fileinfo(const Gdrive_Fileinfo* pFileinfo, 
-                                   bool isRoot, 
-                                   struct stat* stbuf
-);
+                                   bool isRoot, struct stat* stbuf);
 
 static int fudr_rm_file_or_dir_by_id(const char* fileId, const char* parentId);
 

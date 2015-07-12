@@ -15,9 +15,9 @@
 #ifndef GDRIVE_FILE_CONTENTS_H
 #define	GDRIVE_FILE_CONTENTS_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 #include "gdrive-info.h"
 
@@ -233,9 +233,9 @@ off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, const char* buf,
 int gdrive_fcontents_truncate(Gdrive_File_Contents* pContents, size_t size);
 
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* GDRIVE_FILE_CONTENTS_H */
 

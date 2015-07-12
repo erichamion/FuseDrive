@@ -32,8 +32,7 @@ enum GDRIVE_FINFO_TIME
  *************************************************************************/
 
 static int gdrive_rfc3339_to_epoch_timens(const char* rfcTime, 
-                                          struct timespec* pResultTime
-);
+                                          struct timespec* pResultTime);
 
 static size_t gdrive_epoch_timens_to_rfc3339(char* dest, size_t max, 
                                              const struct timespec* ts);
