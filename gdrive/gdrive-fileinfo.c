@@ -35,15 +35,12 @@ static int gdrive_rfc3339_to_epoch_timens(const char* rfcTime,
                                           struct timespec* pResultTime
 );
 
-static size_t 
-gdrive_epoch_timens_to_rfc3339(char* dest, size_t max, 
-                               const struct timespec* ts);
+static size_t gdrive_epoch_timens_to_rfc3339(char* dest, size_t max, 
+                                             const struct timespec* ts);
 
-static int 
-gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo, 
-                      enum GDRIVE_FINFO_TIME whichTime, 
-                      const struct timespec* ts);
-
+static int gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo, 
+                                 enum GDRIVE_FINFO_TIME whichTime, 
+                                 const struct timespec* ts);
 
 
 /*************************************************************************
@@ -184,8 +181,6 @@ void gdrive_finfo_cleanup(Gdrive_Fileinfo* pFileinfo)
 }
 
 
-
-
 /******************
  * Getter and setter functions
  ******************/
@@ -211,7 +206,8 @@ int gdrive_finfo_get_ctime_string(Gdrive_Fileinfo* pFileinfo,
                                   size_t max
 )
 {
-    return gdrive_epoch_timens_to_rfc3339(dest, max, &(pFileinfo->creationTime));
+    return gdrive_epoch_timens_to_rfc3339(dest, max, 
+                                          &(pFileinfo->creationTime));
 }
 
 int gdrive_finfo_get_mtime_string(Gdrive_Fileinfo* pFileinfo, 
@@ -239,8 +235,7 @@ int gdrive_finfo_set_mtime(Gdrive_Fileinfo* pFileinfo,
  ******************/
 
 void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo, 
-                            Gdrive_Json_Object* pObj
-)
+                            Gdrive_Json_Object* pObj)
 {
     long length = 0;
     gdrive_json_realloc_string(pObj, "title", &(pFileinfo->filename), &length);
@@ -355,14 +350,12 @@ unsigned int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo)
 }
 
 
-
 /*************************************************************************
  * Implementations of private functions for use within this file
  *************************************************************************/
 
 static int gdrive_rfc3339_to_epoch_timens(const char* rfcTime, 
-                                          struct timespec* pResultTime
-)
+                                          struct timespec* pResultTime)
 {
     // Get the time down to seconds. Don't do anything with it yet, because
     // we still need to confirm the timezone.
@@ -432,20 +425,20 @@ static int gdrive_rfc3339_to_epoch_timens(const char* rfcTime,
     pResultTime->tv_sec = mktime(&epochTime);
     
     // Failure if mktime returned -1, success otherwise.
-    if (pResultTime->tv_sec == (time_t)-1)
+    if (pResultTime->tv_sec == (time_t) (-1))
     {
         return -1;
     }
     
     // Correct for local timezone, converting back to UTC
-    tzset();    // Probably unnecessary
+    // (Probably unnecessary to call tzset(), but it doesn't hurt)
+    tzset();
     pResultTime->tv_sec -= timezone;
     return 0;
 }
 
-static size_t 
-gdrive_epoch_timens_to_rfc3339(char* dest, size_t max, 
-                               const struct timespec* ts)
+static size_t gdrive_epoch_timens_to_rfc3339(char* dest, size_t max, 
+                                             const struct timespec* ts)
 {
     // A max of 31 (or GDRIVE_TIMESTRING_LENGTH) should be the minimum that will
     // be successful.
@@ -455,7 +448,6 @@ gdrive_epoch_timens_to_rfc3339(char* dest, size_t max,
     
     // Get everything down to whole seconds
     struct tm* pTime = gmtime(&(ts->tv_sec));
-    //struct tm* pTime = localtime(&(ts->tv_sec));
     size_t baseLength = strftime(dest, max, "%Y-%m-%dT%H:%M:%S", pTime);
     if (baseLength == 0)
     {
@@ -473,10 +465,9 @@ gdrive_epoch_timens_to_rfc3339(char* dest, size_t max,
     
 }
 
-static int 
-gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo, 
-                      enum GDRIVE_FINFO_TIME whichTime, 
-                      const struct timespec* ts)
+static int gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo, 
+                                 enum GDRIVE_FINFO_TIME whichTime, 
+                                 const struct timespec* ts)
 {
     assert(pFileinfo != NULL && 
             (whichTime == GDRIVE_FINFO_ATIME || whichTime == GDRIVE_FINFO_MTIME)
@@ -485,12 +476,12 @@ gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo,
     struct timespec* pDest = NULL;
     switch (whichTime)
     {
-    case GDRIVE_FINFO_ATIME:
-        pDest = &(pFileinfo->accessTime);
-        break;
-    case GDRIVE_FINFO_MTIME:
-        pDest = &(pFileinfo->modificationTime);
-        break;
+        case GDRIVE_FINFO_ATIME:
+            pDest = &(pFileinfo->accessTime);
+            break;
+        case GDRIVE_FINFO_MTIME:
+            pDest = &(pFileinfo->modificationTime);
+            break;
     }
     
     // Set current time if ts is a NULL pointer
@@ -515,6 +506,9 @@ gdrive_finfo_set_time(Gdrive_Fileinfo* pFileinfo,
     
     
     pFileinfo->dirtyMetainfo = true;
-    *pDest = *pTime;   // Copy, not pointer assignment
+    // Make a copy of *pTime, and store the copy at the place pDest
+    // points to (which is either the accessTime or modificationTime member
+    // of pFileinfo)/
+    *pDest = *pTime;
     return 0;
 }
