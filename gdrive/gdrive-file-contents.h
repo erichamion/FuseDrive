@@ -65,8 +65,7 @@ Gdrive_File_Contents* gdrive_fcontents_add(Gdrive_File_Contents* pHead);
  *              longer be used or freed.
  */
 void gdrive_fcontents_delete(Gdrive_File_Contents* pContents, 
-                             Gdrive_File_Contents** ppHead
-);
+                             Gdrive_File_Contents** ppHead);
 
 /*
  * gdrive_fcontents_delete_after_offset():  Safely removes and deletes select 
@@ -89,8 +88,7 @@ void gdrive_fcontents_delete(Gdrive_File_Contents* pContents,
  *              strictly greater than this argument will be deleted.
  */
 void gdrive_fcontents_delete_after_offset(Gdrive_File_Contents** ppHead, 
-                                          off_t offset
-);
+                                          off_t offset);
 
 /*
  * gdrive_fcontents_free_all(): Safely frees the memory associated with an 
@@ -105,8 +103,6 @@ void gdrive_fcontents_delete_after_offset(Gdrive_File_Contents** ppHead,
  *              old pointer, these should no longer be used.
  */
 void gdrive_fcontents_free_all(Gdrive_File_Contents** ppContents);
-
-
 
 
 /*************************************************************************
@@ -135,9 +131,8 @@ void gdrive_fcontents_free_all(Gdrive_File_Contents** ppContents);
  *      the specified offset, if such a Gdrive_File_Contents already exists.
  *      Otherwise, NULL.
  */
-Gdrive_File_Contents* gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead,
-                                                  off_t offset
-);
+Gdrive_File_Contents* gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, 
+                                                  off_t offset);
 
 /*
  * gdrive_fcontents_fill_chunk():   Download a chunk of a Google Drive file to
@@ -160,11 +155,8 @@ Gdrive_File_Contents* gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead,
  * Return value (int):
  *      0 on success, other on failure.
  */
-int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
-                                const char* fileId,
-                                off_t start, 
-                                size_t size
-);
+int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents, 
+                                const char* fileId, off_t start, size_t size);
 
 /*
  * gdrive_fcontents_read(): Reads from a file chunk's on-disk temporary file
@@ -194,11 +186,8 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
  *      correspond to the errors that can be returned by the ferror() system 
  *      call.
  */
-size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents, 
-                             char* destBuf, 
-                             off_t offset, 
-                             size_t size
-);
+size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents, char* destBuf, 
+                             off_t offset, size_t size);
 
 /*
  * gdrive_fcontents_write():    Write to a file chunk's on-disk temporary file
@@ -227,12 +216,8 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
  *      correspond to the errors that can be returned by the ferror() system 
  *      call.
  */
-off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
-                             const char* buf, 
-                             off_t offset,
-                             size_t size,
-                             bool extendChunk
-);
+off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, const char* buf, 
+                             off_t offset, size_t size, bool extendChunk);
 
 /*
  * gdrive_fcontents_truncate(): Truncate a file chunk to a specified size.
@@ -246,7 +231,6 @@ off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents,
  *      0 on success, or a negative error number on failure.
  */
 int gdrive_fcontents_truncate(Gdrive_File_Contents* pContents, size_t size);
-
 
 
 // #ifdef	__cplusplus
