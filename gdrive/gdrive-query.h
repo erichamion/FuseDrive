@@ -37,7 +37,6 @@ typedef struct Gdrive_Query Gdrive_Query;
 void gdrive_query_free(Gdrive_Query* pQuery);
 
 
-
 /*************************************************************************
  * Getter and setter functions
  *************************************************************************/
@@ -71,10 +70,8 @@ void gdrive_query_free(Gdrive_Query* pQuery);
  *      longer needed, the returned pointer should be passed to 
  *      gdrive_query_free().
  */
-Gdrive_Query* gdrive_query_add(Gdrive_Query* pQuery, 
-                               const char* field, 
-                               const char* value
-);
+Gdrive_Query* gdrive_query_add(Gdrive_Query* pQuery, const char* field, 
+                               const char* value);
 
 /*
  * gdrive_query_assemble(): Assembles HTTP POST data or a URL with a query 
@@ -104,7 +101,6 @@ Gdrive_Query* gdrive_query_add(Gdrive_Query* pQuery,
  *      the return value.
  */
 char* gdrive_query_assemble(const Gdrive_Query* pQuery, const char* url);
-
 
 
 // #ifdef	__cplusplus
