@@ -58,7 +58,6 @@
 Gdrive_Info* gdrive_get_info(void);
 
 
-
 /******************
  * Semi-public getter and setter functions
  ******************/
@@ -105,7 +104,6 @@ const char* gdrive_get_access_token(void);
  */
 int gdrive_auth(void);
     
-
 
 
 // #ifdef	__cplusplus
