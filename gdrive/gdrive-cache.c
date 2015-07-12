@@ -6,10 +6,6 @@
 
 
 
-
-
-
-
 /*************************************************************************
  * Private struct and declarations of private functions for use within 
  * this file
@@ -17,7 +13,6 @@
 
 typedef struct Gdrive_Cache
 {
-    //Gdrive_Info* pInfo;
     time_t cacheTTL;
     time_t lastUpdateTime;
     int64_t nextChangeId;
@@ -28,9 +23,6 @@ typedef struct Gdrive_Cache
 static Gdrive_Cache* gdrive_cache_get_internal(void);
 
 static void gdrive_cache_remove_id(const char* fileId);
-
-
-
 
 
 /*************************************************************************
@@ -66,8 +58,8 @@ int gdrive_cache_init(time_t cacheTTL)
     }
     gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     if (
-            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_ABOUT) ||
-            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") ||
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_ABOUT) || 
+            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") || 
             gdrive_xfer_add_query(pTransfer, "fields", "largestChangeId")
         )
     {
@@ -82,7 +74,8 @@ int gdrive_cache_init(time_t cacheTTL)
     if (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400)
     {
         // Response was good, try extracting the data.
-        Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+        Gdrive_Json_Object* pObj = 
+                gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
         if (pObj != NULL)
         {
             pCache->nextChangeId = 
@@ -101,7 +94,6 @@ int gdrive_cache_init(time_t cacheTTL)
     else
     {
         // Some error occurred.
-        //free(pCache);
         return -1;
     }
 }
@@ -119,7 +111,6 @@ void gdrive_cache_cleanup(void)
     gdrive_cnode_free_all(pCache->pCacheHead);
     pCache->pCacheHead = NULL;
 }
-
 
 
 /******************
@@ -189,11 +180,10 @@ int gdrive_cache_update()
     }
     gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     if (
-            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_CHANGES) ||
-            gdrive_xfer_add_query(pTransfer, "startChangeId", changeIdString) ||
-            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") /* ||
-            gdrive_xfer_add_query(pTransfer, "fields", 
-                                  "largestChangeId,items(fileId,deleted,file)")       */
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_CHANGES) || 
+            gdrive_xfer_add_query(pTransfer, "startChangeId", 
+                                  changeIdString) || 
+            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false")
         )
     {
         // Error
@@ -209,7 +199,8 @@ int gdrive_cache_update()
     if (pBuf != NULL && gdrive_dlbuf_get_httpresp(pBuf) < 400)
     {
         // Response was good, try extracting the data.
-        Gdrive_Json_Object* pObj = gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
+        Gdrive_Json_Object* pObj = 
+                gdrive_json_from_string(gdrive_dlbuf_get_data(pBuf));
         if (pObj != NULL)
         {
             // Update or remove cached data for each item in the "items" array.
@@ -261,13 +252,15 @@ int gdrive_cache_update()
                 
                 // The file's parents may now have a different number of 
                 // children.  Remove the parents from the cache.
-                int numParents = gdrive_json_array_length(pItem, "file/parents");
+                int numParents = 
+                        gdrive_json_array_length(pItem, "file/parents");
                 for (int nParent = 0; nParent < numParents; nParent++)
                 {
                     // Get the fileId of the current parent in the array.
                     char* parentId = NULL;
                     Gdrive_Json_Object* pParentObj = 
-                            gdrive_json_array_get(pItem, "file/parents", nParent);
+                            gdrive_json_array_get(pItem, "file/parents", 
+                                                  nParent);
                     if (pParentObj != NULL)
                     {
                         parentId = gdrive_json_get_new_string(pParentObj, 
@@ -306,10 +299,9 @@ int gdrive_cache_update()
     return returnVal;
 }
 
-Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId,
-                                       bool addIfDoesntExist,
-                                       bool* pAlreadyExists
-)
+Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId, 
+                                       bool addIfDoesntExist, 
+                                       bool* pAlreadyExists)
 {
     Gdrive_Cache* pCache = gdrive_cache_get_internal();
     
@@ -391,7 +383,7 @@ char* gdrive_cache_get_fileid(const char* path)
     time_t cacheUpdateTime = gdrive_cache_get_lastupdatetime(pCache);
     time_t nodeUpdateTime = gdrive_fidnode_get_lastupdatetime(pNode);
     time_t cacheTTL = gdrive_cache_get_ttl(pCache);
-    time_t expireTime = ((nodeUpdateTime > cacheUpdateTime) ?
+    time_t expireTime = ((nodeUpdateTime > cacheUpdateTime) ? 
         nodeUpdateTime : cacheUpdateTime) + cacheTTL;
     if (time(NULL) > expireTime)
     {
