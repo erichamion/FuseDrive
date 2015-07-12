@@ -7,7 +7,6 @@
 
 
 
-
 /*************************************************************************
  * Private struct and declarations of private functions for use within 
  * this file
@@ -22,7 +21,6 @@ typedef struct Gdrive_File_Contents
 } Gdrive_File_Contents;
 
 static Gdrive_File_Contents* gdrive_fcontents_create();
-
 
 
 /*************************************************************************
@@ -164,8 +162,8 @@ void gdrive_fcontents_free_all(Gdrive_File_Contents** ppContents)
  * Other accessible functions
  ******************/
 
-Gdrive_File_Contents* 
-gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, off_t offset)
+Gdrive_File_Contents* gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, 
+                                                  off_t offset)
 {
     if (pHead == NULL || pHead->fh == NULL)
     {
@@ -190,10 +188,7 @@ gdrive_fcontents_find_chunk(Gdrive_File_Contents* pHead, off_t offset)
 }
 
 int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents, 
-                                const char* fileId,
-                                off_t start,
-                                size_t size
-)
+                                const char* fileId, off_t start, size_t size)
 {
     Gdrive_Transfer* pTransfer = gdrive_xfer_create();
     if (pTransfer == NULL)
@@ -227,7 +222,7 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
     
     // Construct query parameters
     if (
-            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false") ||
+            gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false") || 
             gdrive_xfer_add_query(pTransfer, "alt", "media")
         )
     {
@@ -279,15 +274,12 @@ int gdrive_fcontents_fill_chunk(Gdrive_File_Contents* pContents,
         pContents->end = start + size - 1;
         return 0;
     }
-    //else failed
+    // else failed
     return -1;
 }
 
-size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents, 
-                             char* destBuf, 
-                             off_t offset, 
-                             size_t size
-)
+size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents, char* destBuf, 
+                             off_t offset, size_t size)
 {
     // If given a NULL buffer pointer, just return the number of bytes that 
     // would have been read upon success.
@@ -318,12 +310,8 @@ size_t gdrive_fcontents_read(Gdrive_File_Contents* pContents,
     return bytesRead;
 }
     
-off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, 
-                             const char* buf, 
-                             off_t offset,
-                             size_t size,
-                             bool extendChunk
-)
+off_t gdrive_fcontents_write(Gdrive_File_Contents* pContents, const char* buf, 
+                             off_t offset, size_t size, bool extendChunk)
 {
     // Only write to the end of the chunk, unless extendChunk is true
     size_t maxSize = pContents->end - offset;
