@@ -15,9 +15,9 @@
 #ifndef GDRIVE_H
 #define	GDRIVE_H
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
+// #ifdef	__cplusplus
+// extern "C" {
+// #endif
     
     
 
@@ -292,9 +292,9 @@ int gdrive_change_basename(const char* fileId, const char* newName);
 
 
 
-#ifdef	__cplusplus
-}
-#endif
+// #ifdef	__cplusplus
+// }
+// #endif
 
 #endif	/* GDRIVE_H */
 

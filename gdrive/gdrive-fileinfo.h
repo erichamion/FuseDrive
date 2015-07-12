@@ -13,9 +13,9 @@
 #ifndef GDRIVE_FILEINFO_H
 #define	GDRIVE_FILEINFO_H
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
+// #ifdef	__cplusplus
+// extern "C" {
+// #endif
     
 typedef struct Gdrive_Fileinfo Gdrive_Fileinfo;
 
@@ -216,9 +216,9 @@ unsigned int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo);
 
     
 
-#ifdef	__cplusplus
-}
-#endif
+// #ifdef	__cplusplus
+// }
+// #endif
 
 #endif	/* GDRIVE_FILEINFO_H */
 

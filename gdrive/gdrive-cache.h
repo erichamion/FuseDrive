@@ -18,9 +18,9 @@
 #ifndef GDRIVE_CACHE_H
 #define	GDRIVE_CACHE_H
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
+// #ifdef	__cplusplus
+// extern "C" {
+// #endif
    
     
 #include "gdrive.h"
@@ -256,9 +256,9 @@ void gdrive_cache_delete_node(Gdrive_Cache_Node* pNode);
 
     
 
-#ifdef	__cplusplus
-}
-#endif
+// #ifdef	__cplusplus
+// }
+// #endif
 
 #endif	/* GDRIVE_CACHE_H */
 

@@ -18,9 +18,9 @@
 #ifndef GDRIVE_CACHE_NODE_H
 #define	GDRIVE_CACHE_NODE_H
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
+// #ifdef	__cplusplus
+// extern "C" {
+// #endif
     
 #include "gdrive-file-contents.h"
 
@@ -206,9 +206,9 @@ bool gdrive_cnode_is_dirty(const Gdrive_Cache_Node* pNode);
 
 
 
-#ifdef	__cplusplus
-}
-#endif
+// #ifdef	__cplusplus
+// }
+// #endif
 
 #endif	/* GDRIVE_CACHE_NODE_H */
 

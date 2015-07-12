@@ -14,9 +14,9 @@
 #ifndef HEADER_TEMPLATE_H
 #define	HEADER_TEMPLATE_H
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
+// #ifdef	__cplusplus
+// extern "C" {
+// #endif
     
     
 typedef struct Gdrive_Query Gdrive_Query;
@@ -107,9 +107,9 @@ char* gdrive_query_assemble(const Gdrive_Query* pQuery, const char* url);
 
 
 
-#ifdef	__cplusplus
-}
-#endif
+// #ifdef	__cplusplus
+// }
+// #endif
 
 #endif	/* HEADER_TEMPLATE_H */
 
