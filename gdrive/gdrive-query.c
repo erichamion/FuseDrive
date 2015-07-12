@@ -15,14 +15,12 @@
 
 typedef struct Gdrive_Query
 {
-    //CURL* curlHandle;
     char* field;
     char* value;
     struct Gdrive_Query* pNext;
 } Gdrive_Query;
 
 Gdrive_Query* gdrive_query_create(void);
-
 
 
 /*************************************************************************
@@ -63,13 +61,11 @@ void gdrive_query_free(Gdrive_Query* pQuery)
 }
 
 
-
 /******************
  * Getter and setter functions
  ******************/
 
 // No getter or setter functions
-
 
 
 /******************
@@ -144,7 +140,7 @@ char* gdrive_query_assemble(const Gdrive_Query* pQuery, const char* url)
 {
     // If there is a url, allow for its length plus the '?' character (or the
     // url length plus terminating null if there is no query string).
-    int totalLength = (url == NULL) ? 0 : (strlen(url) +1);
+    int totalLength = (url == NULL) ? 0 : (strlen(url) + 1);
     
     // If there is a query string (or POST data, which is handled the same way),
     // each field adds its length plus 1 for the '=' character. Each value adds
