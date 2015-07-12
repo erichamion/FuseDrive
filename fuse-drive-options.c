@@ -43,37 +43,29 @@ static Fudr_Options* fudr_options_default();
 
 static char* fudr_options_get_default_auth_file();
 
-static bool 
-fudr_options_set_access(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_access(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_config(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_config(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_interaction(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_interaction(Fudr_Options* pOptions, 
+                                         const char* arg);
 
-static bool 
-fudr_options_set_fileperm(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_fileperm(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_dirperm(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_dirperm(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_cachettl(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_cachettl(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_chunksize(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_chunksize(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_maxchunks(Fudr_Options* pOptions, const char* arg);
+static bool fudr_options_set_maxchunks(Fudr_Options* pOptions, const char* arg);
 
-static bool 
-fudr_options_set_failed(Fudr_Options* pOptions, int arg, 
-                        const struct option* longopts, int longIndex);
+static bool fudr_options_set_failed(Fudr_Options* pOptions, int arg, 
+                                    const struct option* longopts, 
+                                    int longIndex);
 
-static void
-fudr_options_make_errormsg(char** pDest, const char* fmtStr, const char* arg);
-
+static void fudr_options_make_errormsg(char** pDest, const char* fmtStr, 
+                                       const char* arg);
 
 
 /**
@@ -167,44 +159,46 @@ Fudr_Options* fudr_options_create(int argc, char** argv)
         while ((currentArg = getopt_long(argc, argv, OPTION_STRING, 
                                          longopts, &longoptIndex)) != -1)
         {
-            switch(currentArg)
+            switch (currentArg)
             {
-            case OPTION_ACCESS:
-                // Set Google Drive access level
-                hasError = fudr_options_set_access(pOptions, optarg);
-                break;
-            case OPTION_CONFIG:
-                // Set config file (auth file)
-                hasError = fudr_options_set_config(pOptions, optarg);
-                break;
-            case OPTION_INTERACTION:
-                // Set the interaction type
-                hasError = fudr_options_set_interaction(pOptions, optarg);
-                break;
-            case OPTION_FILEPERM:
-                // Set the file permissions
-                hasError = fudr_options_set_fileperm(pOptions, optarg);
-                break;
-            case OPTION_DIRPERM:
-                // Set directory permissions
-                hasError = fudr_options_set_dirperm(pOptions, optarg);
-                break;
-            case OPTION_CACHETTL:
-                // Set cache TTL
-                hasError = fudr_options_set_cachettl(pOptions, optarg);
-                break;
-            case OPTION_CHUNKSIZE:
-                // Set chunk size
-                hasError = fudr_options_set_chunksize(pOptions, optarg);
-                break;
-            case OPTION_MAXCHUNKS:
-                // Set max chunks
-                hasError = fudr_options_set_maxchunks(pOptions, optarg);
-                break;
-            case '?': // Fall through to default
-            default:
-                hasError = fudr_options_set_failed(pOptions, optopt, 
-                                                   longopts, longoptIndex);
+                case OPTION_ACCESS:
+                    // Set Google Drive access level
+                    hasError = fudr_options_set_access(pOptions, optarg);
+                    break;
+                case OPTION_CONFIG:
+                    // Set config file (auth file)
+                    hasError = fudr_options_set_config(pOptions, optarg);
+                    break;
+                case OPTION_INTERACTION:
+                    // Set the interaction type
+                    hasError = fudr_options_set_interaction(pOptions, optarg);
+                    break;
+                case OPTION_FILEPERM:
+                    // Set the file permissions
+                    hasError = fudr_options_set_fileperm(pOptions, optarg);
+                    break;
+                case OPTION_DIRPERM:
+                    // Set directory permissions
+                    hasError = fudr_options_set_dirperm(pOptions, optarg);
+                    break;
+                case OPTION_CACHETTL:
+                    // Set cache TTL
+                    hasError = fudr_options_set_cachettl(pOptions, optarg);
+                    break;
+                case OPTION_CHUNKSIZE:
+                    // Set chunk size
+                    hasError = fudr_options_set_chunksize(pOptions, optarg);
+                    break;
+                case OPTION_MAXCHUNKS:
+                    // Set max chunks
+                    hasError = fudr_options_set_maxchunks(pOptions, optarg);
+                    break;
+                case '?': 
+                    // Fall through to default
+                    default:
+                        hasError = 
+                                fudr_options_set_failed(pOptions, optopt, 
+                                                        longopts, longoptIndex);
             }
             
             if (hasError)
@@ -297,7 +291,6 @@ void fudr_options_free(Fudr_Options* pOptions)
 }
 
 
-
 /**
  * Static function implementations
  */
@@ -369,8 +362,7 @@ static char* fudr_options_get_default_auth_file()
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_access(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_access(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -412,8 +404,7 @@ fudr_options_set_access(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_config(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_config(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -445,8 +436,8 @@ fudr_options_set_config(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_interaction(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_interaction(Fudr_Options* pOptions, 
+                                         const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -483,8 +474,7 @@ fudr_options_set_interaction(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_fileperm(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_fileperm(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -518,8 +508,7 @@ fudr_options_set_fileperm(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_dirperm(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_dirperm(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -553,8 +542,7 @@ fudr_options_set_dirperm(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_cachettl(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_cachettl(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -577,8 +565,7 @@ fudr_options_set_cachettl(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_chunksize(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_chunksize(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -602,8 +589,7 @@ fudr_options_set_chunksize(Fudr_Options* pOptions, const char* arg)
  * @param arg
  * @return false on success, true on error
  */
-static bool 
-fudr_options_set_maxchunks(Fudr_Options* pOptions, const char* arg)
+static bool fudr_options_set_maxchunks(Fudr_Options* pOptions, const char* arg)
 {
     // Nothing should be NULL
     assert(pOptions && arg);
@@ -629,9 +615,9 @@ fudr_options_set_maxchunks(Fudr_Options* pOptions, const char* arg)
  * @return   true (to be consistent with other fudr_options_set* functions that
  *          return true on error)
  */
-static bool 
-fudr_options_set_failed(Fudr_Options* pOptions, int argVal, 
-                        const struct option* longopts, int longIndex)
+static bool fudr_options_set_failed(Fudr_Options* pOptions, int argVal, 
+                                    const struct option* longopts, 
+                                    int longIndex)
 {
     // Nothing should be NULL
     assert(pOptions);
@@ -670,8 +656,8 @@ fudr_options_set_failed(Fudr_Options* pOptions, int argVal,
  *                              exactly one "%s"
  * @param arg (const char*):    String that will be substituted into fmtStr.
  */
-static void
-fudr_options_make_errormsg(char** pDest, const char* fmtStr, const char* arg)
+static void fudr_options_make_errormsg(char** pDest, const char* fmtStr, 
+                                       const char* arg)
 {
     // Nothing should be NULL (although the pointer at *pDest can and usually
     // should be NULL), and fmtStr should not be "".
