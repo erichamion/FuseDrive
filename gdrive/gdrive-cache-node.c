@@ -1,7 +1,4 @@
 
-
-
-
 #include "gdrive-cache-node.h"
 #include "gdrive-cache.h"
 
@@ -32,15 +29,12 @@ typedef struct Gdrive_Cache_Node
 
 static Gdrive_Cache_Node* gdrive_cnode_create(Gdrive_Cache_Node* pParent);
 
-static void
-gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
-                        Gdrive_Cache_Node* pNodeOne,
-                        Gdrive_Cache_Node** ppFromParentTwo,
-                        Gdrive_Cache_Node* pNodeTwo
-);
+static void gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne, 
+                              Gdrive_Cache_Node* pNodeOne, 
+                              Gdrive_Cache_Node** ppFromParentTwo, 
+                              Gdrive_Cache_Node* pNodeTwo);
 
-static void
-gdrive_cnode_free(Gdrive_Cache_Node* pNode);
+static void gdrive_cnode_free(Gdrive_Cache_Node* pNode);
 
 static Gdrive_File_Contents* 
 gdrive_cnode_add_contents(Gdrive_Cache_Node* pNode);
@@ -49,26 +43,22 @@ static Gdrive_File_Contents*
 gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size, 
                           bool fillChunk);
 
-static size_t 
-gdrive_file_read_next_chunk(Gdrive_File* pNode, char* destBuf, off_t offset,
-                            size_t size);
+static size_t gdrive_file_read_next_chunk(Gdrive_File* pNode, char* destBuf, 
+                                          off_t offset, size_t size);
 
-static off_t 
-gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset, 
-                             size_t size);
+static off_t gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, 
+                                          off_t offset, size_t size);
 
-static bool 
-gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags);
+static bool gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, 
+                                   int accessFlags);
 
-static size_t 
-gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size, 
-                           void* userdata);
+static size_t gdrive_file_uploadcallback(char* buffer, off_t offset, 
+                                         size_t size, void* userdata);
 
-static char* 
-gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo, 
-                                    const char* parentId, const char* filename,
-                                    bool isFolder, int* pError);
-
+static char* gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo, 
+                                                 const char* parentId, 
+                                                 const char* filename, 
+                                                 bool isFolder, int* pError);
 
 
 /*************************************************************************
@@ -79,10 +69,10 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
  * Constructors, factory methods, destructors and similar
  ******************/
 
-Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
-                                    Gdrive_Cache_Node** ppNode,
-                                    const char* fileId,
-                                    bool addIfDoesntExist,
+Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent, 
+                                    Gdrive_Cache_Node** ppNode, 
+                                    const char* fileId, 
+                                    bool addIfDoesntExist, 
                                     bool* pAlreadyExists
 )
 {
@@ -191,9 +181,7 @@ Gdrive_Cache_Node* gdrive_cnode_get(Gdrive_Cache_Node* pParent,
 
 
 void gdrive_cnode_delete(Gdrive_Cache_Node* pNode, 
-                               //Gdrive_Cache_Node* pParentNode,
-                               Gdrive_Cache_Node** ppToRoot
-)
+                         Gdrive_Cache_Node** ppToRoot)
 {
     // The address of the pointer aimed at this node. If this is the root node,
     // then it will be a pointer passed in from outside. Otherwise, it is the
@@ -208,8 +196,9 @@ void gdrive_cnode_delete(Gdrive_Cache_Node* pNode,
     {
         // Not the root. Find whether the node hangs from the left or right side
         // of its parent.
-        assert(pNode->pParent->pLeft == pNode || pNode->pParent->pRight == pNode);
-        ppFromParent = (pNode->pParent->pLeft == pNode) ?
+        assert(pNode->pParent->pLeft == pNode || 
+                pNode->pParent->pRight == pNode);
+        ppFromParent = (pNode->pParent->pLeft == pNode) ? 
             &(pNode->pParent->pLeft) : &(pNode->pParent->pRight);
         
     }
@@ -326,8 +315,6 @@ Gdrive_Fileinfo* gdrive_cnode_get_fileinfo(Gdrive_Cache_Node* pNode)
 {
     return &(pNode->fileinfo);
 }
-
-
 
 
 /******************
@@ -490,7 +477,7 @@ int gdrive_file_read(Gdrive_File* fh, char* buf, size_t size, off_t offset)
     }
     
     // Don't read past the current file size
-    size_t realSize = (size + offset <= fh->fileinfo.size)? 
+    size_t realSize = (size + offset <= fh->fileinfo.size) ? 
         size : fh->fileinfo.size - offset;
     
     size_t bytesRemaining = realSize;
@@ -542,7 +529,10 @@ int gdrive_file_write(Gdrive_File* fh,
     size_t readSize = size;
     if (offset == (off_t) gdrive_file_get_info(fh)->size)
     {
-        if (readOffset > 0) readOffset--;
+        if (readOffset > 0)
+        {
+            readOffset--;
+        }
         readSize++;
     }
     gdrive_file_read(fh, NULL, readSize, readOffset);
@@ -575,13 +565,14 @@ int gdrive_file_truncate(Gdrive_File* fh, off_t size)
 {
     assert(fh != NULL);
     
-    // 4 possible cases:
-    //      A. size is current size
-    //      B. size is 0
-    //      C. size is greater than current size
-    //      D. size is less than current size
-    // A and B are special cases. C and D share some similarities with each 
-    // other.
+    /* 4 possible cases:
+     *      A. size is current size
+     *      B. size is 0
+     *      C. size is greater than current size
+     *      D. size is less than current size
+     * A and B are special cases. C and D share some similarities with each 
+     * other.
+     */
     
     // Check for write permissions
     if (!gdrive_file_check_perm(fh, O_RDWR))
@@ -609,7 +600,7 @@ int gdrive_file_truncate(Gdrive_File* fh, off_t size)
     // file's length.
     
     Gdrive_File_Contents* pFinalChunk = NULL;
-    if ((size_t) size > fh->fileinfo.size)
+    if (fh->fileinfo.size < (size_t) size)
     {
         // File is being lengthened. The current final chunk will remain final.
         if (fh->fileinfo.size > 0)
@@ -898,11 +889,6 @@ char* gdrive_file_new(const char* path, bool createFolder, int* pError)
 
 Gdrive_Fileinfo* gdrive_file_get_info(Gdrive_File* fh)
 {
-//    if (fh == NULL)
-//    {
-//        // Invalid argument
-//        return NULL;
-//    }
     assert(fh != NULL);
     
     // No need to check permissions. This is just metadata, and metadata 
@@ -921,7 +907,6 @@ unsigned int gdrive_file_get_perms(const Gdrive_File* fh)
     const Gdrive_Cache_Node* pNode = fh;
     return gdrive_finfo_real_perms(&(pNode->fileinfo));
 }
-
 
 
 /*************************************************************************
@@ -947,12 +932,10 @@ static Gdrive_Cache_Node* gdrive_cnode_create(Gdrive_Cache_Node* pParent)
  * pNodeTwo must be a descendent of pNodeOne, or neither node is descended from
  * the other.
  */
-static void
-gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
-                        Gdrive_Cache_Node* pNodeOne,
-                        Gdrive_Cache_Node** ppFromParentTwo,
-                        Gdrive_Cache_Node* pNodeTwo
-)
+static void gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
+                              Gdrive_Cache_Node* pNodeOne, 
+                              Gdrive_Cache_Node** ppFromParentTwo, 
+                              Gdrive_Cache_Node* pNodeTwo)
 {
     // Make sure pNodeOne is not a descendent of pNodeTwo
     Gdrive_Cache_Node* pParent = pNodeOne->pParent;
@@ -968,7 +951,7 @@ gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
     Gdrive_Cache_Node* pTempLeft = pNodeOne->pLeft;
     Gdrive_Cache_Node* pTempRight = pNodeOne->pRight;
     
-    if (pNodeOne->pLeft== pNodeTwo || pNodeOne->pRight == pNodeTwo)
+    if (pNodeOne->pLeft == pNodeTwo || pNodeOne->pRight == pNodeTwo)
     {
         // Node Two is a direct child of Node One
         
@@ -1010,20 +993,27 @@ gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
     // originally a direct child of pNodeOne, this also updates pNodeOne's
     // pParent.
     if (pNodeOne->pLeft)
+    {
         pNodeOne->pLeft->pParent = pNodeOne;
+    }
     if (pNodeOne->pRight)
+    {
         pNodeOne->pRight->pParent = pNodeOne;
+    }
     if (pNodeTwo->pLeft)
+    {
         pNodeTwo->pLeft->pParent = pNodeTwo;
+    }
     if (pNodeTwo->pRight)
+    {
         pNodeTwo->pRight->pParent = pNodeTwo; 
+    }
 }
 
 /*
  * NOT RECURSIVE.  FREES ONLY THE SINGLE NODE.
  */
-static void
-gdrive_cnode_free(Gdrive_Cache_Node* pNode)
+static void gdrive_cnode_free(Gdrive_Cache_Node* pNode)
 {
     gdrive_finfo_cleanup(&(pNode->fileinfo));
     gdrive_fcontents_free_all(&(pNode->pContents));
@@ -1067,7 +1057,7 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size,
     size_t minChunkSize = gdrive_get_minchunksize();
 
     size_t perfectChunkSize = gdrive_divide_round_up(fileSize, maxChunks);
-    size_t chunkSize = gdrive_divide_round_up(perfectChunkSize, minChunkSize) *
+    size_t chunkSize = gdrive_divide_round_up(perfectChunkSize, minChunkSize) * 
             minChunkSize;
     
     // The actual chunk may be a multiple of chunkSize.  A read that starts at
@@ -1075,7 +1065,7 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size,
     off_t chunkStart = (offset / chunkSize) * chunkSize;
     off_t chunkOffset = offset % chunkSize;
     off_t endChunkOffset = chunkOffset + size - 1;
-    size_t realChunkSize = gdrive_divide_round_up(endChunkOffset, chunkSize) *
+    size_t realChunkSize = gdrive_divide_round_up(endChunkOffset, chunkSize) * 
             chunkSize;
     
     Gdrive_File_Contents* pContents = gdrive_cnode_add_contents(pNode);
@@ -1101,13 +1091,12 @@ gdrive_cnode_create_chunk(Gdrive_Cache_Node* pNode, off_t offset, size_t size,
     }
     // else we're not filling the chunk, do nothing
     
-    //Success
+    // Success
     return pContents;
 }
 
-static size_t 
-gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset, 
-                            size_t size)
+static size_t gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, 
+                                          off_t offset, size_t size)
 {
     // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
     // easier to think of the filehandle as just a token used to refer to a 
@@ -1139,9 +1128,8 @@ gdrive_file_read_next_chunk(Gdrive_File* pFile, char* destBuf, off_t offset,
     return gdrive_fcontents_read(pChunkContents, destBuf, offset, size);
 }
 
-static off_t 
-gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset, 
-                             size_t size)
+static off_t gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, 
+                                          off_t offset, size_t size)
 {
     // Gdrive_Filehandle and Gdrive_Cache_Node are the same thing, but it's 
     // easier to think of the filehandle as just a token used to refer to a 
@@ -1204,8 +1192,8 @@ gdrive_file_write_next_chunk(Gdrive_File* pFile, const char* buf, off_t offset,
     return bytesWritten;
 }
 
-static bool 
-gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags)
+static bool gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, 
+                                   int accessFlags)
 {
     // What permissions do we have?
     unsigned int perms = gdrive_finfo_real_perms(&(pNode->fileinfo));
@@ -1230,9 +1218,9 @@ gdrive_file_check_perm(const Gdrive_Cache_Node* pNode, int accessFlags)
     
 }
 
-static size_t 
-gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size, 
-                           void* userdata)
+static size_t gdrive_file_uploadcallback(char* buffer, off_t offset, 
+                                         size_t size, 
+                                         void* userdata)
 {
     // All we need to do is read from a Gdrive_File* file handle into a buffer.
     // We already know how to do exactly that.
@@ -1241,13 +1229,13 @@ gdrive_file_uploadcallback(char* buffer, off_t offset, size_t size,
                                      size, 
                                      offset
     );
-    return (returnVal >= 0) ? (size_t) returnVal : (size_t)(-1);
+    return (returnVal >= 0) ? (size_t) returnVal: (size_t)(-1);
 }
 
-static char* 
-gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo, 
-                                    const char* parentId, const char* filename,
-                                    bool isFolder, int* pError)
+static char* gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo, 
+                                                 const char* parentId, 
+                                                 const char* filename, 
+                                                 bool isFolder, int* pError)
 {
     // For existing file, pFileinfo must be non-NULL. For creating new file,
     // both parentId and filename must be non-NULL.
@@ -1270,9 +1258,9 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
         struct timespec ts;
         if (clock_gettime(CLOCK_REALTIME, &ts) == 0)
         {
-        myFileinfo.creationTime = ts;
-        myFileinfo.accessTime = ts;
-        myFileinfo.modificationTime = ts;
+            myFileinfo.creationTime = ts;
+            myFileinfo.accessTime = ts;
+            myFileinfo.modificationTime = ts;
         }
         // else leave the times at 0 on failure
         
@@ -1392,11 +1380,11 @@ gdrive_file_sync_metadata_or_create(Gdrive_Fileinfo* pFileinfo,
     // URL, header, and updateViewedDate query parameter always get added. The 
     // setModifiedDate query parameter only gets set when hasMtime is true. Any 
     // of these can fail with an out of memory error (returning non-zero).
-    if ((gdrive_xfer_set_url(pTransfer, url) ||
+    if ((gdrive_xfer_set_url(pTransfer, url) || 
             gdrive_xfer_add_header(pTransfer, "Content-Type: application/json"))
-            ||
+            || 
             (hasMtime && 
-            gdrive_xfer_add_query(pTransfer, "setModifiedDate", "true")) ||
+            gdrive_xfer_add_query(pTransfer, "setModifiedDate", "true")) || 
             gdrive_xfer_add_query(pTransfer, "updateViewedDate", "false")
         )
     {
