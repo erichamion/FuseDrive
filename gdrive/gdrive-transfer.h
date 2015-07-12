@@ -45,8 +45,8 @@ typedef struct Gdrive_Transfer Gdrive_Transfer;
  *      is very similar (although the function arguments are slightly 
  *      different).
  */
-typedef size_t (*gdrive_xfer_upload_callback)
-(char* buffer, off_t offset, size_t size, void* userdata);
+typedef size_t(*gdrive_xfer_upload_callback)
+    (char* buffer, off_t offset, size_t size, void* userdata);
 
 
 /*************************************************************************
@@ -85,8 +85,6 @@ Gdrive_Transfer* gdrive_xfer_create();
 void gdrive_xfer_free(Gdrive_Transfer* pTransfer);
 
 
-
-
 /*************************************************************************
  * Getter and setter functions
  *************************************************************************/
@@ -106,8 +104,7 @@ void gdrive_xfer_free(Gdrive_Transfer* pTransfer);
  *              GDRIVE_REQUEST_DELETE
  */
 void gdrive_xfer_set_requesttype(Gdrive_Transfer* pTransfer, 
-                                 enum Gdrive_Request_Type requestType
-);
+                                 enum Gdrive_Request_Type requestType);
 
 /*
  * gdrive_xfer_set_retryonautherror():  Determines whether or not to refresh
@@ -196,10 +193,8 @@ void gdrive_xfer_set_body(Gdrive_Transfer* pTransfer, const char* body);
  *              the callback function.
  */
 void gdrive_xfer_set_uploadcallback(Gdrive_Transfer* pTransfer, 
-                                    gdrive_xfer_upload_callback callback,
-                                    void* userdata
-);
-
+                                    gdrive_xfer_upload_callback callback, 
+                                    void* userdata);
 
 
 /*************************************************************************
@@ -225,10 +220,8 @@ void gdrive_xfer_set_uploadcallback(Gdrive_Transfer* pTransfer,
  * Return value:
  *      0 on success, non-zero on failure.
  */
-int gdrive_xfer_add_query(Gdrive_Transfer* pTransfer, 
-                          const char* field, 
-                          const char* value
-);
+int gdrive_xfer_add_query(Gdrive_Transfer* pTransfer, const char* field, 
+                          const char* value);
 
 /*
  * gdrive_xfer_add_postfield(): Add a single field=value pair to the body of an 
@@ -294,9 +287,6 @@ int gdrive_xfer_add_header(Gdrive_Transfer* pTransfer, const char* header);
  *      to gdrive_dlbuf_free().
  */
 Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer);
-
-
-
 
 
 // #ifdef	__cplusplus
