@@ -9,9 +9,9 @@
 #ifndef FUSE_DRIVE_OPTIONS_H
 #define	FUSE_DRIVE_OPTIONS_H
 
-// #ifdef	__cplusplus
-// extern "C" {
-// #endif
+#ifdef	__cplusplus
+extern "C" {
+#endif
     
 #include <sys/types.h>
     
@@ -86,9 +86,9 @@ Fudr_Options* fudr_options_create(int argc, char** argv);
  */
 void fudr_options_free(Fudr_Options* pOptions);
 
-// #ifdef	__cplusplus
-// }
-// #endif
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* FUSE_DRIVE_OPTIONS_H */
 

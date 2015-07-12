@@ -249,10 +249,8 @@ int gdrive_xfer_add_query(Gdrive_Transfer* pTransfer,
  * Return value:
  *      0 on success, non-zero on failure.
  */
-int gdrive_xfer_add_postfield(Gdrive_Transfer* pTransfer, 
-                          const char* field, 
-                          const char* value
-);
+int gdrive_xfer_add_postfield(Gdrive_Transfer* pTransfer, const char* field, 
+                              const char* value);
 
 /*
  * gdrive_xfer_add_header():    Add a single HTTP header, or remove a header 

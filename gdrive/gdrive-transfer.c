@@ -36,13 +36,12 @@ typedef struct Gdrive_Transfer
 /*
  * Returns 0 on success, other on failure.
  */
-static int 
-gdrive_xfer_add_query_or_post(Gdrive_Query** ppQuery, const char* field, 
-                              const char* value);
+static int gdrive_xfer_add_query_or_post(Gdrive_Query** ppQuery, 
+                                         const char* field, const char* value);
 
-static size_t 
-gdrive_xfer_upload_callback_internal(char* buffer, size_t size, size_t nitems, 
-                                     void* instream);
+static size_t gdrive_xfer_upload_callback_internal(char* buffer, size_t size, 
+                                                   size_t nitems, 
+                                                   void* instream);
 
 static struct curl_slist* 
 gdrive_get_authbearer_header(struct curl_slist* pHeaders);
@@ -96,14 +95,12 @@ void gdrive_xfer_free(Gdrive_Transfer* pTransfer)
 }
 
 
-
 /******************
  * Getter and setter functions
  ******************/
 
 void gdrive_xfer_set_requesttype(Gdrive_Transfer* pTransfer, 
-                                 enum Gdrive_Request_Type requestType
-)
+                                 enum Gdrive_Request_Type requestType)
 {
     pTransfer->requestType = requestType;
 }
@@ -137,15 +134,13 @@ void gdrive_xfer_set_body(Gdrive_Transfer* pTransfer, const char* body)
 }
 
 void gdrive_xfer_set_uploadcallback(Gdrive_Transfer* pTransfer, 
-                                    gdrive_xfer_upload_callback callback,
-                                    void* userdata
-)
+                                    gdrive_xfer_upload_callback callback, 
+                                    void* userdata)
 {
     pTransfer->userdata = userdata;
     pTransfer->uploadOffset = 0;
     pTransfer->uploadCallback = callback;
 }
-
 
 
 /******************
@@ -154,16 +149,13 @@ void gdrive_xfer_set_uploadcallback(Gdrive_Transfer* pTransfer,
 
 int gdrive_xfer_add_query(Gdrive_Transfer* pTransfer, 
                           const char* field, 
-                          const char* value
-)
+                          const char* value)
 {
     return gdrive_xfer_add_query_or_post(&(pTransfer->pQuery), field, value);
 }
 
-int gdrive_xfer_add_postfield(Gdrive_Transfer* pTransfer, 
-                          const char* field, 
-                          const char* value
-)
+int gdrive_xfer_add_postfield(Gdrive_Transfer* pTransfer, const char* field, 
+                              const char* value)
 {
     return gdrive_xfer_add_query_or_post(&(pTransfer->pPostData), field, value);
 }
@@ -189,35 +181,35 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
     // Set the request type
     switch (pTransfer->requestType)
     {
-    case GDRIVE_REQUEST_GET:
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-        break;
-        
-    case GDRIVE_REQUEST_POST:
-        curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
-        needsBody = true;
-        break;
-        
-    case GDRIVE_REQUEST_PUT:
-        curl_easy_setopt(curlHandle, CURLOPT_UPLOAD, 1);
-        needsBody = true;
-        break;
-        
-    case GDRIVE_REQUEST_PATCH:
-        curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
-        curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "PATCH");
-        needsBody = true;
-        break;
-        
-    case GDRIVE_REQUEST_DELETE:
-        curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
-        curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "DELETE");
-        break;
-        
-    default:
-        // Unsupported request type.  
-        curl_easy_cleanup(curlHandle);
-        return NULL;
+        case GDRIVE_REQUEST_GET:
+            curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+            break;
+
+        case GDRIVE_REQUEST_POST:
+            curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
+            needsBody = true;
+            break;
+
+        case GDRIVE_REQUEST_PUT:
+            curl_easy_setopt(curlHandle, CURLOPT_UPLOAD, 1);
+            needsBody = true;
+            break;
+
+        case GDRIVE_REQUEST_PATCH:
+            curl_easy_setopt(curlHandle, CURLOPT_POST, 1);
+            curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "PATCH");
+            needsBody = true;
+            break;
+
+        case GDRIVE_REQUEST_DELETE:
+            curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1);
+            curl_easy_setopt(curlHandle, CURLOPT_CUSTOMREQUEST, "DELETE");
+            break;
+
+        default:
+            // Unsupported request type.  
+            curl_easy_cleanup(curlHandle);
+            return NULL;
     }
     
     // Append any query parameters to the URL, and add the full URL to the
@@ -316,17 +308,15 @@ Gdrive_Download_Buffer* gdrive_xfer_execute(Gdrive_Transfer* pTransfer)
  *************************************************************************/
 
 static int gdrive_xfer_add_query_or_post(Gdrive_Query** ppQuery, 
-                                         const char* field, 
-                                         const char* value
-)
+                                         const char* field, const char* value)
 {
     *ppQuery = gdrive_query_add(*ppQuery, field, value);
     return (*ppQuery == NULL);
 }
 
-static size_t 
-gdrive_xfer_upload_callback_internal(char* buffer, size_t size, size_t nitems, 
-                                     void* instream)
+static size_t gdrive_xfer_upload_callback_internal(char* buffer, size_t size, 
+                                                   size_t nitems, 
+                                                   void* instream)
 {
     // Get the transfer struct.
     Gdrive_Transfer* pTransfer = (Gdrive_Transfer*) instream;
@@ -355,13 +345,15 @@ gdrive_get_authbearer_header(struct curl_slist* pHeaders)
     
     // If we don't have any access token yet, do nothing
     if (!token)
+    {
         return pHeaders;
+    }
     
     // First form a string with the required text and the access token.
     char* header = malloc(strlen("Authorization: Bearer ") + 
                           strlen(token) + 1
     );
-    if (header == NULL)
+    if (!header)
     {
         // Memory error
         return NULL;
