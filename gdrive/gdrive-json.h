@@ -47,8 +47,7 @@ typedef json_object Gdrive_Json_Object;
  *      returned object should NOT be freed with gdrive_json_kill().
  */
 Gdrive_Json_Object* gdrive_json_get_nested_object(Gdrive_Json_Object* pObj, 
-                                                  const char* key
-);
+                                                  const char* key);
 
 /*
  * gdrive_json_get_string():    Retrieves the value of a JSON string, copying
@@ -107,11 +106,8 @@ Gdrive_Json_Object* gdrive_json_get_nested_object(Gdrive_Json_Object* pObj,
  *              result holds the empty string "", and the return value is 
  *              INT64_MIN.
  */
-int64_t gdrive_json_get_string(Gdrive_Json_Object* pObj, 
-                            const char* key, 
-                            char* result, 
-                            long maxlen
-);
+int64_t gdrive_json_get_string(Gdrive_Json_Object* pObj, const char* key, 
+                            char* result, long maxlen);
 
 /*
  * gdrive_json_get_new_string():    Retrieves the value of a JSON string, 
@@ -140,10 +136,8 @@ int64_t gdrive_json_get_string(Gdrive_Json_Object* pObj,
  *      for this. On memory error, the value pointed to by pLength will be set
  *      to the intended length. On other errors, the value remains unchanged.
  */
-char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj, 
-                                 const char* key,
-                                 long* pLength
-);
+char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj, const char* key, 
+                                 long* pLength);
 
 /*
  * gdrive_json_realloc_string():    Retrieves the value of a JSON string, 
@@ -175,11 +169,8 @@ char* gdrive_json_get_new_string(Gdrive_Json_Object* pObj,
  * Return value (int):
  *      0 on success, other on failure.
  */
-int gdrive_json_realloc_string(Gdrive_Json_Object* pObj, 
-                               const char* key,
-                               char** pDest, 
-                               long* pLength
-);
+int gdrive_json_realloc_string(Gdrive_Json_Object* pObj, const char* key, 
+                               char** pDest, long* pLength);
 
 /*
  * gdrive_json_get_int64(): Retrieves an integer value from a JSON object.
@@ -203,11 +194,8 @@ int gdrive_json_realloc_string(Gdrive_Json_Object* pObj,
  * Return value (int64_t):
  *      The retrieved integer, or 0 on failure.
  */
-int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj,
-                              const char* key,
-                              bool convertTypes, 
-                              bool* pSuccess
-);
+int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj, const char* key, 
+                              bool convertTypes, bool* pSuccess);
 
 /*
  * gdrive_json_get_double():    Retrieves a double floating point value from a 
@@ -229,10 +217,8 @@ int64_t gdrive_json_get_int64(Gdrive_Json_Object* pObj,
  * Return value (double):
  *      The retrieved double, or 0 on failure.
  */
-double gdrive_json_get_double(Gdrive_Json_Object* pObj, 
-                              const char* key, 
-                              bool* pSuccess
-);
+double gdrive_json_get_double(Gdrive_Json_Object* pObj, const char* key, 
+                              bool* pSuccess);
 
 /*
  * gdrive_json_get_boolean():   Retrieves a boolean value from a JSON object. 
@@ -266,10 +252,8 @@ double gdrive_json_get_double(Gdrive_Json_Object* pObj,
  *      a non zero length. For any other object type TRUE will be returned if 
  *      the object is not NULL.
  */
-bool gdrive_json_get_boolean(Gdrive_Json_Object* pObj, 
-                             const char* key, 
-                             bool* pSuccess
-);
+bool gdrive_json_get_boolean(Gdrive_Json_Object* pObj, const char* key, 
+                             bool* pSuccess);
 
 /*
  * gdrive_json_from_string():   Creates a JSON object from a string 
@@ -303,10 +287,8 @@ Gdrive_Json_Object* gdrive_json_new();
  *              The string value to add. The string is copied, so the caller can
  *              alter or free the argument's memory if desired.
  */
-void gdrive_json_add_string(Gdrive_Json_Object* pObj, 
-                            const char* key, 
-                            const char* str
-);
+void gdrive_json_add_string(Gdrive_Json_Object* pObj, const char* key, 
+                            const char* str);
 
 /*
  * gdrive_json_add_int64(): Adds a key/value pair to a JSON object. The value 
@@ -319,10 +301,8 @@ void gdrive_json_add_string(Gdrive_Json_Object* pObj,
  *      str (const char*):
  *              The integer value to add.
  */
-void gdrive_json_add_int64(Gdrive_Json_Object* pObj,
-                           const char* key, 
-                           int64_t value
-);
+void gdrive_json_add_int64(Gdrive_Json_Object* pObj, const char* key, 
+                           int64_t value);
 
 /*
  * gdrive_json_add_double():    Adds a key/value pair to a JSON object. The 
@@ -335,10 +315,8 @@ void gdrive_json_add_int64(Gdrive_Json_Object* pObj,
  *      str (const char*):
  *              The double value to add.
  */
-void gdrive_json_add_double(Gdrive_Json_Object* pObj, 
-                            const char* key, 
-                            double value
-);
+void gdrive_json_add_double(Gdrive_Json_Object* pObj, const char* key, 
+                            double value);
 
 /*
  * gdrive_json_add_boolean():   Adds a key/value pair to a JSON object. The 
@@ -351,10 +329,8 @@ void gdrive_json_add_double(Gdrive_Json_Object* pObj,
  *      str (const char*):
  *              The boolean value to add.
  */
-void gdrive_json_add_boolean(Gdrive_Json_Object* pObj, 
-                             const char* key, 
-                             bool value
-);
+void gdrive_json_add_boolean(Gdrive_Json_Object* pObj, const char* key, 
+                             bool value);
 
 /*
  * gdrive_json_add_new_array(): Adds a key/value pair to a JSON object. The
@@ -369,8 +345,7 @@ void gdrive_json_add_boolean(Gdrive_Json_Object* pObj,
  *      should NOT be freed with gdrive_json_kill().
  */
 Gdrive_Json_Object* gdrive_json_add_new_array(Gdrive_Json_Object* pObj, 
-                                              const char* key
-);
+                                              const char* key);
 
 /*
  * gdrive_json_add_existing_array():   Adds a key/value pair to a JSON object. 
@@ -383,10 +358,8 @@ Gdrive_Json_Object* gdrive_json_add_new_array(Gdrive_Json_Object* pObj,
  *      pArray (Gdrive_Json_Object*):
  *              The JSON array to add.
  */
-void gdrive_json_add_existing_array(Gdrive_Json_Object* pObj,
-                                                   const char* key,
-                                                   Gdrive_Json_Object* pArray
-);
+void gdrive_json_add_existing_array(Gdrive_Json_Object* pObj, const char* key, 
+                                    Gdrive_Json_Object* pArray);
 
 /*
  * gdrive_json_to_string(): Converts a JSON object to a string representation.
@@ -458,9 +431,7 @@ int gdrive_json_array_length(Gdrive_Json_Object* pObj, const char* key);
  *      gdrive_json_kill().
  */
 Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj, 
-                                          const char* key, 
-                                          int index
-);
+                                          const char* key, int index);
 
 /*
  * gdrive_json_array_append_object():   Appends the specified JSON object to the
@@ -477,8 +448,7 @@ Gdrive_Json_Object* gdrive_json_array_get(Gdrive_Json_Object* pObj,
  *      documented.
  */
 int gdrive_json_array_append_object(Gdrive_Json_Object* pArray, 
-                                    Gdrive_Json_Object* pNewObj
-);
+                                    Gdrive_Json_Object* pNewObj);
 
 /*
  * gdrive_json_array_append_string():   Appends the specified string to the
@@ -494,8 +464,7 @@ int gdrive_json_array_append_object(Gdrive_Json_Object* pArray,
  *      documented.
  */
 int gdrive_json_array_append_string(Gdrive_Json_Object* pArray, 
-                                    const char* val
-);
+                                    const char* val);
 
 /*
  * gdrive_json_array_append_bool(): Appends the specified boolean value to the
@@ -560,7 +529,6 @@ void gdrive_json_kill(Gdrive_Json_Object* pObj);
  *              The JSON object to keep.
  */
 void gdrive_json_keep(Gdrive_Json_Object* pObj);
-
 
 
 // #ifdef	__cplusplus
