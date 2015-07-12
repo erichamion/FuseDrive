@@ -932,7 +932,7 @@ static Gdrive_Cache_Node* gdrive_cnode_create(Gdrive_Cache_Node* pParent)
  * pNodeTwo must be a descendent of pNodeOne, or neither node is descended from
  * the other.
  */
-static void gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne,
+static void gdrive_cnode_swap(Gdrive_Cache_Node** ppFromParentOne, 
                               Gdrive_Cache_Node* pNodeOne, 
                               Gdrive_Cache_Node** ppFromParentTwo, 
                               Gdrive_Cache_Node* pNodeTwo)
