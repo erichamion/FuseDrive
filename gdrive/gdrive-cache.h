@@ -62,7 +62,6 @@ const Gdrive_Cache* gdrive_cache_get(void);
 void gdrive_cache_cleanup(void);
 
 
-
 /*************************************************************************
  * Getter and setter functions
  *************************************************************************/
@@ -101,8 +100,6 @@ time_t gdrive_cache_get_lastupdatetime();
  *      Google Drive).
  */
 int64_t gdrive_cache_get_nextchangeid();
-
-
 
 
 /*************************************************************************
@@ -149,10 +146,9 @@ int gdrive_cache_update();
  *      Any modifications made to this struct will be reflected in the cache.
  *      The pointed-to memory should NOT be freed.
  */
-Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId,
-                                       bool addIfDoesntExist,
-                                       bool* pAlreadyExists
-);
+Gdrive_Fileinfo* gdrive_cache_get_item(const char* fileId, 
+                                       bool addIfDoesntExist, 
+                                       bool* pAlreadyExists);
 
 /*
  * gdrive_cache_add_fileid():   Stores a (pathname -> file ID) mapping in the
@@ -213,8 +209,7 @@ int gdrive_cache_add_fileid(const char* path, const char* fileId);
  */
 Gdrive_Cache_Node* gdrive_cache_get_node(const char* fileId, 
                                          bool addIfDoesntExist, 
-                                         bool* pAlreadyExists
-);
+                                         bool* pAlreadyExists);
 
 /*
  * gdrive_cache_get_fileid():   Retrieve from the File ID cache the Google Drive
@@ -250,8 +245,6 @@ void gdrive_cache_delete_id(const char* fileId);
  *              should not be used after this function returns.
  */
 void gdrive_cache_delete_node(Gdrive_Cache_Node* pNode);
-
-
 
 
     
