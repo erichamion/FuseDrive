@@ -56,8 +56,6 @@ Gdrive_Fileinfo_Array* gdrive_finfoarray_create(int maxSize);
 void gdrive_finfoarray_free(Gdrive_Fileinfo_Array* pArray);
 
 
-
-
 /*************************************************************************
  * Getter and setter functions
  *************************************************************************/
@@ -127,10 +125,7 @@ int gdrive_finfoarray_get_count(Gdrive_Fileinfo_Array* pArray);
  *      maximum number of stored fileinfo structs.
  */
 int gdrive_finfoarray_add_from_json(Gdrive_Fileinfo_Array* pArray, 
-                                        Gdrive_Json_Object* pObj
-);
-
-
+                                        Gdrive_Json_Object* pObj);
 
 
 // #ifdef	__cplusplus
