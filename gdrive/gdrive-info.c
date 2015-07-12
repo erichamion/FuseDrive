@@ -75,8 +75,10 @@ typedef struct Gdrive_Info
     char* authFilename;
     char* accessToken;
     char* refreshToken;
-    long accessTokenLength;  // Number of bytes allocated for accessToken
-    long refreshTokenLength; // Number of bytes allocated for refreshToken
+    // accessTokenLength and refreshTokenLenth are the allocated sizes, not the
+    // actual size of the strings.
+    long accessTokenLength;
+    long refreshTokenLength;
     const char* clientId;
     const char* clientSecret;
     const char* redirectUri;
@@ -366,17 +368,17 @@ char* gdrive_filepath_to_id(const char* path)
         return NULL;
     }
     // Use the parent's ID to find the child's ID.
-    char* id = gdrive_get_child_id_by_name(parentId, path + index + 1);
+    char* childId = gdrive_get_child_id_by_name(parentId, path + index + 1);
     free(parentId);
     
     // Add the ID to the fileId cache.
-    if (id != NULL)
+    if (childId != NULL)
     {
         // Don't just return the ID directly, because that would cause a memory
         // leak. We need to return a pointer to const that does not need freed
         // by the caller.
-        int success = gdrive_cache_add_fileid(path, id);
-        free(id);
+        int success = gdrive_cache_add_fileid(path, childId);
+        free(childId);
         if (success == 0)
         {
             return gdrive_cache_get_fileid(path);
@@ -1218,7 +1220,7 @@ static int gdrive_check_scopes(void)
                 )
         {
             // Empty body
-        };
+        }
         
         // Compare the current scope to each of the entries in 
         // GDRIVE_ACCESS_SCOPES.  If there's a match, set the appropriate bit(s)
@@ -1330,14 +1332,14 @@ gdrive_get_child_id_by_name(const char* parentId, const char* childName)
         return NULL;
     }
     
-    char* id = NULL;
+    char* childId = NULL;
     Gdrive_Json_Object* pArrayItem = gdrive_json_array_get(pObj, "items", 0);
     if (pArrayItem != NULL)
     {
-        id = gdrive_json_get_new_string(pArrayItem, "id", NULL);
+        childId = gdrive_json_get_new_string(pArrayItem, "id", NULL);
     }
     gdrive_json_kill(pObj);
-    return id;
+    return childId;
 }
 
 static int gdrive_save_auth(void)
