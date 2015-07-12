@@ -197,7 +197,7 @@ int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf,
         bool retry = false;
         switch (gdrive_dlbuf_retry_on_error(pBuf, 
                                             gdrive_dlbuf_get_httpresp(pBuf)))
-            {
+        {
             case GDRIVE_RETRY_RETRY:
                 // Normal retry, use exponential backoff.
                 gdrive_exponential_wait(tryNum);
