@@ -41,10 +41,8 @@ typedef struct Gdrive_Fileid_Cache_Node Gdrive_Fileid_Cache_Node;
  * Return value (int):
  *      0 on success, other on error.
  */
-int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** pHead, 
-                                          const char* path,
-                                          const char* fileId
-);
+int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** pHead, const char* path, 
+                       const char* fileId);
 
 /*
  * gdrive_fidnode_remove_by_id():   Finds any file ID nodes containing a given
@@ -58,8 +56,7 @@ int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** pHead,
  *              The Google Drive file ID to search for and remove.
  */
 void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node** ppHead, 
-                                 const char* fileId
-);
+                                 const char* fileId);
 
 /*
  * gdrive_fidnode_clear_all():  Safely frees the memory associated with an 
@@ -69,7 +66,6 @@ void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node** ppHead,
  *              A pointer to the head node in the list to be freed.
  */
 void gdrive_fidnode_clear_all(Gdrive_Fileid_Cache_Node* pHead);
-
 
 
 /*************************************************************************
@@ -119,12 +115,7 @@ char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode);
  *      exists. Otherwise, returns 0.
  */
 Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
-        Gdrive_Fileid_Cache_Node* pHead, 
-        const char* path
-);
-
-
-
+        Gdrive_Fileid_Cache_Node* pHead, const char* path);
 
 
 // #ifdef	__cplusplus
