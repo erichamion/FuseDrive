@@ -30,21 +30,26 @@ typedef struct Gdrive_Fileinfo Gdrive_Fileinfo;
     
 typedef struct Gdrive_Fileinfo
 {
-    char* id;   // The Google Drive file ID of the file
-    char* filename; // The filename with extension (not the full path)
-    enum Gdrive_Filetype type;  // The type of file
-    size_t size;    // File size in bytes
-    int basePermission; // File permission, does not consider the access mode.
+    // id: The Google Drive file ID of the file
+    char* id;
+    // filename: The filename with extension (not the full path)
+    char* filename;
+    // type: The type of file
+    enum Gdrive_Filetype type;
+    // size: File size in bytes
+    size_t size;
+    // basePermission: File permission, does not consider the access mode.
+    int basePermission;
     struct timespec creationTime;
     struct timespec modificationTime;
     struct timespec accessTime;
-    int nParents;   // Number of parent directories
-    int nChildren;  // Number of children if type is GDRIVE_FILETYPE_FOLDER
-    bool dirtyMetainfo; // Currently only tracks accessTime and modificationTime
+    // nParents: Number of parent directories
+    int nParents;
+    // nChildren: Number of children if type is GDRIVE_FILETYPE_FOLDER
+    int nChildren;
+    // dirtyMetainfo: Currently only tracks accessTime and modificationTime
+    bool dirtyMetainfo;
 } Gdrive_Fileinfo;
-
-
-
 
 
 /*************************************************************************
@@ -76,8 +81,6 @@ const Gdrive_Fileinfo* gdrive_finfo_get_by_id(const char* fileId);
 void gdrive_finfo_cleanup(Gdrive_Fileinfo* pFileinfo);
 
 
-
-
 /*************************************************************************
  * Getter and setter functions
  *************************************************************************/
@@ -98,10 +101,8 @@ void gdrive_finfo_cleanup(Gdrive_Fileinfo* pFileinfo);
  *      The number of bytes that were placed in dest, excluding the terminating
  *      null.
  */
-int gdrive_finfo_get_atime_string(Gdrive_Fileinfo* pFileinfo, 
-                                  char* dest, 
-                                  size_t max
-);
+int gdrive_finfo_get_atime_string(Gdrive_Fileinfo* pFileinfo, char* dest, 
+                                  size_t max);
 
 /*
  * gdrive_finfo_set_atime():    Set the access time in a Gdrive_Fileinfo struct.
@@ -114,8 +115,7 @@ int gdrive_finfo_get_atime_string(Gdrive_Fileinfo* pFileinfo,
  *      0 on success, non-zero on failure.
  */
 int gdrive_finfo_set_atime(Gdrive_Fileinfo* pFileinfo, 
-                           const struct timespec* ts
-);
+                           const struct timespec* ts);
 
 /*
  * gdrive_finfo_get_atime_string(): Retrieve a file's creation time as a string
@@ -133,10 +133,8 @@ int gdrive_finfo_set_atime(Gdrive_Fileinfo* pFileinfo,
  *      The number of bytes that were placed in dest, excluding the terminating
  *      null.
  */
-int gdrive_finfo_get_ctime_string(Gdrive_Fileinfo* pFileinfo, 
-                                  char* dest, 
-                                  size_t max
-);
+int gdrive_finfo_get_ctime_string(Gdrive_Fileinfo* pFileinfo, char* dest, 
+                                  size_t max);
 
 /*
  * gdrive_finfo_get_atime_string(): Retrieve a file's modification time as a 
@@ -154,10 +152,8 @@ int gdrive_finfo_get_ctime_string(Gdrive_Fileinfo* pFileinfo,
  *      The number of bytes that were placed in dest, excluding the terminating
  *      null.
  */
-int gdrive_finfo_get_mtime_string(Gdrive_Fileinfo* pFileinfo, 
-                                  char* dest, 
-                                  size_t max
-);
+int gdrive_finfo_get_mtime_string(Gdrive_Fileinfo* pFileinfo, char* dest, 
+                                  size_t max);
 
 /*
  * gdrive_finfo_set_atime():    Set the modification time in a Gdrive_Fileinfo 
@@ -171,9 +167,7 @@ int gdrive_finfo_get_mtime_string(Gdrive_Fileinfo* pFileinfo,
  *      0 on success, non-zero on failure.
  */
 int gdrive_finfo_set_mtime(Gdrive_Fileinfo* pFileinfo, 
-                           const struct timespec* ts
-);
-
+                           const struct timespec* ts);
 
 
 /*************************************************************************
@@ -190,8 +184,7 @@ int gdrive_finfo_set_mtime(Gdrive_Fileinfo* pFileinfo,
  *              A JSON object representing a File resource on Google Drive.
  */
 void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo, 
-                            Gdrive_Json_Object* pObj
-);
+                            Gdrive_Json_Object* pObj);
 
 /*
  * gdrive_finfo_real_perms():   Retrieve the actual effective permissions for
@@ -210,8 +203,6 @@ void gdrive_finfo_read_json(Gdrive_Fileinfo* pFileinfo,
  *      returned value will be 4 (read access only).
  */
 unsigned int gdrive_finfo_real_perms(const Gdrive_Fileinfo* pFileinfo);
-
-
 
 
     
