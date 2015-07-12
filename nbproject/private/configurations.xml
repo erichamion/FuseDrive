@@ -26,7 +26,6 @@
       </nativedebugger>
       <runprofile version="9">
         <runcommandpicklist>
-          <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f -s</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f -s -o allow_other</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -a all -f -s -o allow_other</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" -c testauthfile ~/mytemp</runcommandpicklistitem>
@@ -36,8 +35,9 @@
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp --access</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp --access write</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" ~/mytemp -f</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" ~/mytemp</runcommand>
+        <runcommand>"${OUTPUT_PATH}" ~/mytemp -f</runcommand>
         <rundir></rundir>
         <buildfirst>true</buildfirst>
         <terminal-type>0</terminal-type>

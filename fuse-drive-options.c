@@ -22,7 +22,7 @@
 #define OPTION_CACHETTL 500
 #define OPTION_CHUNKSIZE 501
 #define OPTION_MAXCHUNKS 502
-#define OPTION_STRING "a:c:i:p:d:"
+#define OPTION_STRING "+a:c:i:p:d:"
 
 #define DEFAULT_GDRIVE_ACCESS GDRIVE_ACCESS_WRITE
 #define DEFAULT_AUTH_BASENAME ".auth"
@@ -220,9 +220,10 @@ Fudr_Options* fudr_options_create(int argc, char** argv)
         
         
         
-        // Pass on unrecognized options to FUSE, but make a copy first.
-        // We need to add an argv[0], and we'll be adding some extra options to
-        // the end, so we can't just use the passed-in array.
+        // Pass on non-option argument and any following arguments to FUSE, but
+        // make a copy first. We need to add an argv[0], and we'll be adding 
+        // some extra options to the end, so we can't just use the passed-in 
+        // array.
         if (optind < argc && !strcmp(argv[optind], "--"))
         {
             // If a "--" end-of-arguments is found, skip past it

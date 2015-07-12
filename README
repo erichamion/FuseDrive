@@ -68,9 +68,15 @@ RUNNING:
     
     Usage:
         ./fusedrive [fusedrive-specific-options] <mount-point> [FUSE-options]
+        ./fusedrive [fusedrive-specific-options] -- <mount-point>  [FUSE-options]
         
-    Options can appear in any order, but the order given above is recommended.
-    Any options not recognized by fuse-drive will be passed on to FUSE.
+    The only required option is the mount point. Options specific to fusedrive
+    must appear first, if any are given. The fusedrive-specific options end when
+    either a mount-point (an argument that does not start with '-') or a '--'
+    appears. Any following options are passed unchanged to FUSE.
+    
+    FUSE takes many options, which are not described here. For information on
+    available options and their meaning, see the man page for fuse(8).
     
     fusedrive specific options:
         --access, -a        Set the access level to the Google Drive account.
