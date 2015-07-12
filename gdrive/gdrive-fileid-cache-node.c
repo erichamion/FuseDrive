@@ -20,16 +20,13 @@ typedef struct Gdrive_Fileid_Cache_Node
     struct Gdrive_Fileid_Cache_Node* pNext;
 } Gdrive_Fileid_Cache_Node;
 
-static Gdrive_Fileid_Cache_Node* 
-gdrive_fidnode_create(const char* filename, const char* fileId);
+static Gdrive_Fileid_Cache_Node* gdrive_fidnode_create(const char* filename, 
+                                                       const char* fileId);
 
-static int 
-gdrive_fidnode_update_item(Gdrive_Fileid_Cache_Node* pNode, 
-                                 const char* fileId);
+static int gdrive_fidnode_update_item(Gdrive_Fileid_Cache_Node* pNode, 
+                                      const char* fileId);
 
-static void 
-gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode);
-
+static void gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode);
 
 
 /*************************************************************************
@@ -40,10 +37,8 @@ gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode);
  * Constructors, factory methods, destructors and similar
  ******************/
 
-int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead,
-                                  const char* path,
-                                  const char* fileId
-)
+int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead, const char* path, 
+                       const char* fileId)
 {
     if (*ppHead == NULL)
     {
@@ -65,7 +60,6 @@ int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead,
     
     while (true)
     {
-        //Gdrive_Fileid_Cache_Node* pNext = pPrev->pNext;
         // Find the string comparison.  If pNext is NULL, pretend pNext->path
         // is greater than path (we insert after pPrev in both cases).
         int cmp = (pNext != NULL) ? strcmp(path, pNext->path) : -1;
@@ -96,8 +90,7 @@ int gdrive_fidnode_add(Gdrive_Fileid_Cache_Node** ppHead,
 }
 
 void gdrive_fidnode_remove_by_id(Gdrive_Fileid_Cache_Node** ppHead, 
-                                 const char* fileId
-)
+                                 const char* fileId)
 {
     // Need to walk through the whole list, since it's not keyed by fileId.
     Gdrive_Fileid_Cache_Node** ppFromPrev = ppHead;
@@ -140,8 +133,6 @@ void gdrive_fidnode_clear_all(Gdrive_Fileid_Cache_Node* pHead)
 }
 
 
-
-
 /******************
  * Getter and setter functions
  ******************/
@@ -155,7 +146,9 @@ char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode)
 {
     char* result = malloc(strlen(pNode->fileId) + 1);
     if (result)
+    {
         strcpy(result, pNode->fileId);
+    }
     return result;
 }
 
@@ -164,10 +157,8 @@ char* gdrive_fidnode_get_fileid(Gdrive_Fileid_Cache_Node* pNode)
  * Other accessible functions
  ******************/
 
-Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
-        Gdrive_Fileid_Cache_Node* pHead, 
-        const char* path
-)
+Gdrive_Fileid_Cache_Node* 
+gdrive_fidnode_get_node(Gdrive_Fileid_Cache_Node* pHead, const char* path)
 {
     if (pHead == NULL)
     {
@@ -198,13 +189,12 @@ Gdrive_Fileid_Cache_Node* gdrive_fidnode_get_node(
 }
 
 
-
 /*************************************************************************
  * Implementations of private functions for use within this file
  *************************************************************************/
 
-static Gdrive_Fileid_Cache_Node* 
-gdrive_fidnode_create(const char* filename, const char* fileId)
+static Gdrive_Fileid_Cache_Node* gdrive_fidnode_create(const char* filename, 
+                                                       const char* fileId)
 {
     Gdrive_Fileid_Cache_Node* pResult = 
             malloc(sizeof(Gdrive_Fileid_Cache_Node));
@@ -244,9 +234,8 @@ gdrive_fidnode_create(const char* filename, const char* fileId)
     return pResult;
 }
 
-static int 
-gdrive_fidnode_update_item(Gdrive_Fileid_Cache_Node* pNode, 
-                                 const char* fileId)
+static int gdrive_fidnode_update_item(Gdrive_Fileid_Cache_Node* pNode, 
+                                      const char* fileId)
 {
     // Update the time.
     pNode->lastUpdateTime = time(NULL);
@@ -272,8 +261,7 @@ gdrive_fidnode_update_item(Gdrive_Fileid_Cache_Node* pNode,
 /*
  * DOES NOT REMOVE FROM LIST.  FREES ONLY THE SINGLE NODE.
  */
-static void 
-gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode)
+static void gdrive_fidnode_free(Gdrive_Fileid_Cache_Node* pNode)
 {
     free(pNode->fileId);
     pNode->fileId = NULL;
