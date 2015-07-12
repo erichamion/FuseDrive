@@ -43,9 +43,6 @@ enum Gdrive_Request_Type
 };
 
 
-
-
-
 /*************************************************************************
  * Constructors, factory methods, destructors and similar
  *************************************************************************/
@@ -150,7 +147,6 @@ bool gdrive_dlbuf_get_success(Gdrive_Download_Buffer* pBuf);
  *      Success is indicated by CURLE_OK. See libcurl documentation for possible
  *      error values.
  */
-//CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf);
 CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle);
 
 /*
@@ -174,12 +170,8 @@ CURLcode gdrive_dlbuf_download(Gdrive_Download_Buffer* pBuf, CURL* curlHandle);
  *      0 on success, other on failure.
  */
 int gdrive_dlbuf_download_with_retry(Gdrive_Download_Buffer* pBuf, 
-                                     CURL* curlHandle,
-                                     bool retryOnAuthError,
-                                     int tryNum,
-                                     int maxTries
-);
-
+                                     CURL* curlHandle, bool retryOnAuthError, 
+                                     int tryNum, int maxTries);
 
 
 // #ifdef	__cplusplus
