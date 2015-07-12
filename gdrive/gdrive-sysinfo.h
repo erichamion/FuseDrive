@@ -24,7 +24,6 @@
 typedef struct Gdrive_Sysinfo Gdrive_Sysinfo; 
 
 
-
 /*************************************************************************
  * Constructors, factory methods, destructors and similar
  *************************************************************************/
@@ -75,13 +74,11 @@ int64_t gdrive_sysinfo_get_used(void);
 const char* gdrive_sysinfo_get_rootid(void);
 
 
-
 /*************************************************************************
  * Other accessible functions
  *************************************************************************/
 
 // No other public functions
-
 
 
 // #ifdef	__cplusplus
