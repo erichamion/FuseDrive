@@ -10,10 +10,14 @@
 
 typedef struct Gdrive_Sysinfo
 {
-    int64_t nextChangeId;       // For internal use
-    int64_t quotaBytesTotal;    // Total space on Google Drive, in bytes
-    int64_t quotaBytesUsed;     // Space already used, in bytes
-    char* rootId;               // Google Drive file ID for the root folder
+    // nextChangeId: For internal use
+    int64_t nextChangeId;
+    // quotaBytesTotal: Total space on Google Drive, in bytes
+    int64_t quotaBytesTotal;
+    // quotaBytesUsed: Space already used, in bytes
+    int64_t quotaBytesUsed;
+    // rootId: Google Drive file ID for the root folder
+    char* rootId;
     
 } Gdrive_Sysinfo;    
 
@@ -28,12 +32,9 @@ static const Gdrive_Sysinfo* gdrive_sysinfo_get_or_clear(bool cleanup);
 static void gdrive_sysinfo_cleanup_internal(Gdrive_Sysinfo* pSysinfo);
 
 static int gdrive_sysinfo_fill_from_json(Gdrive_Sysinfo* pDest, 
-                                   Gdrive_Json_Object* pObj
-);
+                                         Gdrive_Json_Object* pObj);
 
 static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest);
-
-
 
 
 /*************************************************************************
@@ -52,8 +53,6 @@ void gdrive_sysinfo_cleanup()
 {
     gdrive_sysinfo_get_or_clear(true);
 }
-
-
 
 
 /******************
@@ -129,8 +128,7 @@ static void gdrive_sysinfo_cleanup_internal(Gdrive_Sysinfo* pSysinfo)
 }
 
 static int gdrive_sysinfo_fill_from_json(Gdrive_Sysinfo* pDest, 
-                                   Gdrive_Json_Object* pObj
-)
+                                         Gdrive_Json_Object* pObj)
 {
     bool currentSuccess = true;
     bool totalSuccess = true;
@@ -174,7 +172,7 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest)
     const char* const fieldString = "quotaBytesTotal,quotaBytesUsed,"
             "largestChangeId,rootFolderId,importFormats,exportFormats";
     
-    //Prepare the transfer
+    // Prepare the transfer
     Gdrive_Transfer* pTransfer = gdrive_xfer_create();
     if (pTransfer == NULL)
     {
@@ -183,8 +181,8 @@ static int gdrive_sysinfo_update(Gdrive_Sysinfo* pDest)
     }
     gdrive_xfer_set_requesttype(pTransfer, GDRIVE_REQUEST_GET);
     if (
-            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_ABOUT) ||
-            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") ||
+            gdrive_xfer_set_url(pTransfer, GDRIVE_URL_ABOUT) || 
+            gdrive_xfer_add_query(pTransfer, "includeSubscribed", "false") || 
             gdrive_xfer_add_query(pTransfer, "fields", fieldString)
         )
     {
