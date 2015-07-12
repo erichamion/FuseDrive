@@ -58,7 +58,6 @@ enum Gdrive_Filetype
 typedef struct Gdrive_Info Gdrive_Info;
 
 
-
 #include "gdrive-fileinfo.h"
 #include "gdrive-fileinfo-array.h"
 #include "gdrive-sysinfo.h"
@@ -107,13 +106,9 @@ typedef struct Gdrive_Info Gdrive_Info;
  *                      authentication any time it is needed.
  * Returns: 0 on success, other value on error.
  */
-int gdrive_init(int access, 
-                const char* authFilename, 
-                time_t cacheTTL,
-                enum Gdrive_Interaction interactionMode,
-                size_t minFileChunkSize,
-                int maxChunksPerFile
-);
+int gdrive_init(int access, const char* authFilename, time_t cacheTTL, 
+                enum Gdrive_Interaction interactionMode, 
+                size_t minFileChunkSize, int maxChunksPerFile);
 
 /*
  * gdrive_init_nocurl():    Sets appropriate settings for the Google Drive 
@@ -125,13 +120,9 @@ int gdrive_init(int access,
  *                          the curl library is used elsewhere and 
  *                          curl_global_init() has already been called.
  */
-int gdrive_init_nocurl(int access, 
-                       const char* authFilename, 
-                       time_t cacheTTL,
-                       enum Gdrive_Interaction interactionMode,
-                       size_t minFileChunkSize,
-                       int maxChunksPerFile
-);
+int gdrive_init_nocurl(int access, const char* authFilename, time_t cacheTTL, 
+                       enum Gdrive_Interaction interactionMode, 
+                       size_t minFileChunkSize, int maxChunksPerFile);
 
 /*
  * gdrive_cleanup():    Closes the network connection and cleanly frees the 
@@ -149,7 +140,7 @@ void gdrive_cleanup(void);
 /*
  * gdrive_cleanup_nocurl(): Cleanly frees the memory associated with the Google 
  *                          Drive session.  Similar to gdrive_cleanup(), but 
- *                          does NOT close the network connection (does not call 
+ *                          does NOT close the network connection (does not call
  *                          curl_global_cleanup()).  This should only be used if
  *                          the curl library is used elsewhere and 
  *                          curl_global_cleanup() will be called elsewhere.
@@ -283,13 +274,6 @@ int gdrive_add_parent(const char* fileId, const char* parentId);
  *      is defined in <errors.h>
  */
 int gdrive_change_basename(const char* fileId, const char* newName);
-
-
-
-
-
-
-
 
 
 // #ifdef	__cplusplus
