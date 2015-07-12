@@ -17,30 +17,46 @@ extern "C" {
     
 #include "gdrive/gdrive.h"
     
-#define FUDR_DEFAULT_GDRIVE_ACCESS GDRIVE_ACCESS_WRITE
-#define FUDR_DEFAULT_AUTH_BASENAME ".auth"
-#define FUDR_DEFAULT_AUTH_RELPATH "fuse-drive"
-#define FUDR_DEFAULT_CACHETTL 30
-#define FUDR_DEFAULT_INTERACTION GDRIVE_INTERACTION_STARTUP
-#define FUDR_DEFAULT_CHUNKSIZE GDRIVE_BASE_CHUNK_SIZE * 4
-#define FUDR_DEFAULT_MAX_CHUNKS 15
-#define FUDR_DEFAULT_FILE_PERMS 0644
-#define FUDR_DEFAULT_DIR_PERMS 07777
     
-
 
 typedef struct Fudr_Options
 {
+    // Access level for Google Drive, one of the GDRIVE_ACCESS_* constants
     int gdrive_access;
+    
+    // Path to config/auth file
     char* gdrive_auth_file;
+    
+    // Time (in seconds) to assume cached data is still valid
     time_t gdrive_cachettl;
+    
+    // Determines when user interaction is allowed if Google Drive
+    // authentication fails
     enum Gdrive_Interaction gdrive_interaction_type;
+    
+    // Size of file chunks
     size_t gdrive_chunk_size;
+    
+    // Maximum number of chunks per file
     int gdrive_max_chunks;
+    
+    // Permissions for files. Interpreted as a 3-digit octal number
     unsigned long file_perms;
+    
+    // Permissions for files. Interpreted as a 3-digit octal number
     unsigned long dir_perms;
+    
+    // Arguments to be passed on to FUSE
     char** fuse_argv;
+    
+    // Length of fuse_argv array
     int fuse_argc;
+    
+    // True if there was an error parsing command line options
+    bool error;
+    
+    // If non-NULL, an error message that may be displayed to the user
+    char* errorMsg;
 } Fudr_Options;
 
 /*

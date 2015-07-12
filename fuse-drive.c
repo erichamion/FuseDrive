@@ -1280,11 +1280,24 @@ static struct fuse_operations fo = {
 int main(int argc, char** argv) 
 {
     
-    
+    // Parse command line options
     Fudr_Options* pOptions = fudr_options_create(argc, argv);
     if (!pOptions)
     {
         fputs("Could not load command line option parser, aborting\n", stderr);
+        return 1;
+    }
+    if (pOptions->error)
+    {
+        fputs("Error interpreting command line options:\n\t", stderr);
+        if (pOptions->errorMsg)
+        {
+            fputs(pOptions->errorMsg, stderr);
+        }
+        else
+        {
+            fputs("Unknown error", stderr);
+        }
         return 1;
     }
     
